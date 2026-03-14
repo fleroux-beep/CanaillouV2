@@ -28,8 +28,8 @@ export default function PaiementsGLPage() {
     { key: "date", label: "Date", sortable: true },
     { key: "montant", label: "Montant", align: "right", sortable: true, render: (r) => formatCurrency(r.montant) },
     { key: "type", label: "Type", sortable: true, render: (r) => <Badge>{r.type}</Badge> },
-    { key: "methode", label: "Methode" },
-    { key: "reference", label: "Reference" },
+    { key: "methode", label: "Méthode" },
+    { key: "reference", label: "Référence" },
     { key: "actions", label: "", align: "right", render: (r) => (
       <div className="flex items-center justify-end gap-1">
         <button onClick={(e) => { e.stopPropagation(); setEditing(r); setForm(r); setDialogOpen(true); }} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button>
@@ -57,14 +57,14 @@ export default function PaiementsGLPage() {
           <FormField label="Montant" name="montant" value={form.montant} onChange={onChange} type="number" suffix="EUR" required />
           <FormField label="Type" name="type" value={form.type} onChange={onChange} required options={[
             { value: "loyer", label: "Loyer" }, { value: "charges", label: "Charges" },
-            { value: "depot_garantie", label: "Depot de garantie" }, { value: "regularisation", label: "Regularisation" },
+            { value: "depot_garantie", label: "Dépôt de garantie" }, { value: "regularisation", label: "Régularisation" },
             { value: "autre", label: "Autre" },
           ]} />
-          <FormField label="Methode" name="methode" value={form.methode} onChange={onChange} options={[
-            { value: "virement", label: "Virement" }, { value: "cheque", label: "Cheque" },
-            { value: "prelevement", label: "Prelevement" }, { value: "especes", label: "Especes" },
+          <FormField label="Méthode" name="methode" value={form.methode} onChange={onChange} options={[
+            { value: "virement", label: "Virement" }, { value: "cheque", label: "Chèque" },
+            { value: "prelevement", label: "Prélèvement" }, { value: "especes", label: "Espèces" },
           ]} />
-          <FormField label="Reference" name="reference" value={form.reference} onChange={onChange} />
+          <FormField label="Référence" name="reference" value={form.reference} onChange={onChange} />
         </FormGrid>
         <FormField label="Notes" name="notes" value={form.notes} onChange={onChange} rows={3} className="mt-4" />
       </FormDialog>

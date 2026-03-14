@@ -100,7 +100,7 @@ export default function ActifsPage() {
         columns={columns}
         searchKeys={["nom", "ville", "type", "adresse"]}
         searchPlaceholder="Rechercher un actif..."
-        emptyMessage="Aucun actif enregistre"
+        emptyMessage="Aucun actif enregistré"
         onRowClick={(r) => navigate(`/asset-management/actifs/${r.id}`)}
       />
 

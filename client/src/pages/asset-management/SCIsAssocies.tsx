@@ -117,11 +117,11 @@ function CapitalGovernancePage() {
         <div className="grid gap-4 sm:grid-cols-3">
           <KpiCard label="Capital total" value={totalCapital} formatFn={(n) => formatCurrency(n)} icon={Landmark} variant="primary" gradient delay={0} />
           <KpiCard label="SCIs" value={scis.length} icon={PieChartIcon} variant="success" gradient delay={1} />
-          <KpiCard label="Associes" value={associes.length} icon={Users} variant="warning" gradient delay={2} />
+          <KpiCard label="Associés" value={associes.length} icon={Users} variant="warning" gradient delay={2} />
         </div>
 
         {capitalData.length > 0 && (
-          <Section title="Repartition du capital" delay={1}>
+          <Section title="Répartition du capital" delay={1}>
             <GlassCard>
               <div className="flex flex-col lg:flex-row gap-8">
                 <div className="w-full lg:w-1/2 h-[300px]">
@@ -329,7 +329,7 @@ function InvestorReportingPage() {
             {/* NAV breakdown pie */}
             <GlassCard delay={4}>
               <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                Repartition NAV par associe
+                Répartition NAV par associé
               </h3>
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
@@ -353,7 +353,7 @@ function InvestorReportingPage() {
             {/* Apport vs NAV bar */}
             <GlassCard delay={5}>
               <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                Performance par associe
+                Performance par associé
               </h3>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={performanceChartData} barGap={4}>
@@ -372,7 +372,7 @@ function InvestorReportingPage() {
         )}
 
         {/* Detailed table */}
-        <Section title="Reporting detaille par associe" delay={3}>
+        <Section title="Reporting détaillé par associé" delay={3}>
           <div className="overflow-x-auto rounded-xl border bg-card shadow-sm">
             <table className="w-full text-sm">
               <thead>
@@ -395,7 +395,7 @@ function InvestorReportingPage() {
                       key={n.associeId}
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.1 + i * 0.05 }}
+                      transition={{ delay: Math.min(0.1 + i * 0.05, 0.1 + 0.5) }}
                       className="border-t transition-colors hover:bg-muted/20"
                     >
                       <td className="px-4 py-3 font-medium">{n.associeNom || "\u2014"}</td>
@@ -455,12 +455,12 @@ export default function SCIsAssociesPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="SCI & Associes" description="Gestion des societes civiles et de leurs associes" />
+      <PageHeader title="SCI & Associés" description="Gestion des sociétés civiles et de leurs associés" />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="scis">SCI</TabsTrigger>
-          <TabsTrigger value="associes">Associes</TabsTrigger>
+          <TabsTrigger value="associes">Associés</TabsTrigger>
           <TabsTrigger value="capital">Capital & gouvernance</TabsTrigger>
           <TabsTrigger value="reporting">Reporting investisseur</TabsTrigger>
         </TabsList>

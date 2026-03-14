@@ -196,7 +196,7 @@ export default function ControleGestionPage() {
                         key={k.sci.id}
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.6 + i * 0.05 }}
+                        transition={{ delay: Math.min(0.6 + i * 0.05, 0.6 + 0.5) }}
                         className="border-t transition-colors hover:bg-muted/20"
                       >
                         <td className="px-4 py-3 font-medium">{k.sci.nom}</td>

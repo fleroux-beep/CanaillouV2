@@ -4,8 +4,9 @@ import { cn } from "../../lib/utils";
 interface FormFieldProps {
   label: string;
   name: string;
-  value: string | number | undefined;
-  onChange: (name: string, value: string) => void;
+  value?: string | number | undefined;
+  defaultValue?: string | number | undefined;
+  onChange?: (name: string, value: string) => void;
   type?: string;
   placeholder?: string;
   required?: boolean;
@@ -20,6 +21,7 @@ export function FormField({
   label,
   name,
   value,
+  defaultValue,
   onChange,
   type = "text",
   placeholder,
@@ -34,14 +36,20 @@ export function FormField({
   const baseClass =
     "w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/20";
 
+  // Support both controlled (value+onChange) and uncontrolled (defaultValue) modes
+  const isControlled = onChange !== undefined && value !== undefined;
+  const valueProps = isControlled
+    ? { value: value ?? "", onChange: (e: any) => onChange(name, e.target.value) }
+    : { defaultValue: defaultValue ?? value ?? "" };
+
   if (options) {
     return (
       <div className={className}>
         <label htmlFor={id} className="mb-1.5 block text-sm font-medium">{label}</label>
         <select
           id={id}
-          value={value ?? ""}
-          onChange={(e) => onChange(name, e.target.value)}
+          name={name}
+          {...valueProps}
           className={baseClass}
           required={required}
           aria-required={required}
@@ -61,8 +69,8 @@ export function FormField({
         <label htmlFor={id} className="mb-1.5 block text-sm font-medium">{label}</label>
         <textarea
           id={id}
-          value={value ?? ""}
-          onChange={(e) => onChange(name, e.target.value)}
+          name={name}
+          {...valueProps}
           placeholder={placeholder}
           rows={rows}
           className={cn(baseClass, "resize-none")}
@@ -82,9 +90,9 @@ export function FormField({
         )}
         <input
           id={id}
+          name={name}
           type={type}
-          value={value ?? ""}
-          onChange={(e) => onChange(name, e.target.value)}
+          {...valueProps}
           placeholder={placeholder}
           className={cn(baseClass, prefix && "pl-8", suffix && "pr-12")}
           required={required}

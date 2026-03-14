@@ -30,7 +30,7 @@ export function DataTable<T extends Record<string, any>>({
   onRowClick,
   searchKeys = [],
   searchPlaceholder = "Rechercher...",
-  emptyMessage = "Aucune donnee",
+  emptyMessage = "Aucune donnée",
   actions,
   pageSize = 15,
   exportFileName = "export",
@@ -239,7 +239,7 @@ export function DataTable<T extends Record<string, any>>({
       {/* Pagination */}
       <div className="flex items-center justify-between">
         <div className="text-sm text-muted-foreground" role="status" aria-live="polite">
-          {filtered.length} {filtered.length > 1 ? "resultats" : "resultat"}
+          {filtered.length} {filtered.length > 1 ? "résultats" : "résultat"}
         </div>
         {totalPages > 1 && (
           <nav className="flex items-center gap-1" aria-label="Pagination">

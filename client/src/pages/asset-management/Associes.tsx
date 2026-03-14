@@ -36,19 +36,19 @@ export default function AssociesPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Associes" description="Associes des SCIs" actions={
+      <PageHeader title="Associés" description="Associés des SCIs" actions={
         <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => { setEditing(null); setForm(empty); setDialogOpen(true); }}
           className="flex items-center gap-2 rounded-lg gradient-primary px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/25">
-          <Plus className="h-4 w-4" /> Nouvel associe
+          <Plus className="h-4 w-4" /> Nouvel associé
         </motion.button>
       } />
-      <DataTable data={data} columns={columns} searchKeys={["nom", "prenom", "email"]} searchPlaceholder="Rechercher..." emptyMessage="Aucun associe" exportFileName="associes" />
-      <FormDialog open={dialogOpen} onClose={() => setDialogOpen(false)} title={editing ? "Modifier l'associe" : "Nouvel associe"} onSubmit={handleSubmit} loading={creating || updating}>
+      <DataTable data={data} columns={columns} searchKeys={["nom", "prenom", "email"]} searchPlaceholder="Rechercher..." emptyMessage="Aucun associé" exportFileName="associes" />
+      <FormDialog open={dialogOpen} onClose={() => setDialogOpen(false)} title={editing ? "Modifier l'associé" : "Nouvel associé"} onSubmit={handleSubmit} loading={creating || updating}>
         <FormGrid>
           <FormField label="Nom" name="nom" value={form.nom} onChange={onChange} required />
-          <FormField label="Prenom" name="prenom" value={form.prenom} onChange={onChange} />
+          <FormField label="Prénom" name="prenom" value={form.prenom} onChange={onChange} />
           <FormField label="Email" name="email" value={form.email} onChange={onChange} type="email" />
-          <FormField label="Telephone" name="telephone" value={form.telephone} onChange={onChange} />
+          <FormField label="Téléphone" name="telephone" value={form.telephone} onChange={onChange} />
           <FormField label="SIRET" name="siret" value={form.siret} onChange={onChange} />
         </FormGrid>
         <FormField label="Adresse" name="adresse" value={form.adresse} onChange={onChange} className="mt-4" />

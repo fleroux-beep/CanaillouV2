@@ -368,10 +368,10 @@ export default function TresoreriePage() {
           size="lg"
         >
           <FormGrid cols={2}>
-            <FormField name="bailId" label="Bail / Crèche" required value={editing?.bailId || ""} onChange={() => {}}
+            <FormField name="bailId" label="Bail / Crèche" required defaultValue={editing?.bailId || ""}
               options={activeBaux.map((b: any) => ({ value: b.id, label: b.nom }))}
             />
-            <FormField name="type" label="Type" required value={editing?.type || ""} onChange={() => {}}
+            <FormField name="type" label="Type" required defaultValue={editing?.type || ""}
               options={[
                 { value: "Loyer", label: "Loyer" },
                 { value: "Charges", label: "Charges" },
@@ -382,13 +382,13 @@ export default function TresoreriePage() {
             />
           </FormGrid>
           <FormGrid cols={2}>
-            <FormField name="dateFacture" label="Date facture" type="date" required value={editing?.dateFacture || ""} onChange={() => {}} />
-            <FormField name="dateEcheance" label="Date échéance" type="date" value={editing?.dateEcheance || ""} onChange={() => {}} />
+            <FormField name="dateFacture" label="Date facture" type="date" required defaultValue={editing?.dateFacture || ""} />
+            <FormField name="dateEcheance" label="Date échéance" type="date" defaultValue={editing?.dateEcheance || ""} />
           </FormGrid>
           <FormGrid cols={3}>
-            <FormField name="montantHT" label="Montant HT" type="number" value={editing?.montantHT || ""} onChange={() => {}} />
-            <FormField name="montantTTC" label="Montant TTC" type="number" required value={editing?.montantTTC || ""} onChange={() => {}} />
-            <FormField name="statut" label="Statut" required value={editing?.statut || "a_payer"} onChange={() => {}}
+            <FormField name="montantHT" label="Montant HT" type="number" defaultValue={editing?.montantHT || ""} />
+            <FormField name="montantTTC" label="Montant TTC" type="number" required defaultValue={editing?.montantTTC || ""} />
+            <FormField name="statut" label="Statut" required defaultValue={editing?.statut || "a_payer"}
               options={[
                 { value: "a_payer", label: "À payer" },
                 { value: "paye", label: "Payé" },
@@ -398,10 +398,10 @@ export default function TresoreriePage() {
             />
           </FormGrid>
           <FormGrid cols={2}>
-            <FormField name="reference" label="Référence" value={editing?.reference || ""} onChange={() => {}} />
-            <FormField name="datePaiement" label="Date paiement" type="date" value={editing?.datePaiement || ""} onChange={() => {}} />
+            <FormField name="reference" label="Référence" defaultValue={editing?.reference || ""} />
+            <FormField name="datePaiement" label="Date paiement" type="date" defaultValue={editing?.datePaiement || ""} />
           </FormGrid>
-          <FormField name="notes" label="Notes" rows={3} value={editing?.notes || ""} onChange={() => {}} />
+          <FormField name="notes" label="Notes" rows={3} defaultValue={editing?.notes || ""} />
         </FormDialog>
 
         {/* Delete confirmation */}

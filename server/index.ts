@@ -7,6 +7,7 @@ import { pool } from "./db";
 import { registerAuthRoutes } from "./routes/auth";
 import { registerAMRoutes } from "./routes/am";
 import { registerGLRoutes } from "./routes/gl";
+import { registerImportRoutes } from "./routes/import";
 import { logger, requestLogger } from "./lib/logger";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -41,6 +42,7 @@ app.use(
 registerAuthRoutes(app);
 registerAMRoutes(app);
 registerGLRoutes(app);
+registerImportRoutes(app);
 
 // Health check
 app.get("/api/health", (_req, res) => {

@@ -73,18 +73,18 @@ export default function BauxGLPage() {
           <FormField label="Ville" name="ville" value={form.ville} onChange={onChange} />
           <FormField label="Code postal" name="codePostal" value={form.codePostal} onChange={onChange} />
           <FormField label="Surface" name="surface" value={form.surface} onChange={onChange} type="number" suffix="m²" />
-          <FormField label="Capacite (berceaux)" name="capacite" value={form.capacite} onChange={onChange} type="number" />
+          <FormField label="Capacité (berceaux)" name="capacite" value={form.capacite} onChange={onChange} type="number" />
         </FormGrid>
         <h3 className="mt-5 mb-3 text-sm font-semibold text-muted-foreground uppercase">Loyer & Charges</h3>
         <FormGrid cols={4}>
           <FormField label="Loyer base HT" name="loyerBaseHT" value={form.loyerBaseHT} onChange={onChange} type="number" suffix="EUR" />
           <FormField label="Charges" name="charges" value={form.charges} onChange={onChange} type="number" suffix="EUR" />
-          <FormField label="Depot garantie" name="depotGarantie" value={form.depotGarantie} onChange={onChange} type="number" suffix="EUR" />
-          <FormField label="Taxe fonciere" name="taxeFonciere" value={form.taxeFonciere} onChange={onChange} type="number" suffix="EUR" />
+          <FormField label="Dépôt garantie" name="depotGarantie" value={form.depotGarantie} onChange={onChange} type="number" suffix="EUR" />
+          <FormField label="Taxe foncière" name="taxeFonciere" value={form.taxeFonciere} onChange={onChange} type="number" suffix="EUR" />
         </FormGrid>
         <h3 className="mt-5 mb-3 text-sm font-semibold text-muted-foreground uppercase">Indexation</h3>
         <FormGrid cols={3}>
-          <FormField label="Indice reference" name="indiceReference" value={form.indiceReference} onChange={onChange} options={[
+          <FormField label="Indice référence" name="indiceReference" value={form.indiceReference} onChange={onChange} options={[
             { value: "ILC", label: "ILC" }, { value: "IRL", label: "IRL" }, { value: "ILAT", label: "ILAT" }, { value: "ICC", label: "ICC" },
           ]} />
           <FormField label="Trimestre ref." name="trimestreRef" value={form.trimestreRef} onChange={onChange} placeholder="Ex: T1 2024" />

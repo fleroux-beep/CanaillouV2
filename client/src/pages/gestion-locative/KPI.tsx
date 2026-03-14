@@ -237,7 +237,7 @@ export default function GLKPIPage() {
                   key={pt.name}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 + i * 0.08 }}
+                  transition={{ delay: Math.min(0.3 + i * 0.08, 0.3 + 0.5) }}
                   className="rounded-xl border bg-muted/20 p-4"
                 >
                   <Badge variant="primary" className="mb-2">{pt.name}</Badge>
@@ -285,7 +285,7 @@ export default function GLKPIPage() {
                         key={b.id}
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.6 + i * 0.03 }}
+                        transition={{ delay: Math.min(0.6 + i * 0.03, 0.6 + 0.5) }}
                         className="border-t transition-colors hover:bg-muted/20"
                       >
                         <td className="px-4 py-3 font-medium">{b.nom}</td>

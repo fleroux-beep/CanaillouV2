@@ -97,7 +97,7 @@ export default function SCIsPage() {
         columns={columns}
         searchKeys={["nom", "ville", "gerant", "siret"]}
         searchPlaceholder="Rechercher une SCI..."
-        emptyMessage="Aucune SCI enregistree"
+        emptyMessage="Aucune SCI enregistrée"
         onRowClick={(r) => navigate(`/asset-management/scis/${r.id}`)}
       />
 

@@ -67,11 +67,11 @@ export default function LotsPage() {
 
       <DataTable data={data.filter((l) => !l.archived)} columns={columns}
         searchKeys={["designation", "type", "etage"]} searchPlaceholder="Rechercher un lot..."
-        emptyMessage="Aucun lot enregistre" exportFileName="lots" />
+        emptyMessage="Aucun lot enregistré" exportFileName="lots" />
 
       <FormDialog open={dialogOpen} onClose={() => setDialogOpen(false)} title={editing ? `Modifier ${editing.designation}` : "Nouveau lot"} onSubmit={handleSubmit} loading={creating || updating} size="lg">
         <FormGrid>
-          <FormField label="Designation" name="designation" value={form.designation} onChange={onChange} required />
+          <FormField label="Désignation" name="designation" value={form.designation} onChange={onChange} required />
           <FormField label="Actif" name="actifId" value={form.actifId} onChange={onChange} required options={actifs.map((a) => ({ value: a.id, label: a.nom }))} />
           <FormField label="Type" name="type" value={form.type} onChange={onChange} options={[
             { value: "commercial", label: "Commercial" }, { value: "bureau", label: "Bureau" },

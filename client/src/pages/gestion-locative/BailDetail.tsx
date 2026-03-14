@@ -102,7 +102,7 @@ export default function BailGLDetailPage() {
         <GlassCard>
           <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase text-muted-foreground">
             <MapPin className="h-4 w-4" />
-            Informations generales
+            Informations générales
           </h3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <InfoRow label="Adresse" value={bail.adresse || "—"} />
@@ -113,13 +113,13 @@ export default function BailGLDetailPage() {
               value={bail.surface ? `${bail.surface} m²` : "—"}
             />
             <InfoRow
-              label="Surface exterieure"
+              label="Surface extérieure"
               value={
                 bail.surfaceExterieure ? `${bail.surfaceExterieure} m²` : "—"
               }
             />
             <InfoRow
-              label="Capacite (berceaux)"
+              label="Capacité (berceaux)"
               value={bail.capacite != null ? String(bail.capacite) : "—"}
             />
             <InfoRow label="Date signature" value={bail.dateSignature || "—"} />
@@ -141,37 +141,37 @@ export default function BailGLDetailPage() {
           </div>
         </GlassCard>
 
-        {/* Dates & Periodes */}
+        {/* Dates & Périodes */}
         <GlassCard delay={1}>
           <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase text-muted-foreground">
             <Calendar className="h-4 w-4" />
-            Dates & Periodes
+            Dates & Périodes
           </h3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <InfoRow label="Date debut" value={bail.dateDebut || "—"} />
+            <InfoRow label="Date début" value={bail.dateDebut || "—"} />
             <InfoRow label="Date fin" value={bail.dateFin || "—"} />
             <InfoRow
-              label="Periode ferme debut"
+              label="Période ferme début"
               value={bail.periodeFermeDebut || "—"}
             />
             <InfoRow
-              label="Periode ferme fin"
+              label="Période ferme fin"
               value={bail.periodeFermeFin || "—"}
             />
             <InfoRow
-              label="Duree periode ferme"
-              value={bail.periodeFermeDuree || "—"}
+              label="Durée période ferme"
+              value={bail.periodeFermeDureeAns ? `${bail.periodeFermeDureeAns} ans` : "—"}
             />
             <InfoRow
-              label="Echeance triennale 1"
+              label="Échéance triennale 1"
               value={bail.echTrien1 || "—"}
             />
             <InfoRow
-              label="Echeance triennale 2"
+              label="Échéance triennale 2"
               value={bail.echTrien2 || "—"}
             />
             <InfoRow
-              label="Echeance triennale 3"
+              label="Échéance triennale 3"
               value={bail.echTrien3 || "—"}
             />
           </div>
@@ -201,7 +201,7 @@ export default function BailGLDetailPage() {
               value={bail.charges ? formatCurrency(bail.charges) : "—"}
             />
             <InfoRow
-              label="Depot de garantie"
+              label="Dépôt de garantie"
               value={
                 bail.depotGarantie
                   ? formatCurrency(bail.depotGarantie)
@@ -209,7 +209,7 @@ export default function BailGLDetailPage() {
               }
             />
             <InfoRow
-              label="Taxe fonciere"
+              label="Taxe foncière"
               value={
                 bail.taxeFonciere
                   ? formatCurrency(bail.taxeFonciere)
@@ -247,7 +247,7 @@ export default function BailGLDetailPage() {
           </h3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <InfoRow
-              label="Indice de reference"
+              label="Indice de référence"
               value={
                 bail.indiceReference ? (
                   <Badge variant="primary">{bail.indiceReference}</Badge>
@@ -257,7 +257,7 @@ export default function BailGLDetailPage() {
               }
             />
             <InfoRow
-              label="Trimestre de reference"
+              label="Trimestre de référence"
               value={bail.trimestreRef || "—"}
             />
             <InfoRow
@@ -308,7 +308,7 @@ export default function BailGLDetailPage() {
             delay={1}
           />
           <KpiCard
-            label="Depot de garantie"
+            label="Dépôt de garantie"
             value={parseFloat(bail.depotGarantie) || 0}
             formatFn={formatCurrency}
             icon={Calculator}
@@ -329,7 +329,7 @@ export default function BailGLDetailPage() {
           <GlassCard hover={false}>
             {sortedPaiements.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Aucun paiement enregistre pour ce bail.
+                Aucun paiement enregistré pour ce bail.
               </p>
             ) : (
               <div className="overflow-x-auto">
@@ -339,8 +339,8 @@ export default function BailGLDetailPage() {
                       <th className="pb-3 font-medium">Date</th>
                       <th className="pb-3 font-medium text-right">Montant</th>
                       <th className="pb-3 font-medium">Type</th>
-                      <th className="pb-3 font-medium">Methode</th>
-                      <th className="pb-3 font-medium">Reference</th>
+                      <th className="pb-3 font-medium">Méthode</th>
+                      <th className="pb-3 font-medium">Référence</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -378,7 +378,7 @@ export default function BailGLDetailPage() {
           <GlassCard hover={false}>
             {indexations.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Aucune indexation enregistree pour ce bail.
+                Aucune indexation enregistrée pour ce bail.
               </p>
             ) : (
               <div className="overflow-x-auto">

@@ -41,7 +41,7 @@ export default function GLDashboard() {
   if (l1 || l2 || l3) {
     return (
       <div className="space-y-8">
-        <PageHeader title="Gestion Locative" description="Chargement des donnees..." />
+        <PageHeader title="Gestion Locative" description="Chargement des données..." />
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => <SkeletonKpi key={i} />)}
         </div>
@@ -349,7 +349,7 @@ export default function GLDashboard() {
                       key={b.id}
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.6 + i * 0.03 }}
+                      transition={{ delay: Math.min(0.6 + i * 0.03, 0.6 + 0.5) }}
                       className="border-t transition-colors hover:bg-muted/20 cursor-pointer"
                       onClick={() => navigate(`/gestion-locative/baux/${b.id}`)}
                     >

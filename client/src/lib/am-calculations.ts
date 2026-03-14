@@ -21,6 +21,7 @@ export interface AMActif {
   chargesAnnuelles?: string | null;
   taxeFonciere?: string | null;
   assurancePno?: string | null;
+  chargesCopropriete?: string | null;
   tauxCapitalisation?: string | null;
   prixM2Marche?: string | null;
   archived?: boolean | null;
@@ -122,11 +123,16 @@ export function getLoyerAnnuelActif(actif: AMActif, baux: AMBail[], lots?: AMLot
 // Charges
 // ============================================================
 
-/** Total des charges annuelles d'un actif */
+/** Total des charges annuelles d'un actif.
+ * chargesAnnuelles = charges de copropriété (legacy field)
+ * chargesCopropriete = charges de copropriété (explicit field)
+ * On utilise chargesCopropriete en priorité, sinon chargesAnnuelles comme fallback.
+ */
 export function getChargesAnnuelles(actif: AMActif): number {
   if (!actif) return 0;
+  const copro = Number(actif.chargesCopropriete || actif.chargesAnnuelles || 0);
   return (
-    Number(actif.chargesAnnuelles || 0) +
+    copro +
     Number(actif.taxeFonciere || 0) +
     Number(actif.assurancePno || 0)
   );
@@ -467,6 +473,7 @@ export function computeStressTests(
   serviceDette: number,
   valorisation: number,
   dette: number,
+  emprunts?: AMEmprunt[],
 ): StressScenario[] {
   const scenarios = [
     { label: "Base", vacanceRate: 0, tauxVariation: 0, chargesVariation: 0 },
@@ -481,10 +488,22 @@ export function computeStressTests(
   return scenarios.map((s) => {
     const loyerAjuste = loyerBase * (1 - s.vacanceRate / 100);
     const chargesAjustees = chargesBase * (1 + s.chargesVariation / 100);
-    // Impact proportionnel : +100bp sur un taux de ~3% ≈ +33% de service de dette
-    // On utilise le ratio direct : variation_bp / taux_moyen_implicite
-    const tauxMoyenImplicite = 3; // taux moyen typique des emprunts immobiliers (%)
-    const debtServiceAjuste = serviceDette * (1 + s.tauxVariation / tauxMoyenImplicite);
+    // Calcul du taux moyen pondéré depuis les emprunts réels
+    let tauxMoyenImplicite = 3; // fallback
+    if (emprunts && emprunts.length > 0) {
+      let totalPondere = 0;
+      let totalCRD = 0;
+      for (const e of emprunts) {
+        const crd = Number(e.capitalRestantDu || e.montantEmprunte || 0);
+        const taux = Number(e.tauxAnnuel || 0);
+        if (crd > 0 && taux > 0) {
+          totalPondere += crd * taux;
+          totalCRD += crd;
+        }
+      }
+      if (totalCRD > 0) tauxMoyenImplicite = totalPondere / totalCRD;
+    }
+    const debtServiceAjuste = serviceDette * (1 + (tauxMoyenImplicite > 0 ? s.tauxVariation / tauxMoyenImplicite : 0));
     const noiAjuste = loyerAjuste - chargesAjustees;
     const cashFlowAjuste = noiAjuste - debtServiceAjuste;
     const dscr = debtServiceAjuste > 0 ? noiAjuste / debtServiceAjuste : 0;

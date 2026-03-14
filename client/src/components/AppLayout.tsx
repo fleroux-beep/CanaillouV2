@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useState, useCallback } from "react";
 import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
@@ -10,7 +10,7 @@ import {
   ChevronLeft, ChevronRight, LogOut, Sun, Moon, ArrowLeft,
   AlertTriangle, DollarSign, FolderOpen, ShieldCheck,
   TreePine, Hammer, ArrowLeftRight, FlaskConical, ClipboardList,
-  ArrowUpDown, FileBarChart,
+  ArrowUpDown, FileBarChart, Menu, X,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 
@@ -110,9 +110,11 @@ const glNavGroups: NavGroup[] = [
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [location] = useLocation();
   const { user, logout } = useAuth();
   const { dark, toggle } = useDarkMode();
+  const closeMobile = useCallback(() => setMobileOpen(false), []);
 
   const isAM = location.startsWith("/asset-management");
   const isGL = location.startsWith("/gestion-locative");
@@ -120,19 +122,19 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const sectionTitle = isAM ? "Asset Management" : isGL ? "Gestion Locative" : "";
   const sectionColor = isAM ? "from-blue-500 to-indigo-600" : "from-violet-500 to-purple-600";
 
-  return (
-    <TooltipPrimitive.Provider delayDuration={0}>
-    <div className="flex h-screen overflow-hidden">
-      {/* Sidebar - dark themed */}
-      <motion.aside
-        animate={{ width: collapsed ? 64 : 260 }}
-        transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-        className="flex flex-col bg-[hsl(var(--sidebar-bg))] text-[hsl(var(--sidebar-foreground))]"
-        aria-label="Navigation principale"
-      >
+  /* Shared sidebar content renderer — used for both desktop and mobile */
+  const renderSidebarContent = (isMobile: boolean) => {
+    const isExpanded = isMobile ? true : !collapsed;
+    return (
+      <>
         {/* Logo */}
         <div className="flex h-16 items-center border-b border-white/5 px-4">
-          <Link href="/" className="flex items-center gap-3" aria-label="Accueil Canaillou">
+          <Link
+            href="/"
+            className="flex items-center gap-3"
+            aria-label="Accueil Canaillou"
+            onClick={isMobile ? closeMobile : undefined}
+          >
             <motion.div
               whileHover={{ rotate: 5 }}
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 shadow-lg shadow-blue-500/25"
@@ -140,7 +142,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               <span className="text-sm font-bold text-white">C</span>
             </motion.div>
             <AnimatePresence>
-              {!collapsed && (
+              {isExpanded && (
                 <motion.span
                   initial={{ opacity: 0, width: 0 }}
                   animate={{ opacity: 1, width: "auto" }}
@@ -152,10 +154,20 @@ export function AppLayout({ children }: { children: ReactNode }) {
               )}
             </AnimatePresence>
           </Link>
+          {/* Close button on mobile */}
+          {isMobile && (
+            <button
+              onClick={closeMobile}
+              className="ml-auto text-white/50 hover:text-white/80"
+              aria-label="Fermer le menu"
+            >
+              <X className="h-5 w-5" aria-hidden="true" />
+            </button>
+          )}
         </div>
 
         {/* Section badge */}
-        {sectionTitle && !collapsed && (
+        {sectionTitle && isExpanded && (
           <div className="px-4 pt-4 pb-2">
             <div className={`inline-flex rounded-full bg-gradient-to-r ${sectionColor} px-3 py-1 text-xs font-medium text-white`}>
               {sectionTitle}
@@ -167,12 +179,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
         <nav className="flex-1 overflow-y-auto scrollbar-thin px-2 py-2" aria-label={sectionTitle || "Navigation"}>
           {navGroups.map((group, gi) => (
             <div key={gi} className={gi > 0 ? "mt-3" : ""}>
-              {group.label && !collapsed && (
+              {group.label && isExpanded && (
                 <div className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-white/25">
                   {group.label}
                 </div>
               )}
-              {collapsed && gi > 0 && group.label && (
+              {!isExpanded && gi > 0 && group.label && (
                 <div className="mx-3 mb-1 border-t border-white/5" />
               )}
               {group.items.map((item) => {
@@ -181,7 +193,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   (item.href.endsWith("/dashboard") && location === item.href.replace("/dashboard", "")) ||
                   (item.href !== "/" && location.startsWith(item.href) && item.href.length > 5);
                 const navLink = (
-                  <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined}>
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-current={active ? "page" : undefined}
+                    onClick={isMobile ? closeMobile : undefined}
+                  >
                     <motion.div
                       whileHover={{ x: 2 }}
                       className={cn(
@@ -193,7 +210,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                     >
                       <item.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
                       <AnimatePresence>
-                        {!collapsed && (
+                        {isExpanded && (
                           <motion.span
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
@@ -206,7 +223,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                       </AnimatePresence>
                       {active && (
                         <motion.div
-                          layoutId="nav-indicator"
+                          layoutId={isMobile ? "nav-indicator-mobile" : "nav-indicator"}
                           className="absolute left-0 h-6 w-1 rounded-r-full bg-gradient-to-b from-blue-400 to-violet-500"
                           transition={{ type: "spring", stiffness: 300, damping: 30 }}
                         />
@@ -214,7 +231,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                     </motion.div>
                   </Link>
                 );
-                return collapsed ? (
+                return !isExpanded ? (
                   <TooltipPrimitive.Root key={item.href}>
                     <TooltipPrimitive.Trigger asChild>
                       {navLink}
@@ -246,7 +263,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           >
             {dark ? <Sun className="h-4 w-4" aria-hidden="true" /> : <Moon className="h-4 w-4" aria-hidden="true" />}
             <AnimatePresence>
-              {!collapsed && (
+              {isExpanded && (
                 <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                   {dark ? "Mode clair" : "Mode sombre"}
                 </motion.span>
@@ -254,26 +271,32 @@ export function AppLayout({ children }: { children: ReactNode }) {
             </AnimatePresence>
           </motion.button>
 
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            aria-label={collapsed ? "Déplier la barre latérale" : "Replier la barre latérale"}
-            aria-expanded={!collapsed}
-            className="flex w-full items-center justify-center rounded-lg p-2 text-white/30 hover:bg-white/5 hover:text-white/60"
-          >
-            {collapsed ? <ChevronRight className="h-4 w-4" aria-hidden="true" /> : <ChevronLeft className="h-4 w-4" aria-hidden="true" />}
-          </button>
+          {/* Collapse toggle — desktop only */}
+          {!isMobile && (
+            <button
+              onClick={() => setCollapsed(!collapsed)}
+              aria-label={collapsed ? "Déplier la barre latérale" : "Replier la barre latérale"}
+              aria-expanded={!collapsed}
+              className="flex w-full items-center justify-center rounded-lg p-2 text-white/30 hover:bg-white/5 hover:text-white/60"
+            >
+              {collapsed ? <ChevronRight className="h-4 w-4" aria-hidden="true" /> : <ChevronLeft className="h-4 w-4" aria-hidden="true" />}
+            </button>
+          )}
 
           {(isAM || isGL) && (() => {
             const switchLabel = isAM ? "Gestion Locative \u2192" : "Asset Management \u2192";
             const switchLink = (
-              <Link href={isAM ? "/gestion-locative/dashboard" : "/asset-management/dashboard"}>
+              <Link
+                href={isAM ? "/gestion-locative/dashboard" : "/asset-management/dashboard"}
+                onClick={isMobile ? closeMobile : undefined}
+              >
                 <motion.div
                   whileHover={{ x: 2 }}
                   className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-white/40 hover:bg-white/5 hover:text-white/70 transition-all"
                 >
                   <ArrowLeftRight className="h-4 w-4 shrink-0" aria-hidden="true" />
                   <AnimatePresence>
-                    {!collapsed && (
+                    {isExpanded && (
                       <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="truncate">
                         {switchLabel}
                       </motion.span>
@@ -282,7 +305,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 </motion.div>
               </Link>
             );
-            return collapsed ? (
+            return !isExpanded ? (
               <TooltipPrimitive.Root>
                 <TooltipPrimitive.Trigger asChild>
                   {switchLink}
@@ -301,7 +324,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             ) : switchLink;
           })()}
 
-          {!collapsed && (
+          {isExpanded && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -323,10 +346,72 @@ export function AppLayout({ children }: { children: ReactNode }) {
             </motion.div>
           )}
         </div>
+      </>
+    );
+  };
+
+  return (
+    <TooltipPrimitive.Provider delayDuration={0}>
+    <div className="flex h-screen overflow-hidden">
+      {/* ===== Desktop sidebar (hidden on mobile) ===== */}
+      <motion.aside
+        animate={{ width: collapsed ? 64 : 260 }}
+        transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+        className="hidden md:flex flex-col bg-[hsl(var(--sidebar-bg))] text-[hsl(var(--sidebar-foreground))]"
+        aria-label="Navigation principale"
+      >
+        {renderSidebarContent(false)}
       </motion.aside>
 
-      {/* Main */}
+      {/* ===== Mobile sidebar overlay ===== */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              key="mobile-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 z-40 bg-black/60 md:hidden"
+              onClick={closeMobile}
+              aria-hidden="true"
+            />
+            {/* Slide-in sidebar */}
+            <motion.aside
+              key="mobile-sidebar"
+              initial={{ x: "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "-100%" }}
+              transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+              className="fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-[hsl(var(--sidebar-bg))] text-[hsl(var(--sidebar-foreground))] shadow-2xl md:hidden"
+              aria-label="Navigation principale"
+            >
+              {renderSidebarContent(true)}
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ===== Main content ===== */}
       <main className="flex-1 overflow-y-auto scrollbar-thin bg-background">
+        {/* Mobile hamburger header */}
+        <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:hidden">
+          <button
+            onClick={() => setMobileOpen(true)}
+            className="inline-flex items-center justify-center rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            aria-label="Ouvrir le menu"
+          >
+            <Menu className="h-5 w-5" aria-hidden="true" />
+          </button>
+          {sectionTitle && (
+            <span className={`inline-flex rounded-full bg-gradient-to-r ${sectionColor} px-3 py-1 text-xs font-medium text-white`}>
+              {sectionTitle}
+            </span>
+          )}
+        </div>
+
         <div className="p-6 lg:p-8">
           <AnimatePresence mode="wait">
             <motion.div

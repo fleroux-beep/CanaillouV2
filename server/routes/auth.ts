@@ -5,10 +5,14 @@ import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middleware/auth";
 import { validate, loginSchema, changePasswordSchema, createUserSchema } from "../lib/validation";
+import { rateLimit } from "../lib/rate-limit";
+
+// 10 attempts per 15 minutes per IP
+const loginLimiter = rateLimit(10, 15 * 60 * 1000);
 
 export function registerAuthRoutes(app: Express) {
   // Login
-  app.post("/api/auth/login", validate(loginSchema), async (req: any, res: any) => {
+  app.post("/api/auth/login", loginLimiter, validate(loginSchema), async (req: any, res: any) => {
     try {
       const { email, password } = req.body;
 

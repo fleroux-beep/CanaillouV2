@@ -63,7 +63,7 @@ export default function ProjectionsPage() {
 
   const bauxActifs = baux.filter((b: any) => !b.archived);
   const totalLoyerActuel = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.loyerBaseHT || 0), 0);
-  const totalCharges = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.chargesAnnuelles || b.provisions || 0), 0);
+  const totalCharges = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.charges || 0), 0);
   const totalSurface = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.surface || 0), 0);
   const totalBerceaux = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.capacite || b.berceaux || 0), 0);
 
@@ -75,7 +75,7 @@ export default function ProjectionsPage() {
   const projectionData = useMemo(() => {
     const scenarios = [
       { key: "ILC 2%", rate: 2 },
-      { key: `Reference ${customRate}%`, rate: customRate },
+      { key: `Référence ${customRate}%`, rate: customRate },
       { key: "Haut 4%", rate: 4 },
     ];
     return Array.from({ length: horizon + 1 }, (_, year) => {
@@ -162,7 +162,7 @@ export default function ProjectionsPage() {
             variant="primary" gradient delay={0}
           />
           <KpiCard
-            label="Loyer projete N+1" value={loyerN1}
+            label="Loyer projeté N+1" value={loyerN1}
             formatFn={formatCurrency} icon={TrendingUp}
             variant="success" gradient delay={1}
           />
@@ -235,7 +235,7 @@ export default function ProjectionsPage() {
                   <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
                   <Tooltip {...chartTooltipStyle} formatter={(v: number) => formatCurrency(v)} />
                   <Area type="monotone" dataKey="ILC 2%" stroke="#06b6d4" fill="url(#gradLow)" strokeWidth={2} />
-                  <Area type="monotone" dataKey={`Reference ${customRate}%`} stroke="#3b82f6" fill="url(#gradRef)" strokeWidth={2.5} />
+                  <Area type="monotone" dataKey={`Référence ${customRate}%`} stroke="#3b82f6" fill="url(#gradRef)" strokeWidth={2.5} />
                   <Area type="monotone" dataKey="Haut 4%" stroke="#f59e0b" fill="url(#gradHigh)" strokeWidth={2} />
                   <Legend />
                 </AreaChart>
@@ -288,7 +288,7 @@ export default function ProjectionsPage() {
                         key={bp.id}
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.1 + i * 0.03 }}
+                        transition={{ delay: Math.min(0.1 + i * 0.03, 0.1 + 0.5) }}
                         className="border-t transition-colors hover:bg-muted/20"
                       >
                         <td className="px-3 py-3 font-medium">{bp.nom}</td>

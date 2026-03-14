@@ -34,7 +34,7 @@ const typeBadgeVariant: Record<string, "primary" | "success" | "warning"> = {
 const typeLabels: Record<string, string> = {
   "fin-bail": "Fin de bail",
   triennale: "Triennale",
-  "periode-ferme": "Periode ferme",
+  "periode-ferme": "Période ferme",
 };
 
 function formatDate(dateStr: string): string {
@@ -75,7 +75,7 @@ export default function CalendrierGLPage() {
       events.push({
         id: `trien1-${b.id}`,
         date: b.echTrien1,
-        title: `Echeance triennale: ${nom}`,
+        title: `Échéance triennale: ${nom}`,
         type: "triennale",
       });
     }
@@ -83,7 +83,7 @@ export default function CalendrierGLPage() {
       events.push({
         id: `trien2-${b.id}`,
         date: b.echTrien2,
-        title: `Echeance triennale: ${nom}`,
+        title: `Échéance triennale: ${nom}`,
         type: "triennale",
       });
     }
@@ -91,7 +91,7 @@ export default function CalendrierGLPage() {
       events.push({
         id: `trien3-${b.id}`,
         date: b.echTrien3,
-        title: `Echeance triennale: ${nom}`,
+        title: `Échéance triennale: ${nom}`,
         type: "triennale",
       });
     }
@@ -100,7 +100,7 @@ export default function CalendrierGLPage() {
       events.push({
         id: `pf-${b.id}`,
         date: b.periodeFermeFin,
-        title: `Fin periode ferme: ${nom}`,
+        title: `Fin période ferme: ${nom}`,
         type: "periode-ferme",
       });
     }
@@ -136,13 +136,13 @@ export default function CalendrierGLPage() {
       >
         <PageHeader
           title="Calendrier GL"
-          description="Echeances des baux et paiements"
+          description="Échéances des baux et paiements"
         />
 
         {/* KPIs */}
         <div className="grid gap-4 sm:grid-cols-2">
           <KpiCard
-            label="Total echeances"
+            label="Total échéances"
             value={events.length}
             icon={Calendar}
             variant="primary"
@@ -150,7 +150,7 @@ export default function CalendrierGLPage() {
             delay={0}
           />
           <KpiCard
-            label="Echeances < 12 mois"
+            label="Échéances < 12 mois"
             value={echeancesProches}
             icon={Clock}
             variant="warning"

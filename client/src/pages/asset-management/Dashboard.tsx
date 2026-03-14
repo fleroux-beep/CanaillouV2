@@ -51,7 +51,7 @@ export default function AMDashboard() {
   if (isLoading) {
     return (
       <div className="space-y-8">
-        <PageHeader title="Asset Management" description="Chargement des donnees..." />
+        <PageHeader title="Asset Management" description="Chargement des données..." />
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => <SkeletonKpi key={i} />)}
         </div>
@@ -88,7 +88,7 @@ export default function AMDashboard() {
   const ltv = getLTV(crd, valorisation);
   const dscr = getDSCR(noi, serviceDette);
 
-  const lotsLoues = lots.filter((l: any) => l.statut === "loue" && !l.archived).length;
+  const lotsLoues = lots.filter((l: any) => (l.statut === "loué" || l.statut === "loue") && !l.archived).length;
   const lotsTotal = lots.filter((l: any) => !l.archived).length;
   const tauxOccupation = lotsTotal > 0 ? (lotsLoues / lotsTotal) * 100 : 0;
 
@@ -104,8 +104,8 @@ export default function AMDashboard() {
 
   // Stress test summary
   const stressResults = useMemo(
-    () => loyerAnnuel > 0 ? computeStressTests(loyerAnnuel, charges, serviceDette, valorisation, crd) : [],
-    [loyerAnnuel, charges, serviceDette, valorisation, crd]
+    () => loyerAnnuel > 0 ? computeStressTests(loyerAnnuel, charges, serviceDette, valorisation, crd, empruntsActifs) : [],
+    [loyerAnnuel, charges, serviceDette, valorisation, crd, empruntsActifs]
   );
   const worstCaseScenario = stressResults.length > 0 ? stressResults[stressResults.length - 1] : null;
 
@@ -218,7 +218,7 @@ export default function AMDashboard() {
           </h3>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <KpiCard
-              label="TRI projete" value={dcfResult?.irr || 0}
+              label="TRI projeté" value={dcfResult?.irr || 0}
               formatFn={(n) => n > 0 ? formatPercent(n) : "N/A"}
               icon={Target} variant="primary" delay={9}
             />
@@ -257,10 +257,10 @@ export default function AMDashboard() {
           <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-7">
             <KpiCard label="SCIs" value={scis.length} icon={Landmark} delay={14} />
             <KpiCard label="Actifs" value={actifsActifs.length} icon={Building2} delay={15} />
-            <KpiCard label="Lots" value={lotsTotal} icon={FileText} delay={16} subtitle={`${lotsLoues} loues`} />
+            <KpiCard label="Lots" value={lotsTotal} icon={FileText} delay={16} subtitle={`${lotsLoues} loués`} />
             <KpiCard label="Baux" value={baux.filter((b: any) => !b.archived).length} icon={FileText} delay={17} />
             <KpiCard label="Locataires" value={locataires.length} icon={Users} delay={18} />
-            <KpiCard label="Associes" value={associes.length} icon={Users} delay={19} />
+            <KpiCard label="Associés" value={associes.length} icon={Users} delay={19} />
             <KpiCard label="Emprunts" value={empruntsActifs.length} icon={PiggyBank} delay={20} />
           </div>
         </Section>
@@ -345,7 +345,7 @@ export default function AMDashboard() {
 
         {/* SCI Detail Table */}
         {scis.length > 0 && (
-          <Section title="Detail par SCI" delay={6}>
+          <Section title="Détail par SCI" delay={6}>
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -373,7 +373,7 @@ export default function AMDashboard() {
                       key={k.sci.id}
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.6 + i * 0.05 }}
+                      transition={{ delay: Math.min(0.6 + i * 0.05, 0.6 + 0.5) }}
                       className="border-t transition-colors hover:bg-muted/20"
                     >
                       <td className="px-4 py-3 font-medium">{k.sci.nom}</td>

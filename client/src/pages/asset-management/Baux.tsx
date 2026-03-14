@@ -113,7 +113,7 @@ export default function BauxAMPage() {
         columns={columns}
         searchKeys={["typeBail", "statut"]}
         searchPlaceholder="Rechercher un bail..."
-        emptyMessage="Aucun bail enregistre"
+        emptyMessage="Aucun bail enregistré"
       />
 
       <FormDialog
@@ -134,24 +134,24 @@ export default function BauxAMPage() {
             { value: "commercial", label: "Commercial" },
             { value: "professionnel", label: "Professionnel" },
           ]} />
-          <FormField label="Date debut" name="dateDebut" value={form.dateDebut} onChange={onChange} type="date" />
+          <FormField label="Date début" name="dateDebut" value={form.dateDebut} onChange={onChange} type="date" />
           <FormField label="Date fin" name="dateFin" value={form.dateFin} onChange={onChange} type="date" />
           <FormField label="Date signature" name="dateSignature" value={form.dateSignature} onChange={onChange} type="date" />
           <FormField label="Loyer mensuel" name="loyerMensuel" value={form.loyerMensuel} onChange={onChange} type="number" suffix="EUR" />
           <FormField label="Loyer annuel" name="loyerAnnuel" value={form.loyerAnnuel} onChange={onChange} type="number" suffix="EUR" />
           <FormField label="Charges" name="charges" value={form.charges} onChange={onChange} type="number" suffix="EUR" />
-          <FormField label="Depot de garantie" name="depotGarantie" value={form.depotGarantie} onChange={onChange} type="number" suffix="EUR" />
+          <FormField label="Dépôt de garantie" name="depotGarantie" value={form.depotGarantie} onChange={onChange} type="number" suffix="EUR" />
         </FormGrid>
         <div className="mt-6">
           <h3 className="text-sm font-semibold text-foreground mb-3">Indexation</h3>
           <FormGrid>
-            <FormField label="Indice de reference" name="indiceReference" value={form.indiceReference} onChange={onChange} options={[
+            <FormField label="Indice de référence" name="indiceReference" value={form.indiceReference} onChange={onChange} options={[
               { value: "IRL", label: "IRL" },
               { value: "ILC", label: "ILC" },
               { value: "ILAT", label: "ILAT" },
               { value: "ICC", label: "ICC" },
             ]} />
-            <FormField label="Trimestre de reference" name="trimestreRef" value={form.trimestreRef} onChange={onChange} />
+            <FormField label="Trimestre de référence" name="trimestreRef" value={form.trimestreRef} onChange={onChange} />
             <FormField label="Valeur indice de base" name="valeurIndiceBase" value={form.valeurIndiceBase} onChange={onChange} type="number" />
           </FormGrid>
         </div>

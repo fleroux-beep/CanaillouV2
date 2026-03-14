@@ -110,8 +110,8 @@ export default function SimulateurPage() {
     const r = discountRate / 100;
     return dcfResult.projectedCashFlows.map((cf, i) => ({
       name: `N+${i + 1}`,
-      "Cash-flow projete": Math.round(cf),
-      "Valeur actualisee": Math.round(cf / Math.pow(1 + r, i + 1)),
+      "Cash-flow projeté": Math.round(cf),
+      "Valeur actualisée": Math.round(cf / Math.pow(1 + r, i + 1)),
     }));
   }, [dcfResult, discountRate]);
 
@@ -165,7 +165,7 @@ export default function SimulateurPage() {
             variant="primary" gradient delay={0}
           />
           <KpiCard
-            label="TRI projete" value={dcfResult.irr || 0}
+            label="TRI projeté" value={dcfResult.irr || 0}
             formatFn={(n) => n > 0 ? formatPercent(n) : "N/A"}
             icon={TrendingUp} variant="success" gradient delay={1}
           />
@@ -196,19 +196,19 @@ export default function SimulateurPage() {
               {/* Parameters */}
               <GlassCard delay={0} className="space-y-5">
                 <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                  Hypotheses DCF
+                  Hypothèses DCF
                 </h3>
                 <SliderInput
                   label="Croissance loyers" value={growthRate} onChange={setGrowthRate}
-                  min={0} max={8} step={0.5} unit="%" description="Taux ILC/ILAT previsionnel"
+                  min={0} max={8} step={0.5} unit="%" description="Taux ILC/ILAT prévisionnel"
                 />
                 <SliderInput
                   label="Taux d'actualisation" value={discountRate} onChange={setDiscountRate}
-                  min={2} max={15} step={0.5} unit="%" description="WACC / cout du capital"
+                  min={2} max={15} step={0.5} unit="%" description="WACC / coût du capital"
                 />
                 <SliderInput
                   label="Cap rate de sortie" value={exitCapRate} onChange={setExitCapRate}
-                  min={3} max={10} step={0.25} unit="%" description="Taux de capitalisation a la revente"
+                  min={3} max={10} step={0.25} unit="%" description="Taux de capitalisation à la revente"
                 />
                 <SliderInput
                   label="Horizon" value={dcfYears} onChange={setDcfYears}
@@ -219,7 +219,7 @@ export default function SimulateurPage() {
               {/* Chart */}
               <GlassCard delay={1} className="lg:col-span-2">
                 <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                  Cash-flows projetes vs actualises
+                  Cash-flows projetés vs actualisés
                 </h3>
                 <ResponsiveContainer width="100%" height={320}>
                   <BarChart data={dcfChartData} barGap={4}>
@@ -227,8 +227,8 @@ export default function SimulateurPage() {
                     <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                     <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
                     <Tooltip {...chartTooltipStyle} formatter={(v: number) => formatCurrency(v)} />
-                    <Bar dataKey="Cash-flow projete" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="Valeur actualisee" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="Cash-flow projeté" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="Valeur actualisée" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
                 <div className="mt-4 grid grid-cols-3 gap-4 text-center text-sm">
@@ -282,7 +282,7 @@ export default function SimulateurPage() {
                             key={s.label}
                             initial={{ opacity: 0, x: -10 }}
                             animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: 0.1 + i * 0.05 }}
+                            transition={{ delay: Math.min(0.1 + i * 0.05, 0.1 + 0.5) }}
                             className={`border-t transition-colors hover:bg-muted/20 ${isBase ? "bg-muted/10 font-medium" : ""}`}
                           >
                             <td className="px-4 py-3 font-medium">{s.label}</td>
@@ -350,11 +350,11 @@ export default function SimulateurPage() {
               {/* Parameters */}
               <GlassCard delay={0} className="space-y-5">
                 <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                  Hypotheses de projection
+                  Hypothèses de projection
                 </h3>
                 <SliderInput
                   label="Croissance loyers" value={projGrowthLoyer} onChange={setProjGrowthLoyer}
-                  min={0} max={6} step={0.5} unit="%" description="Indexation annuelle estimee"
+                  min={0} max={6} step={0.5} unit="%" description="Indexation annuelle estimée"
                 />
                 <SliderInput
                   label="Inflation charges" value={projInflationCharges} onChange={setProjInflationCharges}
@@ -373,7 +373,7 @@ export default function SimulateurPage() {
               {/* Chart */}
               <GlassCard delay={1} className="lg:col-span-2">
                 <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                  Evolution projetee
+                  Évolution projetée
                 </h3>
                 <ResponsiveContainer width="100%" height={350}>
                   <AreaChart data={projChartData}>
@@ -405,12 +405,12 @@ export default function SimulateurPage() {
             </div>
 
             {/* Projection table */}
-            <Section title="Detail annuel" delay={2}>
+            <Section title="Détail annuel" delay={2}>
               <div className="overflow-x-auto rounded-xl border bg-card shadow-sm">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/30">
-                      <th className="px-3 py-2 text-left font-semibold">Annee</th>
+                      <th className="px-3 py-2 text-left font-semibold">Année</th>
                       <th className="px-3 py-2 text-right font-semibold">Loyers</th>
                       <th className="px-3 py-2 text-right font-semibold">Charges</th>
                       <th className="px-3 py-2 text-right font-semibold">NOI</th>

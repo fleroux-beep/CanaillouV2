@@ -89,7 +89,7 @@ export default function CalendrierAMPage() {
       events.push({
         id: `emp-${e.id}`,
         date: e.dateFin,
-        title: `Echeance emprunt: ${e.banque || "N/A"}`,
+        title: `Échéance emprunt: ${e.banque || "N/A"}`,
         type: "emprunt",
       });
     }
@@ -111,7 +111,7 @@ export default function CalendrierAMPage() {
       events.push({
         id: `trav-deb-${t.id}`,
         date: t.dateDebut,
-        title: `Debut travaux: ${t.titre}`,
+        title: `Début travaux: ${t.titre}`,
         type: "travaux",
       });
     }
@@ -159,13 +159,13 @@ export default function CalendrierAMPage() {
       >
         <PageHeader
           title="Calendrier AM"
-          description="Echeances et evenements du patrimoine"
+          description="Échéances et évènements du patrimoine"
         />
 
         {/* KPIs */}
         <div className="grid gap-4 sm:grid-cols-3">
           <KpiCard
-            label="Total evenements"
+            label="Total évènements"
             value={events.length}
             icon={Calendar}
             variant="primary"
@@ -245,7 +245,7 @@ export default function CalendrierAMPage() {
           {events.length === 0 && (
             <GlassCard>
               <p className="text-center text-muted-foreground py-8">
-                Aucun evenement a afficher
+                Aucun évènement à afficher
               </p>
             </GlassCard>
           )}

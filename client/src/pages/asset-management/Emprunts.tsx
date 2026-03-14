@@ -47,7 +47,7 @@ function EmpruntsTab() {
     { key: "capitalRestantDu", label: "CRD", align: "right", sortable: true, render: (r) => r.capitalRestantDu ? formatCurrency(r.capitalRestantDu) : "—" },
     { key: "tauxAnnuel", label: "Taux", align: "right", sortable: true, render: (r) => r.tauxAnnuel ? formatPercent(r.tauxAnnuel) : "—" },
     { key: "mensualite", label: "Mensualite", align: "right", sortable: true, render: (r) => r.mensualite ? formatCurrency(r.mensualite) : "—" },
-    { key: "dateFin", label: "Echeance", sortable: true },
+    { key: "dateFin", label: "Échéance", sortable: true },
     { key: "actions", label: "", align: "right", render: (r) => (
       <div className="flex items-center justify-end gap-1">
         <button onClick={(e) => { e.stopPropagation(); setEditing(r); setForm(r); setDialogOpen(true); }} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button>
@@ -80,13 +80,13 @@ function EmpruntsTab() {
           <FormField label="Type amortissement" name="typeAmortissement" value={form.typeAmortissement} onChange={onChange} options={[
             { value: "constant", label: "Constant" }, { value: "in-fine", label: "In fine" }, { value: "progressif", label: "Progressif" },
           ]} />
-          <FormField label="Montant emprunte" name="montantEmprunte" value={form.montantEmprunte} onChange={onChange} type="number" suffix="EUR" />
-          <FormField label="Capital restant du" name="capitalRestantDu" value={form.capitalRestantDu} onChange={onChange} type="number" suffix="EUR" />
+          <FormField label="Montant emprunté" name="montantEmprunte" value={form.montantEmprunte} onChange={onChange} type="number" suffix="EUR" />
+          <FormField label="Capital restant dû" name="capitalRestantDu" value={form.capitalRestantDu} onChange={onChange} type="number" suffix="EUR" />
           <FormField label="Taux annuel" name="tauxAnnuel" value={form.tauxAnnuel} onChange={onChange} type="number" suffix="%" />
-          <FormField label="Mensualite" name="mensualite" value={form.mensualite} onChange={onChange} type="number" suffix="EUR" />
-          <FormField label="Duree (ans)" name="dureeAns" value={form.dureeAns} onChange={onChange} type="number" />
-          <FormField label="Duree (mois)" name="dureeMois" value={form.dureeMois} onChange={onChange} type="number" />
-          <FormField label="Date debut" name="dateDebut" value={form.dateDebut} onChange={onChange} type="date" />
+          <FormField label="Mensualité" name="mensualite" value={form.mensualite} onChange={onChange} type="number" suffix="EUR" />
+          <FormField label="Durée (ans)" name="dureeAns" value={form.dureeAns} onChange={onChange} type="number" />
+          <FormField label="Durée (mois)" name="dureeMois" value={form.dureeMois} onChange={onChange} type="number" />
+          <FormField label="Date début" name="dateDebut" value={form.dateDebut} onChange={onChange} type="date" />
           <FormField label="Date fin" name="dateFin" value={form.dateFin} onChange={onChange} type="date" />
           <FormField label="Assurance/mois" name="assuranceMensuelle" value={form.assuranceMensuelle} onChange={onChange} type="number" suffix="EUR" />
           <FormField label="Taux assurance" name="tauxAssurance" value={form.tauxAssurance} onChange={onChange} type="number" suffix="%" />
@@ -190,7 +190,7 @@ function CoutCreditTab() {
           </Section>
         )}
 
-        <Section title="Detail par emprunt" delay={2}>
+        <Section title="Détail par emprunt" delay={2}>
           <div className="overflow-x-auto rounded-xl border bg-card shadow-sm">
             <table className="w-full text-sm">
               <thead>
@@ -199,8 +199,8 @@ function CoutCreditTab() {
                   <th className="px-4 py-3 text-left font-semibold">SCI</th>
                   <th className="px-4 py-3 text-right font-semibold">Montant</th>
                   <th className="px-4 py-3 text-right font-semibold">Taux</th>
-                  <th className="px-4 py-3 text-right font-semibold">Duree</th>
-                  <th className="px-4 py-3 text-right font-semibold">Interets</th>
+                  <th className="px-4 py-3 text-right font-semibold">Durée</th>
+                  <th className="px-4 py-3 text-right font-semibold">Intérêts</th>
                   <th className="px-4 py-3 text-right font-semibold">Assurance</th>
                   <th className="px-4 py-3 text-right font-semibold">Cout total</th>
                   <th className="px-4 py-3 text-right font-semibold">TAEG estim.</th>
@@ -345,7 +345,7 @@ function RachatCreditTab() {
                   </select>
                 </div>
                 <FormField label="Nouveau taux (%)" name="nouveauTaux" value={nouveauTaux} onChange={(_, v) => setNouveauTaux(v)} type="number" suffix="%" />
-                <FormField label="Nouvelle duree (ans)" name="nouvelleDuree" value={nouvelleDuree} onChange={(_, v) => setNouvelleDuree(v)} type="number" suffix="ans" />
+                <FormField label="Nouvelle durée (ans)" name="nouvelleDuree" value={nouvelleDuree} onChange={(_, v) => setNouvelleDuree(v)} type="number" suffix="ans" />
               </div>
 
               {/* Frais */}
@@ -435,12 +435,12 @@ function RachatCreditTab() {
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={simulation.amortissement}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                        <XAxis dataKey="annee" tick={{ fontSize: 12 }} label={{ value: "Annee", position: "insideBottom", offset: -5 }} />
+                        <XAxis dataKey="annee" tick={{ fontSize: 12 }} label={{ value: "Année", position: "insideBottom", offset: -5 }} />
                         <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
                         <Tooltip formatter={(v: number) => formatCurrency(v)} />
                         <Legend />
                         <Area type="monotone" dataKey="crdFin" name="Capital restant" fill="#3b82f6" fillOpacity={0.3} stroke="#3b82f6" />
-                        <Area type="monotone" dataKey="interets" name="Interets annuels" fill="#ef4444" fillOpacity={0.2} stroke="#ef4444" />
+                        <Area type="monotone" dataKey="interets" name="Intérêts annuels" fill="#ef4444" fillOpacity={0.2} stroke="#ef4444" />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>

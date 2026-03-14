@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { db } from "../db";
 import { scis, associes, participations, actifs, lots, locatairesAM, bauxAM, emprunts, travaux, documentsAM } from "@shared/schema";
-import { eq, desc, count } from "drizzle-orm";
+import { eq, desc, count, isNull, and } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { validate, amSchemas } from "../lib/validation";
 
@@ -16,7 +16,10 @@ function registerCrud(app: Express, path: string, table: any) {
 
   app.get(`/api/am/${path}`, requireAuth, async (_req: any, res: any) => {
     try {
-      const rows = await db.select().from(table).orderBy(desc(table.createdAt));
+      const hasDeletedAt = "deletedAt" in table;
+      const rows = hasDeletedAt
+        ? await db.select().from(table).where(isNull(table.deletedAt)).orderBy(desc(table.createdAt))
+        : await db.select().from(table).orderBy(desc(table.createdAt));
       res.json(rows);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -58,7 +61,12 @@ function registerCrud(app: Express, path: string, table: any) {
 
   app.delete(`/api/am/${path}/:id`, requireAuth, async (req: any, res: any) => {
     try {
-      await db.delete(table).where(eq(table.id, paramId(req)));
+      const hasDeletedAt = "deletedAt" in table;
+      if (hasDeletedAt) {
+        await db.update(table).set({ deletedAt: new Date() }).where(eq(table.id, paramId(req)));
+      } else {
+        await db.delete(table).where(eq(table.id, paramId(req)));
+      }
       res.json({ ok: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
