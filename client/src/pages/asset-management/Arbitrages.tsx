@@ -166,8 +166,8 @@ export default function ArbitragesPage() {
                   formatter={(v: number) => `${v.toFixed(2)}%`}
                 />
                 <Bar dataKey="rendement" name="Rendement brut" radius={[4, 4, 0, 0]} animationDuration={800}>
-                  {chartData.map((entry: any, i: number) => (
-                    <Cell key={i} fill={entry.color} />
+                  {chartData.map((entry: any) => (
+                    <Cell key={entry.name} fill={entry.color} />
                   ))}
                 </Bar>
               </BarChart>

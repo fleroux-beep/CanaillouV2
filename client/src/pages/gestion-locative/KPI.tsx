@@ -38,11 +38,12 @@ export default function GLKPIPage() {
   const totalDepotGarantie = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.depotGarantie || 0), 0);
   const totalTaxeFonciere = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.taxeFonciere || 0), 0);
 
+  const totalChargesAn = totalCharges * 12;
   const coutMoyenBerceau = totalCapacite > 0 ? totalLoyerHT / totalCapacite : 0;
   const loyerMoyenM2 = totalSurface > 0 ? totalLoyerHT / totalSurface : 0;
-  const chargesMoyennesM2 = totalSurface > 0 ? totalCharges / totalSurface : 0;
+  const chargesMoyennesM2 = totalSurface > 0 ? totalChargesAn / totalSurface : 0;
   const surfaceParBerceau = totalCapacite > 0 ? totalSurface / totalCapacite : 0;
-  const chargesParBerceau = totalCapacite > 0 ? totalCharges / totalCapacite : 0;
+  const chargesParBerceau = totalCapacite > 0 ? totalChargesAn / totalCapacite : 0;
   const totalPaiements = paiements.reduce((sum: number, p: any) => sum + Number(p.montant || 0), 0);
 
   // Pie chart: répartition loyer par type de bail
@@ -78,8 +79,8 @@ export default function GLKPIPage() {
       .sort((a, b) => b.value - a.value);
   }, [paiements]);
 
-  // Coût total par berceau (loyer + charges + taxe foncière)
-  const coutTotalBerceau = totalCapacite > 0 ? (totalLoyerHT + totalCharges + totalTaxeFonciere) / totalCapacite : 0;
+  // Coût total par berceau (loyer + charges annualisées + taxe foncière)
+  const coutTotalBerceau = totalCapacite > 0 ? (totalLoyerHT + totalChargesAn + totalTaxeFonciere) / totalCapacite : 0;
 
   return (
     <AnimatePresence>
@@ -316,7 +317,7 @@ export default function GLKPIPage() {
                     const loyerM2 = surface > 0 ? loyer / surface : 0;
                     const loyerBerceau = capacite > 0 ? loyer / capacite : 0;
                     const surfBerc = capacite > 0 && surface > 0 ? surface / capacite : 0;
-                    const coutTotalBerc = capacite > 0 ? (loyer + charges + Number(b.taxeFonciere || 0)) / capacite : 0;
+                    const coutTotalBerc = capacite > 0 ? (loyer + charges * 12 + Number(b.taxeFonciere || 0)) / capacite : 0;
 
                     return (
                       <motion.tr

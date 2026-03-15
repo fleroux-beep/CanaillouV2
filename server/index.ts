@@ -20,11 +20,18 @@ app.use(requestLogger);
 // CORS — allow same-origin + dev proxy
 app.use((_req, res, next) => {
   const origin = _req.headers.origin;
-  if (origin && (origin.startsWith("http://localhost") || origin.startsWith("http://127.0.0.1"))) {
-    res.header("Access-Control-Allow-Origin", origin);
-    res.header("Access-Control-Allow-Credentials", "true");
-    res.header("Access-Control-Allow-Methods", "GET,POST,PATCH,PUT,DELETE,OPTIONS");
-    res.header("Access-Control-Allow-Headers", "Content-Type,Authorization");
+  if (origin) {
+    try {
+      const { hostname } = new URL(origin);
+      if (hostname === "localhost" || hostname === "127.0.0.1") {
+        res.header("Access-Control-Allow-Origin", origin);
+        res.header("Access-Control-Allow-Credentials", "true");
+        res.header("Access-Control-Allow-Methods", "GET,POST,PATCH,PUT,DELETE,OPTIONS");
+        res.header("Access-Control-Allow-Headers", "Content-Type,Authorization");
+      }
+    } catch {
+      // Invalid origin URL — ignore
+    }
   }
   if (_req.method === "OPTIONS") return res.sendStatus(204);
   next();

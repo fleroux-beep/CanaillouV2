@@ -126,8 +126,9 @@ function CoutCreditTab() {
       const coutInterets = totalRembourse - montant;
       const coutAssurance = assurance * duree;
       const coutTotal = coutInterets + coutAssurance;
+      // TAEG approximation using annualized rate: (totalRembourse/montant)^(12/duree) - 1
       const taeg = montant > 0 && duree > 0
-        ? ((totalRembourse / montant - 1) / (duree / 12) * 100)
+        ? (Math.pow(totalRembourse / montant, 12 / duree) - 1) * 100
         : 0;
 
       return {

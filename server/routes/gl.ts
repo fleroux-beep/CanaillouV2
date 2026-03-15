@@ -8,6 +8,7 @@ import {
 import { eq, desc, count, isNotNull, isNull, and } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { validate, glSchemas } from "../lib/validation";
+import { logger } from "../lib/logger";
 
 function paramId(req: any): string {
   const id = req.params.id;
@@ -25,7 +26,8 @@ function registerCrud(app: Express, path: string, table: any) {
         : await db.select().from(table).orderBy(desc(table.createdAt));
       res.json(rows);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error("route error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 
@@ -35,7 +37,8 @@ function registerCrud(app: Express, path: string, table: any) {
       if (rows.length === 0) return res.status(404).json({ error: "Non trouvé" });
       res.json(rows[0]);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error("route error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 
@@ -44,7 +47,8 @@ function registerCrud(app: Express, path: string, table: any) {
       const rows = await db.insert(table).values(req.body).returning() as any[];
       res.status(201).json(rows[0]);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error("route error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 
@@ -57,7 +61,8 @@ function registerCrud(app: Express, path: string, table: any) {
       if (rows.length === 0) return res.status(404).json({ error: "Non trouvé" });
       res.json(rows[0]);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error("route error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 
@@ -71,7 +76,8 @@ function registerCrud(app: Express, path: string, table: any) {
       }
       res.json({ ok: true });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error("route error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 }
@@ -96,7 +102,8 @@ export function registerGLRoutes(app: Express) {
       const rows = await db.select().from(bauxGL).where(eq(bauxGL.bailleurId, paramId(req)));
       res.json(rows);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error("route error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 
@@ -105,7 +112,8 @@ export function registerGLRoutes(app: Express) {
       const rows = await db.select().from(paiementsGL).where(eq(paiementsGL.bailId, paramId(req)));
       res.json(rows);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error("route error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 
@@ -114,7 +122,8 @@ export function registerGLRoutes(app: Express) {
       const rows = await db.select().from(indexationsGL).where(eq(indexationsGL.bailId, paramId(req)));
       res.json(rows);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error("route error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 
@@ -132,7 +141,8 @@ export function registerGLRoutes(app: Express) {
         locataires: cntLocataires[0].value,
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error("route error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 
@@ -230,7 +240,8 @@ export function registerGLRoutes(app: Express) {
 
       res.json({ count: results.length, results, skipped });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error("route error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 }

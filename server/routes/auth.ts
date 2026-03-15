@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middleware/auth";
 import { validate, loginSchema, changePasswordSchema, createUserSchema } from "../lib/validation";
 import { rateLimit } from "../lib/rate-limit";
+import { logger } from "../lib/logger";
 
 // 10 attempts per 15 minutes per IP
 const loginLimiter = rateLimit(10, 15 * 60 * 1000);
@@ -43,7 +44,8 @@ export function registerAuthRoutes(app: Express) {
         role: user.role,
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error("auth error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 
@@ -73,7 +75,8 @@ export function registerAuthRoutes(app: Express) {
       if (!user) return res.status(404).json({ error: "Utilisateur non trouvé" });
       res.json(user);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error("auth error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 
@@ -92,7 +95,8 @@ export function registerAuthRoutes(app: Express) {
       await db.update(users).set({ password: hashed, updatedAt: new Date() }).where(eq(users.id, user.id));
       res.json({ ok: true });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error("auth error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 
@@ -112,7 +116,8 @@ export function registerAuthRoutes(app: Express) {
         .from(users);
       res.json(allUsers);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error("auth error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 
@@ -144,7 +149,8 @@ export function registerAuthRoutes(app: Express) {
       if (error.code === "23505") {
         return res.status(409).json({ error: "Cet email existe déjà" });
       }
-      res.status(500).json({ error: error.message });
+      logger.error("auth error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 
@@ -155,7 +161,8 @@ export function registerAuthRoutes(app: Express) {
       await db.update(users).set({ isApproved: true }).where(eq(users.id, id));
       res.json({ ok: true });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error("auth error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 
@@ -166,7 +173,8 @@ export function registerAuthRoutes(app: Express) {
       await db.delete(users).where(eq(users.id, id));
       res.json({ ok: true });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error("auth error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 }

@@ -422,7 +422,7 @@ function SyntheseTab() {
       .reduce((s, p) => s + (p.montant ? parseFloat(p.montant) : 0), 0);
   }, [paiements]);
 
-  const tauxEncaissement = totalLoyerCC > 0 ? (total12m / totalLoyerCC * 100) : 0;
+  const tauxEncaissement = totalLoyerCC > 0 ? Math.min(total12m / totalLoyerCC * 100, 999) : 0;
 
   // Synthèse par bailleur
   const synthBailleur = useMemo(() => {

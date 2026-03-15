@@ -35,7 +35,6 @@ export default function GLDashboard() {
   const [, navigate] = useLocation();
   const { data: baux = [], isLoading: l1 } = useQuery({ queryKey: ["/api/gl/baux"], queryFn: () => apiRequest("/api/gl/baux") });
   const { data: bailleurs = [], isLoading: l2 } = useQuery({ queryKey: ["/api/gl/bailleurs"], queryFn: () => apiRequest("/api/gl/bailleurs") });
-  const { data: locataires = [] } = useQuery({ queryKey: ["/api/gl/locataires"], queryFn: () => apiRequest("/api/gl/locataires") });
   const { data: paiements = [], isLoading: l3 } = useQuery({ queryKey: ["/api/gl/paiements"], queryFn: () => apiRequest("/api/gl/paiements") });
 
   if (l1 || l2 || l3) {
@@ -179,7 +178,7 @@ export default function GLDashboard() {
           />
           <KpiCard
             label="Coût locatif / berceau"
-            value={totalCapacite > 0 ? (totalLoyerHT + totalCharges) / totalCapacite : 0}
+            value={totalCapacite > 0 ? (totalLoyerHT + totalCharges * 12) / totalCapacite : 0}
             formatFn={(n) => n > 0 ? `${formatCurrency(n)}/berc.` : "N/A"}
             icon={PiggyBank} delay={7}
           />

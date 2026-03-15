@@ -65,7 +65,7 @@ export default function ProjectionsPage() {
   const totalLoyerActuel = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.loyerHTActu || b.loyerBaseHT || 0), 0);
   const totalCharges = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.charges || 0), 0);
   const totalSurface = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.surface || 0), 0);
-  const totalBerceaux = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.capacite || b.berceaux || 0), 0);
+  const totalBerceaux = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.capacite || 0), 0);
 
   const loyerN1 = compound(totalLoyerActuel, customRate, 1);
   const loyerN3 = compound(totalLoyerActuel, customRate, 3);
@@ -123,7 +123,7 @@ export default function ProjectionsPage() {
       const n3 = compound(loyer, rate, 3);
       const nMax = compound(loyer, rate, horizon);
       const surface = Number(b.surface || 0);
-      const berceaux = Number(b.capacite || b.berceaux || 0);
+      const berceaux = Number(b.capacite || 0);
       return {
         id: b.id,
         nom: b.nom || b.adresse || `Bail #${b.id}`,

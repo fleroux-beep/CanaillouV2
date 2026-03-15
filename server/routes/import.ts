@@ -7,6 +7,7 @@ import {
   bailleurs, bauxGL, locatairesGL, paiementsGL, facturesGL, indices,
 } from "@shared/schema";
 import { requireAuth } from "../middleware/auth";
+import { logger } from "../lib/logger";
 
 // Map module + entity name to Drizzle table
 const tableMap: Record<string, Record<string, any>> = {
@@ -70,7 +71,8 @@ export function registerImportRoutes(app: Express) {
         message: `${insertedCount} enregistrement(s) importé(s) dans ${moduleName}/${entity}`,
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error("import error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 }

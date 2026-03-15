@@ -4,6 +4,7 @@ import { scis, associes, participations, actifs, lots, locatairesAM, bauxAM, emp
 import { eq, desc, count, isNull, and } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { validate, amSchemas } from "../lib/validation";
+import { logger } from "../lib/logger";
 
 function paramId(req: any): string {
   const id = req.params.id;
@@ -22,7 +23,8 @@ function registerCrud(app: Express, path: string, table: any) {
         : await db.select().from(table).orderBy(desc(table.createdAt));
       res.json(rows);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error("route error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 
@@ -32,7 +34,8 @@ function registerCrud(app: Express, path: string, table: any) {
       if (rows.length === 0) return res.status(404).json({ error: "Non trouvé" });
       res.json(rows[0]);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error("route error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 
@@ -41,7 +44,8 @@ function registerCrud(app: Express, path: string, table: any) {
       const rows = await db.insert(table).values(req.body).returning() as any[];
       res.status(201).json(rows[0]);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error("route error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 
@@ -55,7 +59,8 @@ function registerCrud(app: Express, path: string, table: any) {
       if (rows.length === 0) return res.status(404).json({ error: "Non trouvé" });
       res.json(rows[0]);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error("route error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 
@@ -69,7 +74,8 @@ function registerCrud(app: Express, path: string, table: any) {
       }
       res.json({ ok: true });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error("route error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 }
@@ -93,7 +99,8 @@ export function registerAMRoutes(app: Express) {
       const rows = await db.select().from(lots).where(eq(lots.actifId, paramId(req)));
       res.json(rows);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error("route error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 
@@ -102,7 +109,8 @@ export function registerAMRoutes(app: Express) {
       const rows = await db.select().from(actifs).where(eq(actifs.sciId, paramId(req)));
       res.json(rows);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error("route error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 
@@ -111,7 +119,8 @@ export function registerAMRoutes(app: Express) {
       const rows = await db.select().from(emprunts).where(eq(emprunts.sciId, paramId(req)));
       res.json(rows);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error("route error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 
@@ -120,7 +129,8 @@ export function registerAMRoutes(app: Express) {
       const rows = await db.select().from(bauxAM).where(eq(bauxAM.lotId, paramId(req)));
       res.json(rows);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error("route error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 
@@ -129,7 +139,8 @@ export function registerAMRoutes(app: Express) {
       const rows = await db.select().from(participations).where(eq(participations.sciId, paramId(req)));
       res.json(rows);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error("route error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 
@@ -156,7 +167,8 @@ export function registerAMRoutes(app: Express) {
         associes: cntAssocies[0].value,
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      logger.error("route error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 }

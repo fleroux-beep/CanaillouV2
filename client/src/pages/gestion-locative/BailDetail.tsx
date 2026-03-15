@@ -337,7 +337,7 @@ export default function BailGLDetailPage() {
             <KpiCard
               label="Surface / berceau"
               value={bail.surface ? Number(bail.surface) / bail.capacite : 0}
-              formatFn={(n) => n > 0 ? `${n.toFixed(1)} m²/berc.` : "N/A"}
+              formatFn={(n) => Number.isFinite(n) && n > 0 ? `${n.toFixed(1)} m²/berc.` : "N/A"}
               icon={Building2}
               delay={5}
             />
