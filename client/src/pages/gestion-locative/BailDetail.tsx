@@ -291,7 +291,7 @@ export default function BailGLDetailPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <KpiCard
             label="Loyer HT annuel"
-            value={parseFloat(bail.loyerBaseHT) * 12 || 0}
+            value={Number(bail.loyerHTActu || bail.loyerBaseHT || 0)}
             formatFn={formatCurrency}
             icon={Building2}
             variant="primary"
@@ -299,8 +299,8 @@ export default function BailGLDetailPage() {
             delay={0}
           />
           <KpiCard
-            label="Charges"
-            value={parseFloat(bail.charges) || 0}
+            label="Charges annuelles"
+            value={Number(bail.charges || 0) * 12}
             formatFn={formatCurrency}
             icon={PiggyBank}
             variant="warning"
@@ -309,7 +309,7 @@ export default function BailGLDetailPage() {
           />
           <KpiCard
             label="Dépôt de garantie"
-            value={parseFloat(bail.depotGarantie) || 0}
+            value={Number(bail.depotGarantie || 0)}
             formatFn={formatCurrency}
             icon={Calculator}
             variant="success"
@@ -323,6 +323,39 @@ export default function BailGLDetailPage() {
             delay={3}
           />
         </div>
+
+        {/* Per-berceau KPIs (if capacite is set) */}
+        {bail.capacite > 0 && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <KpiCard
+              label="Loyer / berceau"
+              value={Number(bail.loyerHTActu || bail.loyerBaseHT || 0) / bail.capacite}
+              formatFn={(n) => `${formatCurrency(n)}/berc.`}
+              icon={Calculator}
+              delay={4}
+            />
+            <KpiCard
+              label="Surface / berceau"
+              value={bail.surface ? Number(bail.surface) / bail.capacite : 0}
+              formatFn={(n) => n > 0 ? `${n.toFixed(1)} m²/berc.` : "N/A"}
+              icon={Building2}
+              delay={5}
+            />
+            <KpiCard
+              label="Coût total / berceau"
+              value={(Number(bail.loyerHTActu || bail.loyerBaseHT || 0) + Number(bail.charges || 0) * 12 + Number(bail.taxeFonciere || 0)) / bail.capacite}
+              formatFn={(n) => `${formatCurrency(n)}/berc.`}
+              icon={PiggyBank}
+              delay={6}
+            />
+            <KpiCard
+              label="Berceaux"
+              value={bail.capacite}
+              icon={FileText}
+              delay={7}
+            />
+          </div>
+        )}
 
         {/* Paiements table */}
         <Section title="Historique des paiements" delay={4}>

@@ -267,6 +267,8 @@ export const locataireGLSchema = z.object({
   notes: optStr,
 });
 
+const optDate = z.string().regex(/^\d{4}-\d{2}-\d{2}/, "Format de date attendu : YYYY-MM-DD").optional().nullable().or(z.literal(""));
+
 export const bailGLSchema = z.object({
   nom: z.string().min(1, "Le nom est requis"),
   locataireId: optStr,
@@ -278,10 +280,10 @@ export const bailGLSchema = z.object({
   codePostal: optStr,
   lat: z.number().optional().nullable(),
   lng: z.number().optional().nullable(),
-  dateSignature: optStr,
-  dateEffet: optStr,
-  dateDebut: optStr,
-  dateFin: optStr,
+  dateSignature: optDate,
+  dateEffet: optDate,
+  dateDebut: optDate,
+  dateFin: optDate,
   periodeFermeDebut: optStr,
   periodeFermeFin: optStr,
   periodeFermeDureeAns: optInt,

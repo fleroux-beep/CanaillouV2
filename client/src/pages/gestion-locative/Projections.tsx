@@ -62,7 +62,7 @@ export default function ProjectionsPage() {
   const [horizon, setHorizon] = useState(5);
 
   const bauxActifs = baux.filter((b: any) => !b.archived);
-  const totalLoyerActuel = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.loyerBaseHT || 0), 0);
+  const totalLoyerActuel = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.loyerHTActu || b.loyerBaseHT || 0), 0);
   const totalCharges = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.charges || 0), 0);
   const totalSurface = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.surface || 0), 0);
   const totalBerceaux = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.capacite || b.berceaux || 0), 0);
@@ -87,12 +87,38 @@ export default function ProjectionsPage() {
     });
   }, [totalLoyerActuel, customRate, horizon]);
 
+  // Calculate actual average annual rates from indices in DB
+  const indiceRates = useMemo(() => {
+    const rates: Record<string, number> = {};
+    const byType: Record<string, { trimestre: string; valeur: number }[]> = {};
+    for (const idx of indices) {
+      const t = (idx as any).type;
+      if (!byType[t]) byType[t] = [];
+      byType[t].push({ trimestre: (idx as any).trimestre, valeur: Number((idx as any).valeur || 0) });
+    }
+    for (const [type, vals] of Object.entries(byType)) {
+      const sorted = vals.sort((a, b) => a.trimestre.localeCompare(b.trimestre));
+      if (sorted.length >= 2) {
+        const oldest = sorted[0].valeur;
+        const latest = sorted[sorted.length - 1].valeur;
+        // Estimate number of years between first and last
+        const firstYear = parseInt(sorted[0].trimestre.slice(0, 4)) || 0;
+        const lastYear = parseInt(sorted[sorted.length - 1].trimestre.slice(0, 4)) || 0;
+        const years = Math.max(1, lastYear - firstYear);
+        if (oldest > 0) {
+          rates[type] = (Math.pow(latest / oldest, 1 / years) - 1) * 100;
+        }
+      }
+    }
+    return rates;
+  }, [indices]);
+
   // Per-bail projections grouped by index
   const bailProjections = useMemo(() => {
     return bauxActifs.map((b: any) => {
-      const loyer = Number(b.loyerBaseHT || 0);
+      const loyer = Number(b.loyerHTActu || b.loyerBaseHT || 0);
       const indice = (b.indiceReference || "").toUpperCase();
-      const rate = indice === "ILC" ? 2.5 : indice === "ILAT" ? 2.8 : indice === "IRL" ? 3.5 : indice === "ICC" ? 2 : customRate;
+      const rate = indiceRates[indice] ?? customRate;
       const n1 = compound(loyer, rate, 1);
       const n3 = compound(loyer, rate, 3);
       const nMax = compound(loyer, rate, horizon);
@@ -115,7 +141,7 @@ export default function ProjectionsPage() {
         loyerParM2: surface > 0 ? loyer / surface : 0,
       };
     });
-  }, [bauxActifs, customRate, horizon]);
+  }, [bauxActifs, customRate, horizon, indiceRates]);
 
   // Charges vs loyers projection
   const loyerVsChargesData = useMemo(() => {
@@ -123,7 +149,7 @@ export default function ProjectionsPage() {
       name: year === 0 ? "Actuel" : `N+${year}`,
       "Loyers HT": Math.round(compound(totalLoyerActuel, customRate, year)),
       "Charges": Math.round(compound(totalCharges, chargesInflation, year)),
-      "Marge nette": Math.round(compound(totalLoyerActuel, customRate, year) - compound(totalCharges, chargesInflation, year)),
+      "Coût locatif total": Math.round(compound(totalLoyerActuel, customRate, year) + compound(totalCharges, chargesInflation, year)),
     }));
   }, [totalLoyerActuel, totalCharges, customRate, chargesInflation, horizon]);
 
@@ -257,7 +283,7 @@ export default function ProjectionsPage() {
                   <Tooltip {...chartTooltipStyle} formatter={(v: number) => formatCurrency(v)} />
                   <Bar dataKey="Loyers HT" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="Charges" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Marge nette" fill="#10b981" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Coût locatif total" fill="#10b981" radius={[4, 4, 0, 0]} />
                   <Legend />
                 </BarChart>
               </ResponsiveContainer>

@@ -347,6 +347,23 @@ export default function GLKPIPage() {
                     );
                   })}
                 </tbody>
+                {bauxActifs.length > 0 && (
+                  <tfoot>
+                    <tr className="border-t-2 bg-muted/20 font-semibold">
+                      <td className="px-4 py-3">Total</td>
+                      <td className="px-4 py-3" />
+                      <td className="px-4 py-3 text-right">{formatCurrency(totalLoyerHT)}</td>
+                      <td className="px-4 py-3 text-right">{formatCurrency(totalCharges)}</td>
+                      <td className="px-4 py-3 text-right">{totalSurface > 0 ? `${formatNumber(totalSurface)} m²` : "—"}</td>
+                      <td className="px-4 py-3 text-right">{totalCapacite || "—"}</td>
+                      <td className="px-4 py-3 text-right">{loyerMoyenM2 > 0 ? `${formatCurrency(loyerMoyenM2)}/m²` : "—"}</td>
+                      <td className="px-4 py-3 text-right">{coutMoyenBerceau > 0 ? formatCurrency(coutMoyenBerceau) : "—"}</td>
+                      <td className="px-4 py-3 text-right">{surfaceParBerceau > 0 ? `${formatNumber(surfaceParBerceau)} m²` : "—"}</td>
+                      <td className="px-4 py-3 text-right">{coutTotalBerceau > 0 ? formatCurrency(coutTotalBerceau) : "—"}</td>
+                      <td className="px-4 py-3" />
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </motion.div>
           </Section>

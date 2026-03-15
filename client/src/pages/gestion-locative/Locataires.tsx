@@ -6,7 +6,6 @@ import { ConfirmDialog } from "../../components/ui/confirm-dialog";
 import { FormField, FormGrid } from "../../components/ui/form-field";
 import { PageHeader } from "../../components/ui/page-header";
 import { Badge } from "../../components/ui/badge";
-import { formatCurrency } from "../../lib/utils";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
 

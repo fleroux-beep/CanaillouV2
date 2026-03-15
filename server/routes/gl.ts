@@ -145,40 +145,71 @@ export function registerGLRoutes(app: Express) {
         .from(bauxGL)
         .where(and(isNotNull(bauxGL.indiceReference), eq(bauxGL.forceManual, false)));
 
+      // Pre-fetch latest index for each type to avoid N+1
+      const allIndices = await db
+        .select()
+        .from(indices)
+        .orderBy(desc(indices.trimestre));
+      const latestByType: Record<string, { valeur: string; trimestre: string }> = {};
+      for (const idx of allIndices) {
+        if (!latestByType[idx.type]) {
+          latestByType[idx.type] = { valeur: idx.valeur, trimestre: idx.trimestre };
+        }
+      }
+
+      // Pre-fetch existing indexations to check for duplicates
+      const existingIndexations = await db
+        .select()
+        .from(indexationsGL)
+        .orderBy(desc(indexationsGL.dateApplication));
+      const lastIndexByBail: Record<string, string> = {};
+      for (const ix of existingIndexations) {
+        if (!lastIndexByBail[ix.bailId]) {
+          lastIndexByBail[ix.bailId] = ix.indiceNouveau || "";
+        }
+      }
+
       const results: any[] = [];
+      const skipped: any[] = [];
 
       for (const bail of allBaux) {
         if (!bail.indiceReference || !bail.valeurIndiceBase || !bail.loyerBaseHT) {
+          skipped.push({ bailId: bail.id, reason: "Champs manquants (indice, valeur base ou loyer)" });
           continue;
         }
 
-        // Find the latest index value matching this bail's indice type
-        const latestIndices = await db
-          .select()
-          .from(indices)
-          .where(eq(indices.type, bail.indiceReference))
-          .orderBy(desc(indices.trimestre))
-          .limit(1);
+        const latest = latestByType[bail.indiceReference];
+        if (!latest) {
+          skipped.push({ bailId: bail.id, reason: `Aucun indice ${bail.indiceReference} en base` });
+          continue;
+        }
 
-        if (latestIndices.length === 0) continue;
-
-        const latestIndex = latestIndices[0];
         const indiceBase = parseFloat(bail.valeurIndiceBase);
-        const indiceNouveau = parseFloat(latestIndex.valeur);
+        const indiceNouveau = parseFloat(latest.valeur);
         const loyerBaseHT = parseFloat(bail.loyerBaseHT);
 
-        if (indiceBase === 0) continue;
+        if (indiceBase <= 0 || isNaN(indiceBase)) {
+          skipped.push({ bailId: bail.id, reason: "Valeur indice de base invalide" });
+          continue;
+        }
+
+        // Idempotency: skip if already indexed with this exact index value
+        const lastIdx = lastIndexByBail[bail.id];
+        if (lastIdx && parseFloat(lastIdx) === indiceNouveau) {
+          skipped.push({ bailId: bail.id, reason: `Déjà indexé avec indice ${indiceNouveau}` });
+          continue;
+        }
 
         const nouveauLoyer = loyerBaseHT * (indiceNouveau / indiceBase);
         const tauxVariation = ((indiceNouveau - indiceBase) / indiceBase) * 100;
         const ancienLoyer = bail.loyerHTActu ? parseFloat(bail.loyerHTActu) : loyerBaseHT;
 
-        // Create indexation record
+        // Create indexation record with the index trimestre as dateApplication
         const [indexation] = await db
           .insert(indexationsGL)
           .values({
             bailId: bail.id,
-            dateApplication: new Date().toISOString().slice(0, 10),
+            dateApplication: latest.trimestre,
             ancienLoyer: ancienLoyer.toFixed(2),
             nouveauLoyer: nouveauLoyer.toFixed(2),
             indiceBase: indiceBase.toFixed(2),
@@ -197,7 +228,7 @@ export function registerGLRoutes(app: Express) {
         results.push({ bailId: bail.id, ancienLoyer, nouveauLoyer: parseFloat(nouveauLoyer.toFixed(2)), indexation });
       }
 
-      res.json({ count: results.length, results });
+      res.json({ count: results.length, results, skipped });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

@@ -335,9 +335,8 @@ export default function DocumentsGLPage() {
           size="lg"
         >
           <FormGrid cols={2}>
-            <FormField name="name" label="Nom du document" required value={editing?.name || ""} onChange={() => {}} />
-            <FormField name="bailId" label="Bail / Crèche" value={editing?.bailId || ""}
-              onChange={() => {}}
+            <FormField name="name" label="Nom du document" required defaultValue={editing?.name || ""} />
+            <FormField name="bailId" label="Bail / Crèche" defaultValue={editing?.bailId || ""}
               options={[
                 { value: "", label: "— Aucun —" },
                 ...activeBaux.map((b: any) => ({ value: b.id, label: b.nom })),
@@ -345,17 +344,16 @@ export default function DocumentsGLPage() {
             />
           </FormGrid>
           <FormGrid cols={2}>
-            <FormField name="type" label="Type" required value={editing?.type || ""} onChange={() => {}} />
-            <FormField name="category" label="Catégorie" value={editing?.category || ""}
-              onChange={() => {}}
+            <FormField name="type" label="Type" required defaultValue={editing?.type || ""} />
+            <FormField name="category" label="Catégorie" defaultValue={editing?.category || ""}
               options={Object.entries(categoryConfig).map(([k, v]) => ({ value: k, label: v.label }))}
             />
           </FormGrid>
           <FormGrid cols={2}>
-            <FormField name="dateDocument" label="Date du document" type="date" value={editing?.dateDocument || ""} onChange={() => {}} />
-            <FormField name="fileName" label="Nom du fichier" value={editing?.fileName || ""} onChange={() => {}} />
+            <FormField name="dateDocument" label="Date du document" type="date" defaultValue={editing?.dateDocument || ""} />
+            <FormField name="fileName" label="Nom du fichier" defaultValue={editing?.fileName || ""} />
           </FormGrid>
-          <FormField name="notes" label="Notes" rows={3} value={editing?.notes || ""} onChange={() => {}} />
+          <FormField name="notes" label="Notes" rows={3} defaultValue={editing?.notes || ""} />
         </FormDialog>
 
         {/* Delete confirmation */}
