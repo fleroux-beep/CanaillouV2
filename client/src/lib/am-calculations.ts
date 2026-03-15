@@ -268,8 +268,9 @@ export function computeIRR(cashFlows: number[], maxIterations = 100, tolerance =
     if (Math.abs(newRate - rate) < tolerance) return newRate * 100;
     rate = newRate;
     if (rate < -0.99) rate = -0.5;
+    if (!Number.isFinite(rate)) return 0;
   }
-  return rate * 100;
+  return Number.isFinite(rate) ? rate * 100 : 0;
 }
 
 // ============================================================
@@ -330,7 +331,7 @@ export function computeDCF(
   // Gordon Growth Model: TV = NOI_(n+1) / (cap_rate - growth_rate)
   const terminalNOI = currentNOI * Math.pow(1 + g, years + 1);
   const exitCap = exitCapRate / 100;
-  const terminalValue = exitCap > g ? terminalNOI / (exitCap - g) : 0;
+  const terminalValue = exitCap > g + 0.001 ? terminalNOI / (exitCap - g) : 0;
   const pvTerminal = terminalValue / Math.pow(1 + r, years);
   const totalPV = pvCashFlows + pvTerminal;
 
