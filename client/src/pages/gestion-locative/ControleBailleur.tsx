@@ -94,11 +94,11 @@ function LoyersIndexesTab() {
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
         <div className="grid gap-4 sm:grid-cols-3">
           <KpiCard label="Loyers actuels (mois)" value={totalActuel} formatFn={(n) => formatCurrency(n)} icon={Receipt} variant="primary" gradient delay={0} />
-          <KpiCard label="Loyers theoriques (mois)" value={totalTheorique} formatFn={(n) => formatCurrency(n)} icon={TrendingUp} variant="success" gradient delay={1} />
-          <KpiCard label="Ecart total (mois)" value={totalEcart} formatFn={(n) => formatCurrency(n)} icon={totalEcart >= 0 ? TrendingUp : TrendingDown} variant={totalEcart >= 0 ? "success" : "danger"} gradient delay={2} />
+          <KpiCard label="Loyers théoriques (mois)" value={totalTheorique} formatFn={(n) => formatCurrency(n)} icon={TrendingUp} variant="success" gradient delay={1} />
+          <KpiCard label="Écart total (mois)" value={totalEcart} formatFn={(n) => formatCurrency(n)} icon={totalEcart >= 0 ? TrendingUp : TrendingDown} variant={totalEcart >= 0 ? "success" : "danger"} gradient delay={2} />
         </div>
 
-        <Section title="Detail par bail" delay={1}>
+        <Section title="Détail par bail" delay={1}>
           <div className="overflow-x-auto rounded-xl border bg-card shadow-sm">
             <table className="w-full text-sm">
               <thead>
@@ -107,9 +107,9 @@ function LoyersIndexesTab() {
                   <th className="px-4 py-3 text-left font-semibold">Adresse</th>
                   <th className="px-4 py-3 text-left font-semibold">Indice</th>
                   <th className="px-4 py-3 text-right font-semibold">Loyer actuel</th>
-                  <th className="px-4 py-3 text-right font-semibold">Loyer theorique</th>
-                  <th className="px-4 py-3 text-right font-semibold">Ecart</th>
-                  <th className="px-4 py-3 text-right font-semibold">Ecart %</th>
+                  <th className="px-4 py-3 text-right font-semibold">Loyer théorique</th>
+                  <th className="px-4 py-3 text-right font-semibold">Écart</th>
+                  <th className="px-4 py-3 text-right font-semibold">Écart %</th>
                 </tr>
               </thead>
               <tbody>
@@ -301,17 +301,17 @@ function ChargesTFTab() {
       name: c.adresse.length > 25 ? c.adresse.slice(0, 22) + "..." : c.adresse,
       Charges: Math.round(c.chargesReelles),
       Provisions: Math.round(c.provision * 12),
-      "Taxe fonciere": Math.round(c.taxeFonciere),
+      "Taxe foncière": Math.round(c.taxeFonciere),
     }));
 
   return (
     <AnimatePresence>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
         <div className="grid gap-4 sm:grid-cols-4">
-          <KpiCard label="Charges reelles/an" value={totalChargesReelles} formatFn={(n) => formatCurrency(n)} icon={Receipt} variant="primary" gradient delay={0} />
+          <KpiCard label="Charges réelles/an" value={totalChargesReelles} formatFn={(n) => formatCurrency(n)} icon={Receipt} variant="primary" gradient delay={0} />
           <KpiCard label="Provisions/an" value={totalProvision} formatFn={(n) => formatCurrency(n)} icon={TrendingUp} variant="success" gradient delay={1} />
-          <KpiCard label="Taxe fonciere total" value={totalTF} formatFn={(n) => formatCurrency(n)} icon={Scale} variant="warning" gradient delay={2} />
-          <KpiCard label="Regularisations" value={totalRegularisation} formatFn={(n) => formatCurrency(n)} icon={totalRegularisation >= 0 ? CheckCircle : AlertTriangle} variant={totalRegularisation >= 0 ? "success" : "danger"} gradient delay={3} />
+          <KpiCard label="Taxe foncière total" value={totalTF} formatFn={(n) => formatCurrency(n)} icon={Scale} variant="warning" gradient delay={2} />
+          <KpiCard label="Régularisations" value={totalRegularisation} formatFn={(n) => formatCurrency(n)} icon={totalRegularisation >= 0 ? CheckCircle : AlertTriangle} variant={totalRegularisation >= 0 ? "success" : "danger"} gradient delay={3} />
         </div>
 
         {chartData.length > 0 && (
@@ -327,7 +327,7 @@ function ChargesTFTab() {
                     <Legend />
                     <Bar dataKey="Charges" fill="#3b82f6" radius={[0, 0, 0, 0]} />
                     <Bar dataKey="Provisions" fill="#10b981" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="Taxe fonciere" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="Taxe foncière" fill="#f59e0b" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -335,18 +335,18 @@ function ChargesTFTab() {
           </Section>
         )}
 
-        <Section title="Detail par bail" delay={2}>
+        <Section title="Détail par bail" delay={2}>
           <div className="overflow-x-auto rounded-xl border bg-card shadow-sm">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/30">
                   <th className="px-4 py-3 text-left font-semibold">Bailleur</th>
                   <th className="px-4 py-3 text-left font-semibold">Adresse</th>
-                  <th className="px-4 py-3 text-right font-semibold">Charges reelles</th>
+                  <th className="px-4 py-3 text-right font-semibold">Charges réelles</th>
                   <th className="px-4 py-3 text-right font-semibold">Provisions/an</th>
-                  <th className="px-4 py-3 text-right font-semibold">Ecart</th>
-                  <th className="px-4 py-3 text-right font-semibold">Taxe fonciere</th>
-                  <th className="px-4 py-3 text-right font-semibold">Regularisation</th>
+                  <th className="px-4 py-3 text-right font-semibold">Écart</th>
+                  <th className="px-4 py-3 text-right font-semibold">Taxe foncière</th>
+                  <th className="px-4 py-3 text-right font-semibold">Régularisation</th>
                 </tr>
               </thead>
               <tbody>
@@ -410,7 +410,7 @@ function SyntheseTab() {
   const loyerTheo12m = totalLoyerCC * 12;
   const tauxEncaissement = loyerTheo12m > 0 ? (total12m / loyerTheo12m * 100) : 0;
 
-  // Synthese par bailleur
+  // Synthèse par bailleur
   const synthBailleur = useMemo(() => {
     const map: Record<string, { bailleur: string; nbBaux: number; loyerMens: number; charges: number; tf: number }> = {};
     activeBaux.forEach((b) => {
@@ -454,7 +454,7 @@ function SyntheseTab() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <KpiCard label="Loyer mensuel HC" value={totalLoyerMensuel} formatFn={(n) => formatCurrency(n)} icon={Receipt} variant="primary" gradient delay={0} />
           <KpiCard label="Loyer CC mensuel" value={totalLoyerCC} formatFn={(n) => formatCurrency(n)} icon={TrendingUp} variant="success" gradient delay={1} />
-          <KpiCard label="Taxe fonciere total" value={totalTF} formatFn={(n) => formatCurrency(n)} icon={Scale} variant="warning" gradient delay={2} />
+          <KpiCard label="Taxe foncière total" value={totalTF} formatFn={(n) => formatCurrency(n)} icon={Scale} variant="warning" gradient delay={2} />
           <KpiCard label="Taux encaissement 12m" value={tauxEncaissement} formatFn={(n) => `${n.toFixed(1)}%`} icon={tauxEncaissement >= 95 ? CheckCircle : AlertTriangle} variant={tauxEncaissement >= 95 ? "success" : "warning"} gradient delay={3} />
         </div>
 
@@ -482,8 +482,8 @@ function SyntheseTab() {
           </Section>
         )}
 
-        {/* Synthese par bailleur */}
-        <Section title="Synthese par bailleur" delay={2}>
+        {/* Synthèse par bailleur */}
+        <Section title="Synthèse par bailleur" delay={2}>
           <div className="overflow-x-auto rounded-xl border bg-card shadow-sm">
             <table className="w-full text-sm">
               <thead>

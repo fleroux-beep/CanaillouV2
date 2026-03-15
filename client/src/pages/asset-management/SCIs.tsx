@@ -79,7 +79,7 @@ export default function SCIsPage() {
     <div className="space-y-6">
       <PageHeader
         title="SCIs"
-        description="Societes civiles immobilieres"
+        description="Sociétés civiles immobilières"
         actions={
           <motion.button
             whileHover={{ scale: 1.02 }}

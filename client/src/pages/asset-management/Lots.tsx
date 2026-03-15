@@ -29,7 +29,7 @@ export default function LotsPage() {
     { key: "designation", label: "Designation", sortable: true, render: (r) => <span className="font-medium">{r.designation}</span> },
     { key: "actifId", label: "Actif", sortable: true, render: (r) => r.actifId ? <Badge variant="primary">{actifMap[r.actifId] || "—"}</Badge> : "—" },
     { key: "type", label: "Type", sortable: true, render: (r) => r.type ? <Badge>{r.type}</Badge> : "—" },
-    { key: "etage", label: "Etage", sortable: true },
+    { key: "etage", label: "Étage", sortable: true },
     { key: "surface", label: "Surface", align: "right", sortable: true, render: (r) => r.surface ? `${r.surface} m²` : "—" },
     { key: "statut", label: "Statut", sortable: true, render: (r) => (
       <Badge variant={r.statut === "loué" ? "success" : r.statut === "vacant" ? "warning" : "default"}>
@@ -77,7 +77,7 @@ export default function LotsPage() {
             { value: "commercial", label: "Commercial" }, { value: "bureau", label: "Bureau" },
             { value: "habitation", label: "Habitation" }, { value: "parking", label: "Parking" }, { value: "cave", label: "Cave" },
           ]} />
-          <FormField label="Etage" name="etage" value={form.etage} onChange={onChange} />
+          <FormField label="Étage" name="etage" value={form.etage} onChange={onChange} />
           <FormField label="Surface" name="surface" value={form.surface} onChange={onChange} type="number" suffix="m²" />
           <FormField label="Statut" name="statut" value={form.statut} onChange={onChange} options={[
             { value: "loué", label: "Loue" }, { value: "vacant", label: "Vacant" },

@@ -85,10 +85,10 @@ export default function ReportingPage() {
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
         <PageHeader
           title="Reporting"
-          description="Synthese et rapports du patrimoine"
+          description="Synthèse et rapports du patrimoine"
         />
 
-        {/* Synthese */}
+        {/* Synthèse */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <KpiCard label="SCIs" value={scis.length} icon={Landmark} variant="primary" gradient delay={0} />
           <KpiCard label="Actifs" value={actifsActifs.length} icon={Building2} variant="success" gradient delay={1} />
@@ -96,8 +96,8 @@ export default function ReportingPage() {
           <KpiCard label="Fonds propres" value={valorisation - crd} formatFn={formatCurrency} icon={Wallet} variant="primary" gradient delay={3} />
         </div>
 
-        {/* Synthese financiere par SCI */}
-        <Section title="Synthese par SCI" delay={2}>
+        {/* Synthèse financière par SCI */}
+        <Section title="Synthèse par SCI" delay={2}>
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}

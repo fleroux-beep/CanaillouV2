@@ -131,7 +131,7 @@ export default function ActifsPage() {
         <h3 className="mt-5 mb-3 text-sm font-semibold text-muted-foreground uppercase">Charges annuelles</h3>
         <FormGrid cols={3}>
           <FormField label="Charges annuelles" name="chargesAnnuelles" value={form.chargesAnnuelles} onChange={onChange} type="number" suffix="EUR" />
-          <FormField label="Taxe fonciere" name="taxeFonciere" value={form.taxeFonciere} onChange={onChange} type="number" suffix="EUR" />
+          <FormField label="Taxe foncière" name="taxeFonciere" value={form.taxeFonciere} onChange={onChange} type="number" suffix="EUR" />
           <FormField label="Assurance PNO" name="assurancePno" value={form.assurancePno} onChange={onChange} type="number" suffix="EUR" />
         </FormGrid>
         <h3 className="mt-5 mb-3 text-sm font-semibold text-muted-foreground uppercase">Valorisation</h3>

@@ -167,7 +167,7 @@ export default function ProjectionsPage() {
             variant="success" gradient delay={1}
           />
           <KpiCard
-            label={`Loyer projete N+${horizon}`} value={loyerNMax}
+            label={`Loyer projeté N+${horizon}`} value={loyerNMax}
             formatFn={formatCurrency} icon={Target}
             variant="warning" gradient delay={2}
           />
@@ -182,7 +182,7 @@ export default function ProjectionsPage() {
         {/* Parametres */}
         <GlassCard delay={1}>
           <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Hypotheses
+            Hypothèses
           </h3>
           <div className="grid gap-4 sm:grid-cols-3">
             <SliderInput
@@ -204,7 +204,7 @@ export default function ProjectionsPage() {
           <TabsList>
             <TabsTrigger value="scenarios">Multi-scenarios</TabsTrigger>
             <TabsTrigger value="marges">Loyers vs Charges</TabsTrigger>
-            <TabsTrigger value="detail">Detail par bail</TabsTrigger>
+            <TabsTrigger value="detail">Détail par bail</TabsTrigger>
             <TabsTrigger value="indices">Par indice</TabsTrigger>
           </TabsList>
 
@@ -247,7 +247,7 @@ export default function ProjectionsPage() {
           <TabsContent value="marges">
             <GlassCard delay={2} className="mt-6">
               <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                Evolution loyers vs charges
+                Évolution loyers vs charges
               </h3>
               <ResponsiveContainer width="100%" height={380}>
                 <BarChart data={loyerVsChargesData} barGap={4}>
@@ -264,7 +264,7 @@ export default function ProjectionsPage() {
             </GlassCard>
           </TabsContent>
 
-          {/* Detail par bail */}
+          {/* Détail par bail */}
           <TabsContent value="detail">
             <Section title="Projections par bail" delay={2}>
               <div className="overflow-x-auto rounded-xl border bg-card shadow-sm">
@@ -336,7 +336,7 @@ export default function ProjectionsPage() {
             <div className="grid gap-6 lg:grid-cols-2 mt-6">
               <GlassCard delay={2}>
                 <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                  Repartition par indice de reference
+                  Répartition par indice de référence
                 </h3>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">

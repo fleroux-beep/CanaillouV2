@@ -48,7 +48,7 @@ export default function BailleursPage() {
         <FormGrid>
           <FormField label="Nom" name="nom" value={form.nom} onChange={onChange} required />
           <FormField label="Type" name="type" value={form.type} onChange={onChange} options={[
-            { value: "personne_physique", label: "Personne physique" }, { value: "SCI", label: "SCI" }, { value: "societe", label: "Societe" },
+            { value: "personne_physique", label: "Personne physique" }, { value: "SCI", label: "SCI" }, { value: "societe", label: "Société" },
           ]} />
           <FormField label="Email" name="email" value={form.email} onChange={onChange} type="email" />
           <FormField label="Telephone" name="telephone" value={form.telephone} onChange={onChange} />

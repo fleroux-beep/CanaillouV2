@@ -46,7 +46,7 @@ function EmpruntsTab() {
     { key: "montantEmprunte", label: "Montant", align: "right", sortable: true, render: (r) => r.montantEmprunte ? formatCurrency(r.montantEmprunte) : "—" },
     { key: "capitalRestantDu", label: "CRD", align: "right", sortable: true, render: (r) => r.capitalRestantDu ? formatCurrency(r.capitalRestantDu) : "—" },
     { key: "tauxAnnuel", label: "Taux", align: "right", sortable: true, render: (r) => r.tauxAnnuel ? formatPercent(r.tauxAnnuel) : "—" },
-    { key: "mensualite", label: "Mensualite", align: "right", sortable: true, render: (r) => r.mensualite ? formatCurrency(r.mensualite) : "—" },
+    { key: "mensualite", label: "Mensualité", align: "right", sortable: true, render: (r) => r.mensualite ? formatCurrency(r.mensualite) : "—" },
     { key: "dateFin", label: "Échéance", sortable: true },
     { key: "actions", label: "", align: "right", render: (r) => (
       <div className="flex items-center justify-end gap-1">
@@ -166,7 +166,7 @@ function CoutCreditTab() {
           <KpiCard label="Capital emprunte" value={totalMontant} formatFn={(n) => formatCurrency(n)} icon={Landmark} variant="primary" gradient delay={0} />
           <KpiCard label="Cout des interets" value={totalInterets} formatFn={(n) => formatCurrency(n)} icon={TrendingDown} variant="danger" gradient delay={1} />
           <KpiCard label="Cout assurance" value={totalAssurance} formatFn={(n) => formatCurrency(n)} icon={Calculator} variant="warning" gradient delay={2} />
-          <KpiCard label="Cout total du credit" value={totalCout} formatFn={(n) => formatCurrency(n)} icon={Percent} variant="danger" gradient delay={3} />
+          <KpiCard label="Coût total du crédit" value={totalCout} formatFn={(n) => formatCurrency(n)} icon={Percent} variant="danger" gradient delay={3} />
         </div>
 
         {chartData.length > 0 && (
@@ -202,7 +202,7 @@ function CoutCreditTab() {
                   <th className="px-4 py-3 text-right font-semibold">Durée</th>
                   <th className="px-4 py-3 text-right font-semibold">Intérêts</th>
                   <th className="px-4 py-3 text-right font-semibold">Assurance</th>
-                  <th className="px-4 py-3 text-right font-semibold">Cout total</th>
+                  <th className="px-4 py-3 text-right font-semibold">Coût total</th>
                   <th className="px-4 py-3 text-right font-semibold">TAEG estim.</th>
                 </tr>
               </thead>
@@ -271,7 +271,7 @@ function RachatCreditTab() {
     // Calcul ancien cout restant
     const ancienCoutRestant = (ancienneMens + ancienneAssurance) * ancienneDureeRestante;
 
-    // Nouveau pret
+    // Nouveau prêt
     const nTaux = parseFloat(nouveauTaux) / 100;
     const nDuree = parseInt(nouvelleDuree) * 12;
     const ira = crd * (parseFloat(fraisRachat) / 100); // Indemnite de remboursement anticipe
@@ -360,11 +360,11 @@ function RachatCreditTab() {
 
         {simulation && (
           <>
-            {/* Resultat KPIs */}
+            {/* Résultat KPIs */}
             <div className="grid gap-4 sm:grid-cols-4">
-              <KpiCard label="Ancienne mensualite" value={simulation.ancienneMens + simulation.ancienneAssurance} formatFn={(n) => formatCurrency(n)} icon={TrendingDown} variant="warning" gradient delay={0} />
-              <KpiCard label="Nouvelle mensualite" value={simulation.nouvelleMensualite} formatFn={(n) => formatCurrency(n)} icon={RefreshCw} variant="primary" gradient delay={1} />
-              <KpiCard label="Economie totale" value={simulation.economie} formatFn={(n) => formatCurrency(n)} icon={Calculator} variant={simulation.economie > 0 ? "success" : "danger"} gradient delay={2} />
+              <KpiCard label="Ancienne mensualité" value={simulation.ancienneMens + simulation.ancienneAssurance} formatFn={(n) => formatCurrency(n)} icon={TrendingDown} variant="warning" gradient delay={0} />
+              <KpiCard label="Nouvelle mensualité" value={simulation.nouvelleMensualite} formatFn={(n) => formatCurrency(n)} icon={RefreshCw} variant="primary" gradient delay={1} />
+              <KpiCard label="Économie totale" value={simulation.economie} formatFn={(n) => formatCurrency(n)} icon={Calculator} variant={simulation.economie > 0 ? "success" : "danger"} gradient delay={2} />
               <KpiCard label="Point mort" value={simulation.pointMort} formatFn={(n) => n > 0 ? `${n} mois` : "N/A"} icon={Percent} variant="primary" gradient delay={3} />
             </div>
 
@@ -376,20 +376,20 @@ function RachatCreditTab() {
                     <thead>
                       <tr className="border-b bg-muted/30">
                         <th className="px-4 py-3 text-left font-semibold"></th>
-                        <th className="px-4 py-3 text-right font-semibold">Pret actuel</th>
-                        <th className="px-4 py-3 text-right font-semibold">Nouveau pret</th>
-                        <th className="px-4 py-3 text-right font-semibold">Difference</th>
+                        <th className="px-4 py-3 text-right font-semibold">Prêt actuel</th>
+                        <th className="px-4 py-3 text-right font-semibold">Nouveau prêt</th>
+                        <th className="px-4 py-3 text-right font-semibold">Différence</th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr className="border-t">
-                        <td className="px-4 py-3 font-medium">Capital restant du</td>
+                        <td className="px-4 py-3 font-medium">Capital restant dû</td>
                         <td className="px-4 py-3 text-right">{formatCurrency(simulation.crd)}</td>
                         <td className="px-4 py-3 text-right">{formatCurrency(simulation.crd)}</td>
                         <td className="px-4 py-3 text-right">—</td>
                       </tr>
                       <tr className="border-t">
-                        <td className="px-4 py-3 font-medium">Mensualite</td>
+                        <td className="px-4 py-3 font-medium">Mensualité</td>
                         <td className="px-4 py-3 text-right">{formatCurrency(simulation.ancienneMens + simulation.ancienneAssurance)}</td>
                         <td className="px-4 py-3 text-right">{formatCurrency(simulation.nouvelleMensualite)}</td>
                         <td className={`px-4 py-3 text-right font-medium ${simulation.nouvelleMensualite < simulation.ancienneMens + simulation.ancienneAssurance ? "text-green-600" : "text-red-600"}`}>
@@ -397,7 +397,7 @@ function RachatCreditTab() {
                         </td>
                       </tr>
                       <tr className="border-t">
-                        <td className="px-4 py-3 font-medium">Cout total restant</td>
+                        <td className="px-4 py-3 font-medium">Coût total restant</td>
                         <td className="px-4 py-3 text-right">{formatCurrency(simulation.ancienCoutRestant)}</td>
                         <td className="px-4 py-3 text-right">{formatCurrency(simulation.nouveauCoutTotal)}</td>
                         <td className={`px-4 py-3 text-right font-medium ${simulation.economie > 0 ? "text-green-600" : "text-red-600"}`}>
@@ -415,7 +415,7 @@ function RachatCreditTab() {
                     </tbody>
                     <tfoot>
                       <tr className="border-t-2 font-semibold">
-                        <td className="px-4 py-3">Economie nette</td>
+                        <td className="px-4 py-3">Économie nette</td>
                         <td className="px-4 py-3" colSpan={2}></td>
                         <td className={`px-4 py-3 text-right text-lg ${simulation.economie > 0 ? "text-green-600" : "text-red-600"}`}>
                           {formatCurrency(simulation.economie)}
