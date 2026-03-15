@@ -165,12 +165,23 @@ export default function GLDashboard() {
         {/* Secondary KPIs */}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <KpiCard label="Loyer mensuel" value={totalLoyerHT / 12} formatFn={formatCurrency} icon={BarChart3} delay={4} />
-          <KpiCard label="Charges annuelles" value={totalCharges} formatFn={formatCurrency} icon={PiggyBank} delay={5} />
-          <KpiCard label="Paiements enregistrés" value={totalPaiements} formatFn={formatCurrency} icon={CreditCard} delay={6} />
           <KpiCard
-            label="Loyer/m²" value={totalSurface > 0 ? totalLoyerHT / totalSurface : 0}
-            formatFn={(n) => n > 0 ? `${formatCurrency(n)}/m²` : "N/A"}
-            icon={Calculator} delay={7}
+            label="Loyer / berceau"
+            value={totalCapacite > 0 ? totalLoyerHT / totalCapacite : 0}
+            formatFn={(n) => n > 0 ? `${formatCurrency(n)}/berc.` : "N/A"}
+            icon={Calculator} delay={5}
+          />
+          <KpiCard
+            label="Surface / berceau"
+            value={totalCapacite > 0 ? totalSurface / totalCapacite : 0}
+            formatFn={(n) => n > 0 ? `${formatNumber(n)} m²/berc.` : "N/A"}
+            icon={Building2} delay={6}
+          />
+          <KpiCard
+            label="Coût locatif / berceau"
+            value={totalCapacite > 0 ? (totalLoyerHT + totalCharges) / totalCapacite : 0}
+            formatFn={(n) => n > 0 ? `${formatCurrency(n)}/berc.` : "N/A"}
+            icon={PiggyBank} delay={7}
           />
         </div>
 
@@ -338,9 +349,10 @@ export default function GLDashboard() {
                     <th className="px-4 py-3 text-right font-semibold">Loyer HT</th>
                     <th className="px-4 py-3 text-right font-semibold">Charges</th>
                     <th className="px-4 py-3 text-right font-semibold">Surface</th>
-                    <th className="px-4 py-3 text-right font-semibold">Capacité</th>
+                    <th className="px-4 py-3 text-right font-semibold">Berceaux</th>
+                    <th className="px-4 py-3 text-right font-semibold">Loyer/berc.</th>
+                    <th className="px-4 py-3 text-right font-semibold">m²/berc.</th>
                     <th className="px-4 py-3 text-left font-semibold">Indice</th>
-                    <th className="px-4 py-3 text-left font-semibold">Type</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -364,6 +376,8 @@ export default function GLDashboard() {
                       <td className="px-4 py-3 text-right">{b.charges ? formatCurrency(b.charges) : "—"}</td>
                       <td className="px-4 py-3 text-right">{b.surface ? `${b.surface} m²` : "—"}</td>
                       <td className="px-4 py-3 text-right">{b.capacite || "—"}</td>
+                      <td className="px-4 py-3 text-right">{b.capacite && b.loyerBaseHT ? formatCurrency(Number(b.loyerBaseHT) / Number(b.capacite)) : "—"}</td>
+                      <td className="px-4 py-3 text-right">{b.capacite && b.surface ? `${formatNumber(Number(b.surface) / Number(b.capacite))} m²` : "—"}</td>
                       <td className="px-4 py-3">
                         {b.indiceReference ? (
                           <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
@@ -371,7 +385,6 @@ export default function GLDashboard() {
                           </span>
                         ) : "—"}
                       </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">{b.typeBail || "—"}</td>
                     </motion.tr>
                   ))}
                 </tbody>

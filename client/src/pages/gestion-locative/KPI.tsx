@@ -41,6 +41,8 @@ export default function GLKPIPage() {
   const coutMoyenBerceau = totalCapacite > 0 ? totalLoyerHT / totalCapacite : 0;
   const loyerMoyenM2 = totalSurface > 0 ? totalLoyerHT / totalSurface : 0;
   const chargesMoyennesM2 = totalSurface > 0 ? totalCharges / totalSurface : 0;
+  const surfaceParBerceau = totalCapacite > 0 ? totalSurface / totalCapacite : 0;
+  const chargesParBerceau = totalCapacite > 0 ? totalCharges / totalCapacite : 0;
   const totalPaiements = paiements.reduce((sum: number, p: any) => sum + Number(p.montant || 0), 0);
 
   // Pie chart: répartition loyer par type de bail
@@ -141,25 +143,57 @@ export default function GLKPIPage() {
             delay={4}
           />
           <KpiCard
+            label="Surface / berceau"
+            value={surfaceParBerceau}
+            formatFn={(n) => n > 0 ? `${formatNumber(n)} m²/berc.` : "N/A"}
+            icon={Building2}
+            delay={5}
+          />
+          <KpiCard
+            label="Charges / berceau"
+            value={chargesParBerceau}
+            formatFn={(n) => n > 0 ? `${formatCurrency(n)}/berc.` : "N/A"}
+            icon={PiggyBank}
+            delay={6}
+          />
+          <KpiCard
+            label="Berceaux total"
+            value={totalCapacite}
+            formatFn={(n) => `${formatNumber(n)} berceaux`}
+            icon={Users}
+            delay={7}
+          />
+        </div>
+
+        {/* Other KPIs */}
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard
             label="Charges / m²"
             value={chargesMoyennesM2}
             formatFn={(n) => n > 0 ? `${formatCurrency(n)}/m²` : "N/A"}
             icon={PiggyBank}
-            delay={5}
+            delay={8}
           />
           <KpiCard
             label="Taxe foncière totale"
             value={totalTaxeFonciere}
             formatFn={formatCurrency}
             icon={Calculator}
-            delay={6}
+            delay={9}
+          />
+          <KpiCard
+            label="Dépôts de garantie"
+            value={totalDepotGarantie}
+            formatFn={formatCurrency}
+            icon={CreditCard}
+            delay={10}
           />
           <KpiCard
             label="Paiements enregistrés"
             value={totalPaiements}
             formatFn={formatCurrency}
             icon={CreditCard}
-            delay={7}
+            delay={11}
           />
         </div>
 
@@ -268,6 +302,8 @@ export default function GLKPIPage() {
                     <th className="px-4 py-3 text-right font-semibold">Capacité</th>
                     <th className="px-4 py-3 text-right font-semibold">Loyer/m²</th>
                     <th className="px-4 py-3 text-right font-semibold">Loyer/berceau</th>
+                    <th className="px-4 py-3 text-right font-semibold">Surface/berc.</th>
+                    <th className="px-4 py-3 text-right font-semibold">Coût total/berc.</th>
                     <th className="px-4 py-3 text-left font-semibold">Indice</th>
                   </tr>
                 </thead>
@@ -279,6 +315,8 @@ export default function GLKPIPage() {
                     const charges = Number(b.charges || 0);
                     const loyerM2 = surface > 0 ? loyer / surface : 0;
                     const loyerBerceau = capacite > 0 ? loyer / capacite : 0;
+                    const surfBerc = capacite > 0 && surface > 0 ? surface / capacite : 0;
+                    const coutTotalBerc = capacite > 0 ? (loyer + charges + Number(b.taxeFonciere || 0)) / capacite : 0;
 
                     return (
                       <motion.tr
@@ -296,6 +334,8 @@ export default function GLKPIPage() {
                         <td className="px-4 py-3 text-right">{capacite || "—"}</td>
                         <td className="px-4 py-3 text-right">{loyerM2 > 0 ? `${formatCurrency(loyerM2)}/m²` : "—"}</td>
                         <td className="px-4 py-3 text-right">{loyerBerceau > 0 ? formatCurrency(loyerBerceau) : "—"}</td>
+                        <td className="px-4 py-3 text-right">{surfBerc > 0 ? `${formatNumber(surfBerc)} m²` : "—"}</td>
+                        <td className="px-4 py-3 text-right">{coutTotalBerc > 0 ? formatCurrency(coutTotalBerc) : "—"}</td>
                         <td className="px-4 py-3">
                           {b.indiceReference ? (
                             <Badge variant="primary">{b.indiceReference}</Badge>
