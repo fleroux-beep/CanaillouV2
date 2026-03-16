@@ -26,7 +26,7 @@ export default function PaiementsGLPage() {
   const columns: Column<Paiement>[] = [
     { key: "bailId", label: "Bail", sortable: true, render: (r) => <span className="font-medium">{bauxMap[r.bailId] || "—"}</span>, exportValue: (r) => bauxMap[r.bailId] || "" },
     { key: "date", label: "Date", sortable: true },
-    { key: "montant", label: "Montant", align: "right", sortable: true, render: (r) => formatCurrency(r.montant) },
+    { key: "montant", label: "Montant", align: "right", sortable: true, render: (r) => formatCurrency(Number(r.montant)) },
     { key: "type", label: "Type", sortable: true, render: (r) => <Badge>{r.type}</Badge> },
     { key: "methode", label: "Méthode" },
     { key: "reference", label: "Référence" },

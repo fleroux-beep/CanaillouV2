@@ -209,7 +209,7 @@ export default function CalendrierGLPage() {
           {events.length === 0 && (
             <GlassCard>
               <p className="text-center text-muted-foreground py-8">
-                Aucune echeance a afficher
+                Aucune échéance à afficher
               </p>
             </GlassCard>
           )}

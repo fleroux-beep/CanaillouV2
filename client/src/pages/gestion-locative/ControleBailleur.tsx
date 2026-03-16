@@ -418,11 +418,11 @@ function SyntheseTab() {
         const d = new Date(p.date);
         return !isNaN(d.getTime()) && d >= debut;
       })
-      .filter((p) => !p.type || p.type === "loyer" || p.type === "Loyer")
+      .filter((p) => !p.type || p.type.toLowerCase() === "loyer")
       .reduce((s, p) => s + (p.montant ? parseFloat(p.montant) : 0), 0);
   }, [paiements]);
 
-  const tauxEncaissement = totalLoyerCC > 0 ? Math.min(total12m / totalLoyerCC * 100, 999) : 0;
+  const tauxEncaissement = totalLoyerCC > 0 ? Math.min(total12m / totalLoyerCC * 100, 100) : 0;
 
   // Synthèse par bailleur
   const synthBailleur = useMemo(() => {
