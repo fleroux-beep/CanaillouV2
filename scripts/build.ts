@@ -21,8 +21,25 @@ await esbuild.build({
     "pg-native",
     "bcrypt",
     "better-sqlite3",
-    "vite",
     "lightningcss",
+  ],
+  define: {
+    "process.env.NODE_ENV": '"production"',
+  },
+  plugins: [
+    {
+      // Replace vite-dev.ts with a stub so "vite" (devDependency) is never imported
+      name: "exclude-vite-dev",
+      setup(build) {
+        build.onResolve({ filter: /vite-dev/ }, () => ({
+          path: "vite-dev",
+          namespace: "exclude",
+        }));
+        build.onLoad({ filter: /.*/, namespace: "exclude" }, () => ({
+          contents: "export function setupViteDevServer() {}",
+        }));
+      },
+    },
   ],
   sourcemap: true,
 });
