@@ -3,7 +3,10 @@ import session from "express-session";
 import ConnectPgSimple from "connect-pg-simple";
 import path from "path";
 import { fileURLToPath } from "url";
-import { pool } from "./db";
+import bcrypt from "bcrypt";
+import { eq } from "drizzle-orm";
+import { pool, db } from "./db";
+import { users } from "@shared/schema";
 import { registerAuthRoutes } from "./routes/auth";
 import { registerAMRoutes } from "./routes/am";
 import { registerGLRoutes } from "./routes/gl";
@@ -93,8 +96,30 @@ app.use((err: any, _req: any, res: any, _next: any) => {
   }
 });
 
-app.listen(PORT, "0.0.0.0", () => {
-  logger.info("server started", { port: PORT, env: process.env.NODE_ENV || "development" });
+// Seed default admin user if none exists
+async function seedAdminUser() {
+  try {
+    const existing = await db.select().from(users).where(eq(users.email, "fleroux@lespetitescanailles.fr")).limit(1);
+    if (existing.length === 0) {
+      const hashed = await bcrypt.hash("LPC040411", 10);
+      await db.insert(users).values({
+        email: "fleroux@lespetitescanailles.fr",
+        password: hashed,
+        firstName: "Fleroux",
+        role: "admin",
+        isApproved: true,
+      });
+      logger.info("admin user created", { email: "fleroux@lespetitescanailles.fr" });
+    }
+  } catch (error: any) {
+    logger.error("failed to seed admin user", { error: error.message });
+  }
+}
+
+seedAdminUser().then(() => {
+  app.listen(PORT, "0.0.0.0", () => {
+    logger.info("server started", { port: PORT, env: process.env.NODE_ENV || "development" });
+  });
 });
 
 export default app;
