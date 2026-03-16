@@ -55,8 +55,8 @@ export function CsvImport({ endpoint, onSuccess }: CsvImportProps) {
       }
 
       toast({
-        title: "Import reussi",
-        description: `${result.count} enregistrement(s) importe(s).`,
+        title: "Import réussi",
+        description: `${result.count} enregistrement(s) importé(s).`,
         variant: "success",
       });
 

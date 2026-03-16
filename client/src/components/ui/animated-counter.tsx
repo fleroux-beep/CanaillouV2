@@ -25,6 +25,7 @@ export function AnimatedCounter({
     const start = prevValue.current;
     const end = value;
     const startTime = performance.now();
+    let frameId: number;
 
     function animate(currentTime: number) {
       const elapsed = currentTime - startTime;
@@ -36,13 +37,14 @@ export function AnimatedCounter({
       setDisplay(current);
 
       if (progress < 1) {
-        requestAnimationFrame(animate);
+        frameId = requestAnimationFrame(animate);
       } else {
         prevValue.current = end;
       }
     }
 
-    requestAnimationFrame(animate);
+    frameId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frameId);
   }, [value, isInView, duration]);
 
   return (
