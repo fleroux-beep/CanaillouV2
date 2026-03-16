@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { useAuth } from "../contexts/AuthContext";
 import { Lock, Mail, ArrowRight } from "lucide-react";
+import logoSrc from "../assets/logo.png";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -55,7 +56,7 @@ export default function LoginPage() {
             className="mb-8 text-center"
           >
             <img
-              src="/logo.png"
+              src={logoSrc}
               alt="Les Petites Canailles"
               className="mx-auto mb-2 h-24 object-contain"
             />

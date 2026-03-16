@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { useAuth } from "../contexts/AuthContext";
 import { useDarkMode } from "../hooks/useDarkMode";
+import logoSrc from "../assets/logo.png";
 import {
   LayoutDashboard, Building2, FileText, Users, Landmark, PiggyBank,
   Map, BarChart3, TrendingUp, Calculator, Calendar,
@@ -140,7 +141,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               className="shrink-0"
             >
               <img
-                src="/logo.png"
+                src={logoSrc}
                 alt="Les Petites Canailles"
                 className={cn(
                   "object-contain transition-all",

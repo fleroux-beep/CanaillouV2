@@ -1,6 +1,14 @@
 import { execSync } from "child_process";
 import esbuild from "esbuild";
 
+// Push database schema
+console.log("Pushing database schema...");
+try {
+  execSync("npx drizzle-kit push", { stdio: "inherit", cwd: process.cwd() });
+} catch (e) {
+  console.error("Warning: db:push failed, tables may already exist or DATABASE_URL not set");
+}
+
 // Build frontend with Vite
 console.log("Building frontend...");
 execSync("npx vite build", { stdio: "inherit", cwd: process.cwd() });

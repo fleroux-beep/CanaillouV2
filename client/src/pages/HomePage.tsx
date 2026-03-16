@@ -1,6 +1,7 @@
 import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { Building2, FileText, ArrowRight } from "lucide-react";
+import logoSrc from "../assets/logo.png";
 
 const cards = [
   {
@@ -41,7 +42,7 @@ export default function HomePage() {
             className="mx-auto mb-6"
           >
             <img
-              src="/logo.png"
+              src={logoSrc}
               alt="Les Petites Canailles"
               className="mx-auto h-24 object-contain"
             />
