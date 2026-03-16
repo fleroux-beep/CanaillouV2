@@ -88,7 +88,7 @@ export default function AMDashboard() {
   const ltv = getLTV(crd, valorisation);
   const dscr = getDSCR(noi, serviceDette);
 
-  const lotsLoues = lots.filter((l: any) => (l.statut === "loué" || l.statut === "loue") && !l.archived).length;
+  const lotsLoues = lots.filter((l: any) => l.statut?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === "loue" && !l.archived).length;
   const lotsTotal = lots.filter((l: any) => !l.archived).length;
   const tauxOccupation = lotsTotal > 0 ? (lotsLoues / lotsTotal) * 100 : 0;
 

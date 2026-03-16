@@ -32,7 +32,7 @@ export default function LotsPage() {
     { key: "etage", label: "Étage", sortable: true },
     { key: "surface", label: "Surface", align: "right", sortable: true, render: (r) => r.surface ? `${r.surface} m²` : "—" },
     { key: "statut", label: "Statut", sortable: true, render: (r) => (
-      <Badge variant={r.statut === "loué" ? "success" : r.statut === "vacant" ? "warning" : "default"}>
+      <Badge variant={r.statut?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === "loue" ? "success" : r.statut === "vacant" ? "warning" : "default"}>
         {r.statut || "—"}
       </Badge>
     )},
@@ -80,7 +80,7 @@ export default function LotsPage() {
           <FormField label="Étage" name="etage" value={form.etage} onChange={onChange} />
           <FormField label="Surface" name="surface" value={form.surface} onChange={onChange} type="number" suffix="m²" />
           <FormField label="Statut" name="statut" value={form.statut} onChange={onChange} options={[
-            { value: "loué", label: "Loue" }, { value: "vacant", label: "Vacant" },
+            { value: "loué", label: "Loué" }, { value: "vacant", label: "Vacant" },
           ]} />
           <FormField label="Loyer mensuel" name="loyerMensuel" value={form.loyerMensuel} onChange={onChange} type="number" suffix="EUR" />
           <FormField label="Loyer annuel" name="loyerAnnuel" value={form.loyerAnnuel} onChange={onChange} type="number" suffix="EUR" />

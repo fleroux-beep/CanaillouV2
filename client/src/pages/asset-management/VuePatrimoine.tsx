@@ -60,7 +60,7 @@ function ArbrePatrimoine() {
   // KPIs
   const totalActifs = activeActifs.length;
   const totalLots = activeLots.length;
-  const totalBaux = baux.length;
+  const totalBaux = baux.filter((b: any) => !b.archived).length;
   const totalSurface = activeActifs.reduce((s, a) => s + (a.surface ? parseFloat(a.surface) : 0), 0);
 
   return (
