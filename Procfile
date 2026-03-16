@@ -1,1 +1,1 @@
-web: node dist/index.cjs
+web: node dist/index.mjs
