@@ -102,8 +102,13 @@ export default function ProjectionsPage() {
         const oldest = sorted[0].valeur;
         const latest = sorted[sorted.length - 1].valeur;
         // Estimate number of years between first and last
-        const firstYear = parseInt(sorted[0].trimestre.slice(0, 4)) || 0;
-        const lastYear = parseInt(sorted[sorted.length - 1].trimestre.slice(0, 4)) || 0;
+        // Trimestre format: "T1 2025" or "2025-T1" — extract 4-digit year
+        const extractYear = (t: string) => {
+          const match = t.match(/(\d{4})/);
+          return match ? parseInt(match[1]) : 0;
+        };
+        const firstYear = extractYear(sorted[0].trimestre);
+        const lastYear = extractYear(sorted[sorted.length - 1].trimestre);
         const years = Math.max(1, lastYear - firstYear);
         if (oldest > 0) {
           rates[type] = (Math.pow(latest / oldest, 1 / years) - 1) * 100;

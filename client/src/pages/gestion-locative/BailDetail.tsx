@@ -325,7 +325,7 @@ export default function BailGLDetailPage() {
         </div>
 
         {/* Per-berceau KPIs (if capacite is set) */}
-        {bail.capacite > 0 && (
+        {Number(bail.capacite || 0) > 0 && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <KpiCard
               label="Loyer / berceau"

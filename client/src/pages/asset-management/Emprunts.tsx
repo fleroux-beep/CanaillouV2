@@ -42,7 +42,7 @@ function EmpruntsTab() {
 
   const columns: Column<Emprunt>[] = [
     { key: "banque", label: "Banque", sortable: true, render: (r) => <span className="font-medium">{r.banque || "—"}</span> },
-    { key: "sciId", label: "SCI", sortable: true, render: (r) => r.sciId ? <Badge variant="primary">{sciMap[r.sciId] || "—"}</Badge> : "—" },
+    { key: "sciId", label: "SCI", sortable: true, render: (r) => r.sciId ? <Badge variant="primary">{sciMap[r.sciId] || "—"}</Badge> : "—", exportValue: (r) => r.sciId ? sciMap[r.sciId] || "" : "" },
     { key: "montantEmprunte", label: "Montant", align: "right", sortable: true, render: (r) => r.montantEmprunte ? formatCurrency(r.montantEmprunte) : "—" },
     { key: "capitalRestantDu", label: "CRD", align: "right", sortable: true, render: (r) => r.capitalRestantDu ? formatCurrency(r.capitalRestantDu) : "—" },
     { key: "tauxAnnuel", label: "Taux", align: "right", sortable: true, render: (r) => r.tauxAnnuel ? formatPercent(r.tauxAnnuel) : "—" },

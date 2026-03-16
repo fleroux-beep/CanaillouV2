@@ -360,7 +360,7 @@ export default function DocumentsGLPage() {
         <ConfirmDialog
           open={!!deleteId}
           onClose={() => setDeleteId(null)}
-          onConfirm={() => { if (deleteId) remove(deleteId); setDeleteId(null); }}
+          onConfirm={async () => { if (deleteId) { await remove(deleteId); setDeleteId(null); } }}
           title="Supprimer ce document ?"
           loading={deleting}
         />

@@ -504,7 +504,9 @@ export function computeStressTests(
       }
       if (totalCRD > 0) tauxMoyenImplicite = totalPondere / totalCRD;
     }
-    const debtServiceAjuste = serviceDette * (1 + (tauxMoyenImplicite > 0 ? s.tauxVariation / tauxMoyenImplicite : 0));
+    const debtServiceAjuste = tauxMoyenImplicite > 0
+      ? serviceDette * (1 + s.tauxVariation / tauxMoyenImplicite)
+      : serviceDette;
     const noiAjuste = loyerAjuste - chargesAjustees;
     const cashFlowAjuste = noiAjuste - debtServiceAjuste;
     const dscr = debtServiceAjuste > 0 ? noiAjuste / debtServiceAjuste : 0;

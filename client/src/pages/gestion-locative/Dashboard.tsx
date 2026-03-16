@@ -54,7 +54,7 @@ export default function GLDashboard() {
   }
 
   const bauxActifs = baux.filter((b: any) => !b.archived);
-  const totalLoyerHT = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.loyerBaseHT || 0), 0);
+  const totalLoyerHT = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.loyerHTActu || b.loyerBaseHT || 0), 0);
   const totalSurface = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.surface || 0), 0);
   const totalCapacite = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.capacite || 0), 0);
   const totalCharges = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.charges || 0), 0);
@@ -102,7 +102,7 @@ export default function GLDashboard() {
   const loyerParVille: Record<string, number> = {};
   bauxActifs.forEach((b: any) => {
     const v = b.ville || "Non renseigné";
-    loyerParVille[v] = (loyerParVille[v] || 0) + Number(b.loyerBaseHT || 0);
+    loyerParVille[v] = (loyerParVille[v] || 0) + Number(b.loyerHTActu || b.loyerBaseHT || 0);
   });
   const pieData = Object.entries(loyerParVille)
     .map(([name, value]) => ({ name, value }))
@@ -110,10 +110,10 @@ export default function GLDashboard() {
 
   // Bar chart: loyer par bail
   const barData = bauxActifs
-    .filter((b: any) => b.loyerBaseHT)
+    .filter((b: any) => b.loyerHTActu || b.loyerBaseHT)
     .map((b: any) => ({
       name: b.nom?.length > 15 ? b.nom.substring(0, 15) + "..." : b.nom,
-      loyer: Number(b.loyerBaseHT || 0),
+      loyer: Number(b.loyerHTActu || b.loyerBaseHT || 0),
       charges: Number(b.charges || 0),
     }))
     .sort((a: any, b: any) => b.loyer - a.loyer)
@@ -371,11 +371,11 @@ export default function GLDashboard() {
                           {b.ville || "—"}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right font-medium">{formatCurrency(b.loyerBaseHT)}</td>
+                      <td className="px-4 py-3 text-right font-medium">{formatCurrency(b.loyerHTActu || b.loyerBaseHT)}</td>
                       <td className="px-4 py-3 text-right">{b.charges ? formatCurrency(b.charges) : "—"}</td>
                       <td className="px-4 py-3 text-right">{b.surface ? `${b.surface} m²` : "—"}</td>
                       <td className="px-4 py-3 text-right">{b.capacite || "—"}</td>
-                      <td className="px-4 py-3 text-right">{b.capacite && b.loyerBaseHT ? formatCurrency(Number(b.loyerBaseHT) / Number(b.capacite)) : "—"}</td>
+                      <td className="px-4 py-3 text-right">{b.capacite && (b.loyerHTActu || b.loyerBaseHT) ? formatCurrency(Number(b.loyerHTActu || b.loyerBaseHT) / Number(b.capacite)) : "—"}</td>
                       <td className="px-4 py-3 text-right">{b.capacite && b.surface ? `${formatNumber(Number(b.surface) / Number(b.capacite))} m²` : "—"}</td>
                       <td className="px-4 py-3">
                         {b.indiceReference ? (

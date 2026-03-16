@@ -51,7 +51,7 @@ export default function ControleGestionPage() {
 
     const taxeFonciere = Number(a.taxeFonciere || 0);
     const assurancePno = Number(a.assurancePno || 0);
-    const chargesCopro = Number(a.chargesAnnuelles || 0);
+    const chargesCopro = Number(a.chargesCopropriete || a.chargesAnnuelles || 0);
     totalTaxeFonciere += taxeFonciere;
     totalAssurancePno += assurancePno;
     totalChargesCopro += chargesCopro;

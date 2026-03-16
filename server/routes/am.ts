@@ -51,9 +51,12 @@ function registerCrud(app: Express, path: string, table: any) {
 
   app.patch(`/api/am/${path}/:id`, requireAuth, ...(schema ? [validate(schema.partial())] : []), async (req: any, res: any) => {
     try {
+      const updateData = "updatedAt" in table
+        ? { ...req.body, updatedAt: new Date() }
+        : req.body;
       const rows = await db
         .update(table)
-        .set({ ...req.body, updatedAt: new Date() })
+        .set(updateData)
         .where(eq(table.id, paramId(req)))
         .returning() as any[];
       if (rows.length === 0) return res.status(404).json({ error: "Non trouvé" });

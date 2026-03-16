@@ -27,7 +27,7 @@ export default function LotsPage() {
 
   const columns: Column<Lot>[] = [
     { key: "designation", label: "Designation", sortable: true, render: (r) => <span className="font-medium">{r.designation}</span> },
-    { key: "actifId", label: "Actif", sortable: true, render: (r) => r.actifId ? <Badge variant="primary">{actifMap[r.actifId] || "—"}</Badge> : "—" },
+    { key: "actifId", label: "Actif", sortable: true, render: (r) => r.actifId ? <Badge variant="primary">{actifMap[r.actifId] || "—"}</Badge> : "—", exportValue: (r) => r.actifId ? actifMap[r.actifId] || "" : "" },
     { key: "type", label: "Type", sortable: true, render: (r) => r.type ? <Badge>{r.type}</Badge> : "—" },
     { key: "etage", label: "Étage", sortable: true },
     { key: "surface", label: "Surface", align: "right", sortable: true, render: (r) => r.surface ? `${r.surface} m²` : "—" },

@@ -128,8 +128,8 @@ export default function SimulateurPage() {
 
   // Stress tests
   const stressResults = useMemo(
-    () => computeStressTests(loyerAnnuel, charges, serviceDette, valorisation, crd),
-    [loyerAnnuel, charges, serviceDette, valorisation, crd]
+    () => computeStressTests(loyerAnnuel, charges, serviceDette, valorisation, crd, empruntsActifs),
+    [loyerAnnuel, charges, serviceDette, valorisation, crd, empruntsActifs]
   );
 
   // Multi-year projection

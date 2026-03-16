@@ -29,7 +29,7 @@ export default function TravauxPage() {
 
   const columns: Column<Travaux>[] = [
     { key: "titre", label: "Titre", sortable: true, render: (r) => <span className="font-medium">{r.titre}</span> },
-    { key: "actifId", label: "Actif", sortable: true, render: (r) => r.actifId ? <Badge variant="primary">{actifMap[r.actifId] || "—"}</Badge> : "—" },
+    { key: "actifId", label: "Actif", sortable: true, render: (r) => r.actifId ? <Badge variant="primary">{actifMap[r.actifId] || "—"}</Badge> : "—", exportValue: (r) => r.actifId ? actifMap[r.actifId] || "" : "" },
     { key: "statut", label: "Statut", sortable: true, render: (r) => r.statut ? <Badge variant={statutVariant(r.statut)}>{r.statut}</Badge> : "—" },
     { key: "budget", label: "Budget", align: "right", sortable: true, render: (r) => r.budget ? formatCurrency(r.budget) : "—" },
     { key: "montantReel", label: "Reel", align: "right", sortable: true, render: (r) => r.montantReel ? formatCurrency(r.montantReel) : "—" },

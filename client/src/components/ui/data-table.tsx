@@ -7,6 +7,7 @@ export interface Column<T> {
   key: string;
   label: string;
   render?: (row: T) => React.ReactNode;
+  exportValue?: (row: T) => string | number;
   sortable?: boolean;
   align?: "left" | "right" | "center";
   className?: string;
@@ -102,12 +103,12 @@ export function DataTable<T extends Record<string, any>>({
   };
 
   const exportCSV = () => {
-    const headers = columns.map((col) => col.label);
+    const exportCols = columns.filter((col) => col.label);
+    const headers = exportCols.map((col) => col.label);
     const rows = filtered.map((row) =>
-      columns.map((col) => {
-        const val = row[col.key];
+      exportCols.map((col) => {
+        const val = col.exportValue ? col.exportValue(row) : row[col.key];
         const str = val == null ? "" : String(val);
-        // Escape quotes and wrap in quotes if contains comma, quote, or newline
         if (str.includes(",") || str.includes('"') || str.includes("\n")) {
           return `"${str.replace(/"/g, '""')}"`;
         }
@@ -115,7 +116,7 @@ export function DataTable<T extends Record<string, any>>({
       })
     );
     const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;

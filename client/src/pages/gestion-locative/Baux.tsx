@@ -30,8 +30,8 @@ export default function BauxGLPage() {
   const columns: Column<Bail>[] = [
     { key: "nom", label: "Site", sortable: true, render: (r) => <span className="font-medium">{r.nom}</span> },
     { key: "ville", label: "Ville", sortable: true, render: (r) => r.ville ? <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3 text-muted-foreground" />{r.ville}</span> : "—" },
-    { key: "bailleurId", label: "Bailleur", sortable: true, render: (r) => r.bailleurId ? bailleurMap[r.bailleurId] || "—" : "—" },
-    { key: "loyerBaseHT", label: "Loyer HT", align: "right", sortable: true, render: (r) => r.loyerBaseHT ? formatCurrency(r.loyerBaseHT) : "—" },
+    { key: "bailleurId", label: "Bailleur", sortable: true, render: (r) => r.bailleurId ? bailleurMap[r.bailleurId] || "—" : "—", exportValue: (r) => r.bailleurId ? bailleurMap[r.bailleurId] || "" : "" },
+    { key: "loyerBaseHT", label: "Loyer HT", align: "right", sortable: true, render: (r) => (r.loyerHTActu || r.loyerBaseHT) ? formatCurrency(r.loyerHTActu || r.loyerBaseHT) : "—" },
     { key: "surface", label: "Surface", align: "right", render: (r) => r.surface ? `${r.surface} m²` : "—" },
     { key: "capacite", label: "Berceaux", align: "right", sortable: true },
     { key: "indiceReference", label: "Indice", render: (r) => r.indiceReference ? <Badge variant="primary">{r.indiceReference}</Badge> : "—" },

@@ -55,7 +55,7 @@ export default function ActifsPage() {
 
   const columns: Column<Actif>[] = [
     { key: "nom", label: "Nom", sortable: true, render: (r) => <span className="font-medium">{r.nom}</span> },
-    { key: "sciId", label: "SCI", sortable: true, render: (r) => r.sciId ? <Badge variant="primary">{sciMap[r.sciId] || "—"}</Badge> : "—" },
+    { key: "sciId", label: "SCI", sortable: true, render: (r) => r.sciId ? <Badge variant="primary">{sciMap[r.sciId] || "—"}</Badge> : "—", exportValue: (r) => r.sciId ? sciMap[r.sciId] || "" : "" },
     { key: "ville", label: "Ville", sortable: true, render: (r) => r.ville ? <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3 text-muted-foreground" />{r.ville}</span> : "—" },
     { key: "type", label: "Type", sortable: true, render: (r) => r.type ? <Badge>{r.type}</Badge> : "—" },
     { key: "surface", label: "Surface", align: "right", sortable: true, render: (r) => r.surface ? `${r.surface} m²` : "—" },

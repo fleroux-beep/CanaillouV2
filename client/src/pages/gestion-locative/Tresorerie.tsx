@@ -408,7 +408,7 @@ export default function TresoreriePage() {
         <ConfirmDialog
           open={!!deleteId}
           onClose={() => setDeleteId(null)}
-          onConfirm={() => { if (deleteId) remove(deleteId); setDeleteId(null); }}
+          onConfirm={async () => { if (deleteId) { await remove(deleteId); setDeleteId(null); } }}
           title="Supprimer cette facture ?"
           loading={deleting}
         />

@@ -31,7 +31,7 @@ export default function GLKPIPage() {
   const { data: paiements = [] } = useQuery({ queryKey: ["/api/gl/paiements"], queryFn: () => apiRequest("/api/gl/paiements") });
 
   const bauxActifs = baux.filter((b: any) => !b.archived);
-  const totalLoyerHT = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.loyerBaseHT || 0), 0);
+  const totalLoyerHT = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.loyerHTActu || b.loyerBaseHT || 0), 0);
   const totalCharges = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.charges || 0), 0);
   const totalCapacite = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.capacite || 0), 0);
   const totalSurface = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.surface || 0), 0);
@@ -50,7 +50,7 @@ export default function GLKPIPage() {
   const loyerParType: Record<string, number> = {};
   bauxActifs.forEach((b: any) => {
     const t = b.typeBail || "Non renseigné";
-    loyerParType[t] = (loyerParType[t] || 0) + Number(b.loyerBaseHT || 0);
+    loyerParType[t] = (loyerParType[t] || 0) + Number(b.loyerHTActu || b.loyerBaseHT || 0);
   });
   const pieData = Object.entries(loyerParType)
     .map(([name, value]) => ({ name, value }))
@@ -58,10 +58,10 @@ export default function GLKPIPage() {
 
   // Bar chart: loyer vs charges per bail (top 10)
   const barData = bauxActifs
-    .filter((b: any) => b.loyerBaseHT)
+    .filter((b: any) => b.loyerHTActu || b.loyerBaseHT)
     .map((b: any) => ({
       name: b.nom?.length > 18 ? b.nom.substring(0, 18) + "..." : b.nom,
-      loyer: Number(b.loyerBaseHT || 0),
+      loyer: Number(b.loyerHTActu || b.loyerBaseHT || 0),
       charges: Number(b.charges || 0),
     }))
     .sort((a: any, b: any) => b.loyer - a.loyer)
@@ -106,8 +106,8 @@ export default function GLKPIPage() {
             delay={0}
           />
           <KpiCard
-            label="Charges totales"
-            value={totalCharges}
+            label="Charges annuelles"
+            value={totalChargesAn}
             formatFn={formatCurrency}
             icon={Target}
             variant="warning"
@@ -310,7 +310,7 @@ export default function GLKPIPage() {
                 </thead>
                 <tbody>
                   {bauxActifs.map((b: any, i: number) => {
-                    const loyer = Number(b.loyerBaseHT || 0);
+                    const loyer = Number(b.loyerHTActu || b.loyerBaseHT || 0);
                     const surface = Number(b.surface || 0);
                     const capacite = Number(b.capacite || 0);
                     const charges = Number(b.charges || 0);
