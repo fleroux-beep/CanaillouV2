@@ -54,10 +54,12 @@ export default function LoginPage() {
             transition={{ delay: 0.2 }}
             className="mb-8 text-center"
           >
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl gradient-primary shadow-lg shadow-blue-500/25">
-              <span className="text-2xl font-bold text-white">C</span>
-            </div>
-            <h1 className="text-3xl font-bold gradient-text-primary">Canaillou</h1>
+            <img
+              src="/logo.png"
+              alt="Les Petites Canailles"
+              className="mx-auto mb-2 h-24 object-contain"
+            />
+            <h1 className="text-3xl font-bold gradient-text-primary">Les Petites Canailles</h1>
             <p className="mt-1.5 text-sm text-muted-foreground">
               Gestion immobiliere
             </p>

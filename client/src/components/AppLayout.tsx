@@ -137,9 +137,16 @@ export function AppLayout({ children }: { children: ReactNode }) {
           >
             <motion.div
               whileHover={{ rotate: 5 }}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 shadow-lg shadow-blue-500/25"
+              className="shrink-0"
             >
-              <span className="text-sm font-bold text-white">C</span>
+              <img
+                src="/logo.png"
+                alt="Les Petites Canailles"
+                className={cn(
+                  "object-contain transition-all",
+                  isExpanded ? "h-10" : "h-9 w-9"
+                )}
+              />
             </motion.div>
             <AnimatePresence>
               {isExpanded && (
@@ -149,7 +156,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   exit={{ opacity: 0, width: 0 }}
                   className="overflow-hidden text-lg font-bold whitespace-nowrap"
                 >
-                  Canaillou
+                  Les Petites Canailles
                 </motion.span>
               )}
             </AnimatePresence>

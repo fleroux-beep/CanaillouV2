@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { Building2, FileText, ArrowRight, Sparkles } from "lucide-react";
+import { Building2, FileText, ArrowRight } from "lucide-react";
 
 const cards = [
   {
@@ -38,13 +38,17 @@ export default function HomePage() {
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: "spring", stiffness: 200, delay: 0.1 }}
-            className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-blue-500 to-violet-600 shadow-xl shadow-blue-500/25"
+            className="mx-auto mb-6"
           >
-            <Sparkles className="h-10 w-10 text-white" />
+            <img
+              src="/logo.png"
+              alt="Les Petites Canailles"
+              className="mx-auto h-24 object-contain"
+            />
           </motion.div>
           <h1 className="text-4xl font-bold tracking-tight">
             Bienvenue sur{" "}
-            <span className="gradient-text-primary">Canaillou</span>
+            <span className="gradient-text-primary">Les Petites Canailles</span>
           </h1>
           <p className="mt-3 text-lg text-muted-foreground">
             Plateforme de gestion immobiliere
