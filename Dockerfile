@@ -14,4 +14,4 @@ COPY --from=builder /app/package*.json ./
 RUN npm ci --omit=dev
 EXPOSE 5000
 ENV NODE_ENV=production
-CMD ["node", "dist/index.cjs"]
+CMD ["node", "dist/index.mjs"]
