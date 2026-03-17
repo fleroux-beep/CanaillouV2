@@ -75,9 +75,16 @@ registerAMRoutes(app);
 registerGLRoutes(app);
 registerImportRoutes(app);
 
-// Health check
+// Health check (no DB dependency)
 app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
+  res.json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    node_env: process.env.NODE_ENV,
+    has_db_url: !!process.env.DATABASE_URL,
+    has_session_secret: !!process.env.SESSION_SECRET,
+    dirname: __dirname,
+  });
 });
 
 // Debug: check database tables (temporary — remove once resolved)
@@ -135,9 +142,13 @@ if (process.env.NODE_ENV === "production") {
 
 // Global error handler
 app.use((err: any, _req: any, res: any, _next: any) => {
-  logger.error("unhandled error", { error: err.message, stack: err.stack });
+  logger.error("unhandled error", { error: err.message, stack: err.stack, url: _req.originalUrl });
   if (!res.headersSent) {
-    res.status(500).json({ error: "Erreur interne du serveur" });
+    res.status(500).json({
+      error: "Erreur interne du serveur",
+      detail: process.env.NODE_ENV === "production" ? err.message : err.stack,
+      url: _req.originalUrl,
+    });
   }
 });
 
