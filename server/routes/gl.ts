@@ -26,8 +26,8 @@ function registerCrud(app: Express, path: string, table: any) {
         : await db.select().from(table).orderBy(desc(table.createdAt));
       res.json(rows);
     } catch (error: any) {
-      logger.error("route error", { error: error.message });
-      res.status(500).json({ error: "Erreur interne" });
+      logger.error("route error", { path, error: error.message, stack: error.stack });
+      res.status(500).json({ error: `Erreur interne: ${error.message}` });
     }
   });
 

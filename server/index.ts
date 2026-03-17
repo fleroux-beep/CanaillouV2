@@ -99,7 +99,24 @@ app.get("/api/debug/tables", async (_req, res) => {
       }
     }
 
-    res.json({ tables, checks, sessionConfig: { secure: process.env.NODE_ENV === "production" } });
+    // Try Drizzle ORM queries (same as dashboard)
+    const { bauxGL, bailleurs, paiementsGL } = await import("@shared/schema");
+    const { isNull, desc } = await import("drizzle-orm");
+    const drizzleChecks: Record<string, string> = {};
+    const tableMap: Record<string, any> = { gl_baux: bauxGL, gl_bailleurs: bailleurs, gl_paiements: paiementsGL };
+    for (const [name, table] of Object.entries(tableMap)) {
+      try {
+        const hasDeletedAt = "deletedAt" in table;
+        const rows = hasDeletedAt
+          ? await db.select().from(table).where(isNull(table.deletedAt)).orderBy(desc(table.createdAt))
+          : await db.select().from(table).orderBy(desc(table.createdAt));
+        drizzleChecks[name] = `ok (${rows.length} rows)`;
+      } catch (e: any) {
+        drizzleChecks[name] = `ERROR: ${e.message}`;
+      }
+    }
+
+    res.json({ tables, checks, drizzleChecks, sessionConfig: { secure: process.env.NODE_ENV === "production" } });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
