@@ -97,35 +97,59 @@ app.use((err: any, _req: any, res: any, _next: any) => {
   }
 });
 
-// Seed default admin user if none exists
+// Seed default admin user if none exists (throws on failure for retry logic)
 async function seedAdminUser() {
-  try {
-    const existing = await db.select().from(users).where(eq(users.email, "fleroux@lespetitescanailles.fr")).limit(1);
-    if (existing.length === 0) {
-      const hashed = await bcrypt.hash("LPC040411", 10);
-      await db.insert(users).values({
-        email: "fleroux@lespetitescanailles.fr",
-        password: hashed,
-        firstName: "Fleroux",
-        role: "admin",
-        isApproved: true,
-      });
-      logger.info("admin user created", { email: "fleroux@lespetitescanailles.fr" });
-    }
-  } catch (error: any) {
-    logger.error("failed to seed admin user: " + (error.message || error.code || JSON.stringify(error)));
+  const existing = await db.select().from(users).where(eq(users.email, "fleroux@lespetitescanailles.fr")).limit(1);
+  if (existing.length === 0) {
+    const hashed = await bcrypt.hash("LPC040411", 10);
+    await db.insert(users).values({
+      email: "fleroux@lespetitescanailles.fr",
+      password: hashed,
+      firstName: "Fleroux",
+      role: "admin",
+      isApproved: true,
+    });
+    logger.info("admin user created");
   }
 }
 
-// Run migrations then seed, then start listening
+// Retry helper for database operations (DB may not be ready when container starts)
+async function withRetry<T>(fn: () => Promise<T>, label: string, retries = 5, delayMs = 2000): Promise<T> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      const msg = error.message || error.code || String(error);
+      if (i < retries - 1) {
+        logger.warn(`${label} attempt ${i + 1}/${retries} failed: ${msg} — retrying in ${delayMs / 1000}s`);
+        await new Promise((r) => setTimeout(r, delayMs));
+        delayMs *= 2; // exponential backoff
+      } else {
+        logger.error(`${label} failed after ${retries} attempts: ${msg}`);
+        throw error;
+      }
+    }
+  }
+  throw new Error("unreachable");
+}
+
+// Run schema setup, seed, then start listening
 (async () => {
+  // Log masked DATABASE_URL for debugging
+  const dbUrl = process.env.DATABASE_URL || "";
+  logger.info("db host: " + (dbUrl.match(/@([^:\/]+)/)?.[1] || "unknown"));
+
   try {
-    await ensureSchema();
-  } catch (error: any) {
-    logger.error("schema setup failed: " + (error.message || error.code || JSON.stringify(error)));
+    await withRetry(() => ensureSchema(), "schema setup");
+  } catch (_) {
+    // already logged
   }
 
-  await seedAdminUser();
+  try {
+    await withRetry(() => seedAdminUser(), "seed admin");
+  } catch (_) {
+    // already logged
+  }
 
   app.listen(PORT, "0.0.0.0", () => {
     logger.info("server started", { port: PORT, env: process.env.NODE_ENV || "development" });
