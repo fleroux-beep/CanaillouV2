@@ -15,7 +15,7 @@ import { SkeletonKpi, SkeletonTable } from "../components/ui/skeleton";
 import { useToast } from "../components/ui/toaster";
 import {
   Users, UserPlus, Shield, ShieldCheck, Trash2,
-  CheckCircle2, XCircle, Lock, AlertTriangle,
+  CheckCircle2, XCircle, Lock, AlertTriangle, RefreshCw,
 } from "lucide-react";
 
 interface User {
@@ -36,6 +36,7 @@ export default function AdminPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [showReimport, setShowReimport] = useState(false);
   const [form, setForm] = useState({ email: "", password: "", firstName: "", lastName: "", role: "user" });
 
   const { data: rawUsers, isLoading, isError } = useQuery({
@@ -72,6 +73,21 @@ export default function AdminPage() {
       qc.invalidateQueries({ queryKey: ["/api/users"] });
       setDeleteTarget(null);
       toast({ title: "Utilisateur supprime", variant: "success" });
+    },
+  });
+
+  const importMutation = useMutation({
+    mutationFn: () => apiRequest("/api/admin/import-excel", { method: "POST" }),
+    onSuccess: (data: any) => {
+      setShowReimport(false);
+      const counts = data?.counts;
+      const msg = counts
+        ? `Import termine : ${Object.entries(counts).map(([k, v]) => `${k}: ${v}`).join(", ")}`
+        : "Import termine avec succes";
+      toast({ title: msg, variant: "success" });
+    },
+    onError: (err: Error) => {
+      toast({ title: err.message || "Erreur lors de l'import", variant: "destructive" });
     },
   });
 
@@ -133,15 +149,26 @@ export default function AdminPage() {
         title="Administration"
         description="Gestion des utilisateurs et parametres"
         actions={
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 rounded-xl gradient-primary px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 hover:shadow-xl transition-shadow"
-          >
-            <UserPlus className="h-4 w-4" />
-            Ajouter un utilisateur
-          </motion.button>
+          <div className="flex items-center gap-3">
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setShowReimport(true)}
+              className="flex items-center gap-2 rounded-xl border border-border bg-background px-5 py-2.5 text-sm font-semibold shadow-sm hover:bg-muted/50 transition-colors"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Reimporter Excel
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setShowCreate(true)}
+              className="flex items-center gap-2 rounded-xl gradient-primary px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 hover:shadow-xl transition-shadow"
+            >
+              <UserPlus className="h-4 w-4" />
+              Ajouter un utilisateur
+            </motion.button>
+          </div>
         }
       />
 
@@ -351,6 +378,16 @@ export default function AdminPage() {
         title="Supprimer cet utilisateur ?"
         message={`Le compte de ${deleteTarget?.email} sera definitivement supprime.`}
         loading={deleteMutation.isPending}
+      />
+
+      {/* Reimport Excel confirm */}
+      <ConfirmDialog
+        open={showReimport}
+        onClose={() => setShowReimport(false)}
+        onConfirm={() => importMutation.mutate()}
+        title="Reimporter les donnees Excel ?"
+        message="Les donnees SCI seront reimportees depuis le fichier Excel. Les donnees existantes seront remplacees."
+        loading={importMutation.isPending}
       />
     </div>
   );
