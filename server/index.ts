@@ -45,6 +45,10 @@ app.use((_req, res, next) => {
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
+// Trust proxy (Railway, Heroku, etc. use a reverse proxy)
+// Required for secure cookies to work behind a proxy
+app.set("trust proxy", 1);
+
 // Session
 if (!process.env.SESSION_SECRET && process.env.NODE_ENV === "production") {
   throw new Error("SESSION_SECRET est requis en production");
