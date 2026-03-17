@@ -87,6 +87,73 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
+// Debug: session diagnostics (temporary — remove once resolved)
+app.get("/api/debug/session", async (req, res) => {
+  try {
+    // 1. Check if session table exists and its structure
+    const tableCheck = await pool.query(
+      `SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'session' ORDER BY ordinal_position`
+    );
+
+    // 2. Count sessions in table
+    let sessionCount = "N/A";
+    try {
+      const cnt = await pool.query(`SELECT count(*) as cnt FROM "session"`);
+      sessionCount = cnt.rows[0].cnt;
+    } catch (e: any) {
+      sessionCount = `ERROR: ${e.message}`;
+    }
+
+    // 3. Try to find current session by ID
+    let currentSessionInDB = "not found";
+    const sid = req.sessionID;
+    try {
+      const found = await pool.query(`SELECT sid, expire, sess::text FROM "session" WHERE sid = $1`, [sid]);
+      if (found.rows.length > 0) {
+        currentSessionInDB = { expire: found.rows[0].expire, sessPreview: found.rows[0].sess?.substring(0, 200) } as any;
+      }
+    } catch (e: any) {
+      currentSessionInDB = `ERROR: ${e.message}`;
+    }
+
+    // 4. Try to look up the cookie's session ID
+    const cookieSid = req.headers.cookie?.match(/connect\.sid=s%3A([^.]+)\./)?.[1];
+    let cookieSessionInDB = "not found";
+    if (cookieSid) {
+      try {
+        const found = await pool.query(`SELECT sid, expire, sess::text FROM "session" WHERE sid = $1`, [cookieSid]);
+        if (found.rows.length > 0) {
+          cookieSessionInDB = { expire: found.rows[0].expire, sessPreview: found.rows[0].sess?.substring(0, 200) } as any;
+        }
+      } catch (e: any) {
+        cookieSessionInDB = `ERROR: ${e.message}`;
+      }
+    }
+
+    // 5. List all sessions (limited)
+    let allSessions: any[] = [];
+    try {
+      const all = await pool.query(`SELECT sid, expire FROM "session" ORDER BY expire DESC LIMIT 10`);
+      allSessions = all.rows;
+    } catch (e: any) {
+      allSessions = [{ error: e.message }];
+    }
+
+    res.json({
+      sessionID: sid,
+      cookieSid,
+      sessionData: req.session ? { ...req.session } : null,
+      tableColumns: tableCheck.rows,
+      sessionCount,
+      currentSessionInDB,
+      cookieSessionInDB,
+      allSessions,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Debug: check database tables (temporary — remove once resolved)
 app.get("/api/debug/tables", async (_req, res) => {
   try {
