@@ -1,6 +1,7 @@
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { Building2, FileText, ArrowRight, BarChart3, TrendingUp, Shield, Zap } from "lucide-react";
+import { Building2, FileText, ArrowRight, BarChart3, TrendingUp, Shield, Zap, Settings } from "lucide-react";
+import { useAuth } from "../contexts/AuthContext";
 
 const modules = [
   {
@@ -33,6 +34,9 @@ const highlights = [
 ];
 
 export default function HomePage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+
   return (
     <div className="flex min-h-[calc(100vh-3.5rem)] flex-col">
       <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col justify-center px-6 py-12 lg:px-8">
@@ -97,31 +101,19 @@ export default function HomePage() {
                 whileHover={{ y: -4, transition: { duration: 0.2 } }}
                 className={`group relative cursor-pointer overflow-hidden rounded-2xl border bg-card shadow-lg transition-all hover:shadow-2xl ${mod.borderAccent}`}
               >
-                {/* Gradient accent bar */}
                 <div className={`h-1.5 bg-gradient-to-r ${mod.gradient}`} />
-
                 <div className="p-6">
-                  {/* Header */}
                   <div className="mb-4 flex items-start justify-between">
                     <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${mod.iconBg}`}>
                       <mod.icon className="h-6 w-6" />
                     </div>
                     <ArrowRight className="h-5 w-5 text-muted-foreground/40 transition-all group-hover:translate-x-1 group-hover:text-foreground" />
                   </div>
-
-                  {/* Title & description */}
                   <h2 className="mb-2 text-xl font-bold tracking-tight">{mod.title}</h2>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    {mod.description}
-                  </p>
-
-                  {/* Feature tags */}
+                  <p className="text-sm text-muted-foreground leading-relaxed">{mod.description}</p>
                   <div className="mt-5 flex flex-wrap gap-2">
                     {mod.features.map((f) => (
-                      <span
-                        key={f}
-                        className="rounded-full border bg-muted/50 px-3 py-1 text-xs font-medium text-muted-foreground transition-colors group-hover:bg-muted"
-                      >
+                      <span key={f} className="rounded-full border bg-muted/50 px-3 py-1 text-xs font-medium text-muted-foreground transition-colors group-hover:bg-muted">
                         {f}
                       </span>
                     ))}
@@ -131,6 +123,35 @@ export default function HomePage() {
             </Link>
           ))}
         </div>
+
+        {/* Admin card — only for admins */}
+        {isAdmin && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.7 }}
+            className="mt-6"
+          >
+            <Link href="/admin">
+              <motion.div
+                whileHover={{ y: -2, transition: { duration: 0.2 } }}
+                className="group cursor-pointer overflow-hidden rounded-2xl border bg-card shadow-md transition-all hover:shadow-xl hover:border-amber-500/30"
+              >
+                <div className="h-1 bg-gradient-to-r from-amber-500 via-orange-500 to-red-500" />
+                <div className="flex items-center gap-5 p-5">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/10">
+                    <Settings className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold tracking-tight">Administration</h3>
+                    <p className="text-sm text-muted-foreground">Gerer les utilisateurs, parametres et securite de la plateforme</p>
+                  </div>
+                  <ArrowRight className="h-5 w-5 shrink-0 text-muted-foreground/40 transition-all group-hover:translate-x-1 group-hover:text-foreground" />
+                </div>
+              </motion.div>
+            </Link>
+          </motion.div>
+        )}
 
         {/* Footer tagline */}
         <motion.p

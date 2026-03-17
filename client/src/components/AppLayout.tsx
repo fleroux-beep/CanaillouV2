@@ -10,7 +10,7 @@ import {
   ChevronLeft, ChevronRight, LogOut, Sun, Moon, ArrowLeft,
   AlertTriangle, DollarSign, FolderOpen, ShieldCheck,
   TreePine, Hammer, ArrowLeftRight, FlaskConical, ClipboardList,
-  ArrowUpDown, FileBarChart, Menu, X,
+  ArrowUpDown, FileBarChart, Menu, X, Settings,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 
@@ -279,6 +279,44 @@ export function AppLayout({ children }: { children: ReactNode }) {
               {collapsed ? <ChevronRight className="h-4 w-4" aria-hidden="true" /> : <ChevronLeft className="h-4 w-4" aria-hidden="true" />}
             </button>
           )}
+
+          {/* Admin link — only for admins */}
+          {user?.role === "admin" && (() => {
+            const adminActive = location === "/admin";
+            const adminLink = (
+              <Link href="/admin" onClick={isMobile ? closeMobile : undefined}>
+                <motion.div
+                  whileHover={{ x: 2 }}
+                  className={cn(
+                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all",
+                    adminActive
+                      ? "bg-white/[0.08] text-white shadow-sm"
+                      : "text-white/30 hover:bg-white/[0.04] hover:text-white/60"
+                  )}
+                >
+                  <Settings className={cn("h-[18px] w-[18px] shrink-0", adminActive && "text-orange-400")} aria-hidden="true" />
+                  <AnimatePresence>
+                    {isExpanded && (
+                      <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="truncate">
+                        Administration
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              </Link>
+            );
+            return !isExpanded ? (
+              <TooltipPrimitive.Root>
+                <TooltipPrimitive.Trigger asChild>{adminLink}</TooltipPrimitive.Trigger>
+                <TooltipPrimitive.Portal>
+                  <TooltipPrimitive.Content side="right" sideOffset={8} className="z-50 rounded-lg bg-zinc-800 px-3 py-2 text-xs font-medium text-white shadow-xl border border-white/10">
+                    Administration
+                    <TooltipPrimitive.Arrow className="fill-zinc-800" />
+                  </TooltipPrimitive.Content>
+                </TooltipPrimitive.Portal>
+              </TooltipPrimitive.Root>
+            ) : adminLink;
+          })()}
 
           {(isAM || isGL) && (() => {
             const switchLabel = isAM ? "Gestion Locative" : "Asset Management";

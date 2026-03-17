@@ -38,6 +38,7 @@ import BailGLDetailPage from "./pages/gestion-locative/BailDetail";
 import TresoreriePage from "./pages/gestion-locative/Tresorerie";
 import DocumentsGLPage from "./pages/gestion-locative/Documents";
 import ControleBailleurPage from "./pages/gestion-locative/ControleBailleur";
+import AdminPage from "./pages/AdminPage";
 
 export default function App() {
   const { user, loading } = useAuth();
@@ -100,6 +101,9 @@ export default function App() {
         <Route path="/gestion-locative/documents" component={DocumentsGLPage} />
         <Route path="/gestion-locative/controle-bailleur" component={ControleBailleurPage} />
         <Route path="/gestion-locative/calendrier" component={CalendrierGLPage} />
+
+        {/* Administration */}
+        <Route path="/admin" component={AdminPage} />
 
         {/* 404 */}
         <Route>
