@@ -217,7 +217,17 @@ export async function importExcelData(): Promise<{
   associes: number;
   participations: number;
 }> {
-  const xlsxPath = path.resolve(__dirname, "..", "BDD SCI 04 01 2026 - proposition FLE new BDD (5).xlsx");
+  const fileName = "BDD SCI 04 01 2026 - proposition FLE new BDD (5).xlsx";
+  // Check same directory first (production: dist/), then parent directory (development)
+  const candidatePaths = [
+    path.resolve(__dirname, fileName),
+    path.resolve(__dirname, "..", fileName),
+  ];
+  const fs = await import("fs");
+  const xlsxPath = candidatePaths.find((p) => fs.existsSync(p));
+  if (!xlsxPath) {
+    throw new Error(`Fichier Excel introuvable. Chemins vérifiés: ${candidatePaths.join(", ")}`);
+  }
   const wb = XLSX.readFile(xlsxPath);
   const bddRows = parseBDD(wb);
   const empruntRows = parseEmprunts(wb);

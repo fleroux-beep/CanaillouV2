@@ -105,22 +105,24 @@ export default function AMDashboard() {
     );
   }
 
-  // Portfolio KPIs
-  const actifsActifs = actifs.filter((a: any) => !a.archived);
-  const empruntsActifs = emprunts.filter((e: any) => !e.archived);
+  // Portfolio KPIs — memoized to avoid unnecessary recalculations
+  const actifsActifs = useMemo(() => actifs.filter((a: any) => !a.archived), [actifs]);
+  const empruntsActifs = useMemo(() => emprunts.filter((e: any) => !e.archived), [emprunts]);
 
-  let valorisation = 0, loyerAnnuel = 0, charges = 0, totalAcquisition = 0;
-
-  for (const a of actifsActifs) {
-    valorisation += getValeurEstimee(a, baux, lots);
-    loyerAnnuel += getLoyerAnnuelActif(a, baux, lots);
-    charges += getChargesAnnuelles(a);
-    totalAcquisition += getPrixAcquisition(a);
-  }
+  const { valorisation, loyerAnnuel, charges, totalAcquisition } = useMemo(() => {
+    let v = 0, l = 0, c = 0, t = 0;
+    for (const a of actifsActifs) {
+      v += getValeurEstimee(a, baux, lots);
+      l += getLoyerAnnuelActif(a, baux, lots);
+      c += getChargesAnnuelles(a);
+      t += getPrixAcquisition(a);
+    }
+    return { valorisation: v, loyerAnnuel: l, charges: c, totalAcquisition: t };
+  }, [actifsActifs, baux, lots]);
 
   const noi = loyerAnnuel - charges;
-  const crd = getTotalCRD(empruntsActifs);
-  const serviceDette = getServiceDette(empruntsActifs);
+  const crd = useMemo(() => getTotalCRD(empruntsActifs), [empruntsActifs]);
+  const serviceDette = useMemo(() => getServiceDette(empruntsActifs), [empruntsActifs]);
   const cashFlowNet = noi - serviceDette;
   const fondsPropreNets = valorisation - crd;
   const rendementBrut = getRendementBrut(loyerAnnuel, valorisation);
@@ -128,9 +130,11 @@ export default function AMDashboard() {
   const ltv = getLTV(crd, valorisation);
   const dscr = getDSCR(noi, serviceDette);
 
-  const lotsLoues = lots.filter((l: any) => l.statut?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === "loue" && !l.archived).length;
-  const lotsTotal = lots.filter((l: any) => !l.archived).length;
-  const tauxOccupation = lotsTotal > 0 ? (lotsLoues / lotsTotal) * 100 : 0;
+  const { lotsLoues, lotsTotal, tauxOccupation } = useMemo(() => {
+    const loues = lots.filter((l: any) => l.statut?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === "loue" && !l.archived).length;
+    const total = lots.filter((l: any) => !l.archived).length;
+    return { lotsLoues: loues, lotsTotal: total, tauxOccupation: total > 0 ? (loues / total) * 100 : 0 };
+  }, [lots]);
 
   // SCPI institutional metrics
   const equityMultiple = totalAcquisition > 0 ? fondsPropreNets / totalAcquisition : 0;
@@ -150,7 +154,7 @@ export default function AMDashboard() {
   const worstCaseScenario = stressResults.length > 0 ? stressResults[stressResults.length - 1] : null;
 
   // Chart data
-  const sciKpis = scis.map((sci: any) => computeSciKpis(sci, actifs, baux, lots, emprunts));
+  const sciKpis = useMemo(() => scis.map((sci: any) => computeSciKpis(sci, actifs, baux, lots, emprunts)), [scis, actifs, baux, lots, emprunts]);
   const sciChartData = sciKpis.map((k: any) => ({
     name: k.sci.nom,
     valorisation: k.valorisation,
@@ -266,7 +270,7 @@ export default function AMDashboard() {
               label="Valeur DCF" value={dcfResult?.totalPV || 0}
               formatFn={formatCurrency}
               icon={Gauge} variant="success" delay={10}
-              subtitle={dcfResult && totalAcquisition > 0
+              subtitle={dcfResult !== null && totalAcquisition > 0
                 ? `${((dcfResult.totalPV / totalAcquisition - 1) * 100).toFixed(1)}% vs acq.`
                 : undefined}
             />
