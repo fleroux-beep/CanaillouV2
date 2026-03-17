@@ -4,10 +4,10 @@ import ConnectPgSimple from "connect-pg-simple";
 import path from "path";
 import { fileURLToPath } from "url";
 import bcrypt from "bcrypt";
-import { eq } from "drizzle-orm";
+import { eq, isNull, desc } from "drizzle-orm";
 import { pool, db } from "./db";
 import { ensureSchema } from "./ensure-schema";
-import { users } from "@shared/schema";
+import { users, bauxGL, bailleurs, paiementsGL, scis, actifs, lots } from "@shared/schema";
 import { registerAuthRoutes } from "./routes/auth";
 import { registerAMRoutes } from "./routes/am";
 import { registerGLRoutes } from "./routes/gl";
@@ -100,10 +100,8 @@ app.get("/api/debug/tables", async (_req, res) => {
     }
 
     // Try Drizzle ORM queries (same as dashboard)
-    const { bauxGL, bailleurs, paiementsGL } = await import("@shared/schema");
-    const { isNull, desc } = await import("drizzle-orm");
     const drizzleChecks: Record<string, string> = {};
-    const tableMap: Record<string, any> = { gl_baux: bauxGL, gl_bailleurs: bailleurs, gl_paiements: paiementsGL };
+    const tableMap: Record<string, any> = { gl_baux: bauxGL, gl_bailleurs: bailleurs, gl_paiements: paiementsGL, am_scis: scis, am_actifs: actifs, am_lots: lots };
     for (const [name, table] of Object.entries(tableMap)) {
       try {
         const hasDeletedAt = "deletedAt" in table;
