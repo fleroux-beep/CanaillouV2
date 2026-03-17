@@ -1,0 +1,2993 @@
+{
+  "id": "f9a6fe4c-e8dc-449c-8129-8e2b802c5d72",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.am_actifs": {
+      "name": "am_actifs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "sci_id": {
+          "name": "sci_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nom": {
+          "name": "nom",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "adresse": {
+          "name": "adresse",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ville": {
+          "name": "ville",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "code_postal": {
+          "name": "code_postal",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "type": {
+          "name": "type",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lat": {
+          "name": "lat",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lng": {
+          "name": "lng",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "surface": {
+          "name": "surface",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "surface_carrez": {
+          "name": "surface_carrez",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reference_cadastrale": {
+          "name": "reference_cadastrale",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "annee_construction": {
+          "name": "annee_construction",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dpe": {
+          "name": "dpe",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "erp": {
+          "name": "erp",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "pmi": {
+          "name": "pmi",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "prix_acquisition": {
+          "name": "prix_acquisition",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "frais_notaire": {
+          "name": "frais_notaire",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "frais_agence": {
+          "name": "frais_agence",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "montant_travaux": {
+          "name": "montant_travaux",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_acquisition": {
+          "name": "date_acquisition",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "charges_annuelles": {
+          "name": "charges_annuelles",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "taxe_fonciere": {
+          "name": "taxe_fonciere",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "assurance_pno": {
+          "name": "assurance_pno",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "charges_copropriete": {
+          "name": "charges_copropriete",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "taux_capitalisation": {
+          "name": "taux_capitalisation",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "prix_m2_marche": {
+          "name": "prix_m2_marche",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "valeur_estimee_sortie": {
+          "name": "valeur_estimee_sortie",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_estimation": {
+          "name": "date_estimation",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_estimation": {
+          "name": "source_estimation",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "syndic": {
+          "name": "syndic",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "regime_juridique": {
+          "name": "regime_juridique",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "archived": {
+          "name": "archived",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "am_actifs_sci_id_am_scis_id_fk": {
+          "name": "am_actifs_sci_id_am_scis_id_fk",
+          "tableFrom": "am_actifs",
+          "tableTo": "am_scis",
+          "columnsFrom": [
+            "sci_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.alertes": {
+      "name": "alertes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "module": {
+          "name": "module",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_type": {
+          "name": "entity_type",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "type": {
+          "name": "type",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "message": {
+          "name": "message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_date": {
+          "name": "target_date",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "priority": {
+          "name": "priority",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'normal'"
+        },
+        "dismissed": {
+          "name": "dismissed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "dismissed_at": {
+          "name": "dismissed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.am_associes": {
+      "name": "am_associes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "nom": {
+          "name": "nom",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "prenom": {
+          "name": "prenom",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "telephone": {
+          "name": "telephone",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "adresse": {
+          "name": "adresse",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "siret": {
+          "name": "siret",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.gl_avenants": {
+      "name": "gl_avenants",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "bail_id": {
+          "name": "bail_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date_effet": {
+          "name": "date_effet",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date_signature": {
+          "name": "date_signature",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "champs_modifies": {
+          "name": "champs_modifies",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "titre": {
+          "name": "titre",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "gl_avenants_bail_id_gl_baux_id_fk": {
+          "name": "gl_avenants_bail_id_gl_baux_id_fk",
+          "tableFrom": "gl_avenants",
+          "tableTo": "gl_baux",
+          "columnsFrom": [
+            "bail_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.gl_bailleurs": {
+      "name": "gl_bailleurs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "nom": {
+          "name": "nom",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "telephone": {
+          "name": "telephone",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "adresse": {
+          "name": "adresse",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "siret": {
+          "name": "siret",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "iban": {
+          "name": "iban",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.am_baux": {
+      "name": "am_baux",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "lot_id": {
+          "name": "lot_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actif_id": {
+          "name": "actif_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sci_id": {
+          "name": "sci_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "locataire_id": {
+          "name": "locataire_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "type_bail": {
+          "name": "type_bail",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_debut": {
+          "name": "date_debut",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_fin": {
+          "name": "date_fin",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_signature": {
+          "name": "date_signature",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "loyer_mensuel": {
+          "name": "loyer_mensuel",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "loyer_annuel": {
+          "name": "loyer_annuel",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "charges": {
+          "name": "charges",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "depot_garantie": {
+          "name": "depot_garantie",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "indice_reference": {
+          "name": "indice_reference",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "trimestre_ref": {
+          "name": "trimestre_ref",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "valeur_indice_base": {
+          "name": "valeur_indice_base",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "statut": {
+          "name": "statut",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'actif'"
+        },
+        "loyer_theorique": {
+          "name": "loyer_theorique",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "archived": {
+          "name": "archived",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "am_baux_lot_id_am_lots_id_fk": {
+          "name": "am_baux_lot_id_am_lots_id_fk",
+          "tableFrom": "am_baux",
+          "tableTo": "am_lots",
+          "columnsFrom": [
+            "lot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "am_baux_actif_id_am_actifs_id_fk": {
+          "name": "am_baux_actif_id_am_actifs_id_fk",
+          "tableFrom": "am_baux",
+          "tableTo": "am_actifs",
+          "columnsFrom": [
+            "actif_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "am_baux_sci_id_am_scis_id_fk": {
+          "name": "am_baux_sci_id_am_scis_id_fk",
+          "tableFrom": "am_baux",
+          "tableTo": "am_scis",
+          "columnsFrom": [
+            "sci_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "am_baux_locataire_id_am_locataires_id_fk": {
+          "name": "am_baux_locataire_id_am_locataires_id_fk",
+          "tableFrom": "am_baux",
+          "tableTo": "am_locataires",
+          "columnsFrom": [
+            "locataire_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.gl_baux": {
+      "name": "gl_baux",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "nom": {
+          "name": "nom",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "locataire_id": {
+          "name": "locataire_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bailleur_id": {
+          "name": "bailleur_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "gestionnaire_id": {
+          "name": "gestionnaire_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "type_bail": {
+          "name": "type_bail",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "adresse": {
+          "name": "adresse",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ville": {
+          "name": "ville",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "code_postal": {
+          "name": "code_postal",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lat": {
+          "name": "lat",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lng": {
+          "name": "lng",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_signature": {
+          "name": "date_signature",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_effet": {
+          "name": "date_effet",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_debut": {
+          "name": "date_debut",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_fin": {
+          "name": "date_fin",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "periode_ferme_debut": {
+          "name": "periode_ferme_debut",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "periode_ferme_fin": {
+          "name": "periode_ferme_fin",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "periode_ferme_duree_ans": {
+          "name": "periode_ferme_duree_ans",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ech_trien1": {
+          "name": "ech_trien1",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ech_trien2": {
+          "name": "ech_trien2",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ech_trien3": {
+          "name": "ech_trien3",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "loyer_base_ht": {
+          "name": "loyer_base_ht",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "loyer_ht_actu": {
+          "name": "loyer_ht_actu",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "force_manual": {
+          "name": "force_manual",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "indice_reference": {
+          "name": "indice_reference",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "trimestre_ref": {
+          "name": "trimestre_ref",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_indice_base": {
+          "name": "date_indice_base",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "valeur_indice_base": {
+          "name": "valeur_indice_base",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "charges": {
+          "name": "charges",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "depot_garantie": {
+          "name": "depot_garantie",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "taxe_fonciere": {
+          "name": "taxe_fonciere",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "taxe": {
+          "name": "taxe",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tva_taux": {
+          "name": "tva_taux",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "garantie_type": {
+          "name": "garantie_type",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "garantie_montant": {
+          "name": "garantie_montant",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "surface": {
+          "name": "surface",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "surface_exterieure": {
+          "name": "surface_exterieure",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "capacite": {
+          "name": "capacite",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "statut": {
+          "name": "statut",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "archived": {
+          "name": "archived",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "gl_baux_locataire_id_gl_locataires_id_fk": {
+          "name": "gl_baux_locataire_id_gl_locataires_id_fk",
+          "tableFrom": "gl_baux",
+          "tableTo": "gl_locataires",
+          "columnsFrom": [
+            "locataire_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "gl_baux_bailleur_id_gl_bailleurs_id_fk": {
+          "name": "gl_baux_bailleur_id_gl_bailleurs_id_fk",
+          "tableFrom": "gl_baux",
+          "tableTo": "gl_bailleurs",
+          "columnsFrom": [
+            "bailleur_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "gl_baux_gestionnaire_id_gl_gestionnaires_id_fk": {
+          "name": "gl_baux_gestionnaire_id_gl_gestionnaires_id_fk",
+          "tableFrom": "gl_baux",
+          "tableTo": "gl_gestionnaires",
+          "columnsFrom": [
+            "gestionnaire_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.am_documents": {
+      "name": "am_documents",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "actif_id": {
+          "name": "actif_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sci_id": {
+          "name": "sci_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "storage_url": {
+          "name": "storage_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "file_name": {
+          "name": "file_name",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "file_size": {
+          "name": "file_size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mime_type": {
+          "name": "mime_type",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "am_documents_actif_id_am_actifs_id_fk": {
+          "name": "am_documents_actif_id_am_actifs_id_fk",
+          "tableFrom": "am_documents",
+          "tableTo": "am_actifs",
+          "columnsFrom": [
+            "actif_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "am_documents_sci_id_am_scis_id_fk": {
+          "name": "am_documents_sci_id_am_scis_id_fk",
+          "tableFrom": "am_documents",
+          "tableTo": "am_scis",
+          "columnsFrom": [
+            "sci_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.gl_documents": {
+      "name": "gl_documents",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "bail_id": {
+          "name": "bail_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "storage_url": {
+          "name": "storage_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "file_name": {
+          "name": "file_name",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "file_size": {
+          "name": "file_size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mime_type": {
+          "name": "mime_type",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_document": {
+          "name": "date_document",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "gl_documents_bail_id_gl_baux_id_fk": {
+          "name": "gl_documents_bail_id_gl_baux_id_fk",
+          "tableFrom": "gl_documents",
+          "tableTo": "gl_baux",
+          "columnsFrom": [
+            "bail_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.am_emprunts": {
+      "name": "am_emprunts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "sci_id": {
+          "name": "sci_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actif_id": {
+          "name": "actif_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "banque": {
+          "name": "banque",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "montant_emprunte": {
+          "name": "montant_emprunte",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "capital_restant_du": {
+          "name": "capital_restant_du",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "taux_annuel": {
+          "name": "taux_annuel",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "taeg": {
+          "name": "taeg",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "duree_ans": {
+          "name": "duree_ans",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "duree_mois": {
+          "name": "duree_mois",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_debut": {
+          "name": "date_debut",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_fin": {
+          "name": "date_fin",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "type_amortissement": {
+          "name": "type_amortissement",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mensualite": {
+          "name": "mensualite",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "assurance_mensuelle": {
+          "name": "assurance_mensuelle",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "taux_assurance": {
+          "name": "taux_assurance",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "type_garantie": {
+          "name": "type_garantie",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ira": {
+          "name": "ira",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "archived": {
+          "name": "archived",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "am_emprunts_sci_id_am_scis_id_fk": {
+          "name": "am_emprunts_sci_id_am_scis_id_fk",
+          "tableFrom": "am_emprunts",
+          "tableTo": "am_scis",
+          "columnsFrom": [
+            "sci_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "am_emprunts_actif_id_am_actifs_id_fk": {
+          "name": "am_emprunts_actif_id_am_actifs_id_fk",
+          "tableFrom": "am_emprunts",
+          "tableTo": "am_actifs",
+          "columnsFrom": [
+            "actif_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.gl_factures": {
+      "name": "gl_factures",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "bail_id": {
+          "name": "bail_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "file_name": {
+          "name": "file_name",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "file_url": {
+          "name": "file_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "file_size": {
+          "name": "file_size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mime_type": {
+          "name": "mime_type",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_facture": {
+          "name": "date_facture",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date_echeance": {
+          "name": "date_echeance",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "montant_ht": {
+          "name": "montant_ht",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "montant_ttc": {
+          "name": "montant_ttc",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reference": {
+          "name": "reference",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "statut": {
+          "name": "statut",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date_paiement": {
+          "name": "date_paiement",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "gl_factures_bail_id_gl_baux_id_fk": {
+          "name": "gl_factures_bail_id_gl_baux_id_fk",
+          "tableFrom": "gl_factures",
+          "tableTo": "gl_baux",
+          "columnsFrom": [
+            "bail_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.gl_gestionnaires": {
+      "name": "gl_gestionnaires",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "nom": {
+          "name": "nom",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "bailleur_id": {
+          "name": "bailleur_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "telephone": {
+          "name": "telephone",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "adresse": {
+          "name": "adresse",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "societe": {
+          "name": "societe",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "siret": {
+          "name": "siret",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "gl_gestionnaires_bailleur_id_gl_bailleurs_id_fk": {
+          "name": "gl_gestionnaires_bailleur_id_gl_bailleurs_id_fk",
+          "tableFrom": "gl_gestionnaires",
+          "tableTo": "gl_bailleurs",
+          "columnsFrom": [
+            "bailleur_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.historique": {
+      "name": "historique",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "module": {
+          "name": "module",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity": {
+          "name": "entity",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "details": {
+          "name": "details",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.gl_indexations": {
+      "name": "gl_indexations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "bail_id": {
+          "name": "bail_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date_application": {
+          "name": "date_application",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ancien_loyer": {
+          "name": "ancien_loyer",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nouveau_loyer": {
+          "name": "nouveau_loyer",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "indice_base": {
+          "name": "indice_base",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "indice_nouveau": {
+          "name": "indice_nouveau",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "type_indice": {
+          "name": "type_indice",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "taux_variation": {
+          "name": "taux_variation",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "gl_indexations_bail_id_gl_baux_id_fk": {
+          "name": "gl_indexations_bail_id_gl_baux_id_fk",
+          "tableFrom": "gl_indexations",
+          "tableTo": "gl_baux",
+          "columnsFrom": [
+            "bail_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.indices": {
+      "name": "indices",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trimestre": {
+          "name": "trimestre",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "valeur": {
+          "name": "valeur",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.am_locataires": {
+      "name": "am_locataires",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "nom": {
+          "name": "nom",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "prenom": {
+          "name": "prenom",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "telephone": {
+          "name": "telephone",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "adresse": {
+          "name": "adresse",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "siret": {
+          "name": "siret",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.gl_locataires": {
+      "name": "gl_locataires",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "nom": {
+          "name": "nom",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "prenom": {
+          "name": "prenom",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "telephone": {
+          "name": "telephone",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "adresse": {
+          "name": "adresse",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "siret": {
+          "name": "siret",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.am_lots": {
+      "name": "am_lots",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "actif_id": {
+          "name": "actif_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sci_id": {
+          "name": "sci_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "designation": {
+          "name": "designation",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "etage": {
+          "name": "etage",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "surface": {
+          "name": "surface",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "surface_carrez": {
+          "name": "surface_carrez",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dpe": {
+          "name": "dpe",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "loyer_mensuel": {
+          "name": "loyer_mensuel",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "loyer_annuel": {
+          "name": "loyer_annuel",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "charges_lot": {
+          "name": "charges_lot",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "statut": {
+          "name": "statut",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'vacant'"
+        },
+        "locataire_id": {
+          "name": "locataire_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "archived": {
+          "name": "archived",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "am_lots_actif_id_am_actifs_id_fk": {
+          "name": "am_lots_actif_id_am_actifs_id_fk",
+          "tableFrom": "am_lots",
+          "tableTo": "am_actifs",
+          "columnsFrom": [
+            "actif_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "am_lots_sci_id_am_scis_id_fk": {
+          "name": "am_lots_sci_id_am_scis_id_fk",
+          "tableFrom": "am_lots",
+          "tableTo": "am_scis",
+          "columnsFrom": [
+            "sci_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "am_lots_locataire_id_am_locataires_id_fk": {
+          "name": "am_lots_locataire_id_am_locataires_id_fk",
+          "tableFrom": "am_lots",
+          "tableTo": "am_locataires",
+          "columnsFrom": [
+            "locataire_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.gl_paiements": {
+      "name": "gl_paiements",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "bail_id": {
+          "name": "bail_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date": {
+          "name": "date",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "montant": {
+          "name": "montant",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "methode": {
+          "name": "methode",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reference": {
+          "name": "reference",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "gl_paiements_bail_id_gl_baux_id_fk": {
+          "name": "gl_paiements_bail_id_gl_baux_id_fk",
+          "tableFrom": "gl_paiements",
+          "tableTo": "gl_baux",
+          "columnsFrom": [
+            "bail_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.am_participations": {
+      "name": "am_participations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "associe_id": {
+          "name": "associe_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sci_id": {
+          "name": "sci_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "parts_sociales": {
+          "name": "parts_sociales",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pourcentage": {
+          "name": "pourcentage",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "montant_apport": {
+          "name": "montant_apport",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_entree": {
+          "name": "date_entree",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "am_participations_associe_id_am_associes_id_fk": {
+          "name": "am_participations_associe_id_am_associes_id_fk",
+          "tableFrom": "am_participations",
+          "tableTo": "am_associes",
+          "columnsFrom": [
+            "associe_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "am_participations_sci_id_am_scis_id_fk": {
+          "name": "am_participations_sci_id_am_scis_id_fk",
+          "tableFrom": "am_participations",
+          "tableTo": "am_scis",
+          "columnsFrom": [
+            "sci_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.gl_quittances": {
+      "name": "gl_quittances",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "bail_id": {
+          "name": "bail_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "periode_debut": {
+          "name": "periode_debut",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "periode_fin": {
+          "name": "periode_fin",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "montant_loyer": {
+          "name": "montant_loyer",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "montant_charges": {
+          "name": "montant_charges",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "montant_total": {
+          "name": "montant_total",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_emission": {
+          "name": "date_emission",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "statut": {
+          "name": "statut",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "gl_quittances_bail_id_gl_baux_id_fk": {
+          "name": "gl_quittances_bail_id_gl_baux_id_fk",
+          "tableFrom": "gl_quittances",
+          "tableTo": "gl_baux",
+          "columnsFrom": [
+            "bail_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.gl_renouvellements": {
+      "name": "gl_renouvellements",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "bail_id": {
+          "name": "bail_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date_effet": {
+          "name": "date_effet",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date_signature": {
+          "name": "date_signature",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nouvelle_date_fin": {
+          "name": "nouvelle_date_fin",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "champs_modifies": {
+          "name": "champs_modifies",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "titre": {
+          "name": "titre",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "gl_renouvellements_bail_id_gl_baux_id_fk": {
+          "name": "gl_renouvellements_bail_id_gl_baux_id_fk",
+          "tableFrom": "gl_renouvellements",
+          "tableTo": "gl_baux",
+          "columnsFrom": [
+            "bail_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.am_scis": {
+      "name": "am_scis",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "nom": {
+          "name": "nom",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "forme_juridique": {
+          "name": "forme_juridique",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "capital": {
+          "name": "capital",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "regime_fiscal": {
+          "name": "regime_fiscal",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "siret": {
+          "name": "siret",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "adresse": {
+          "name": "adresse",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ville": {
+          "name": "ville",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "code_postal": {
+          "name": "code_postal",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_creation": {
+          "name": "date_creation",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "gerant": {
+          "name": "gerant",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expert_comptable": {
+          "name": "expert_comptable",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "banque": {
+          "name": "banque",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "iban": {
+          "name": "iban",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_revente": {
+          "name": "date_revente",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "taux_rendement": {
+          "name": "taux_rendement",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dividendes_realises": {
+          "name": "dividendes_realises",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_cloture_exercice": {
+          "name": "date_cloture_exercice",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.sessions": {
+      "name": "sessions",
+      "schema": "",
+      "columns": {
+        "sid": {
+          "name": "sid",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "sess": {
+          "name": "sess",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expire": {
+          "name": "expire",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.am_travaux": {
+      "name": "am_travaux",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "actif_id": {
+          "name": "actif_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sci_id": {
+          "name": "sci_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "titre": {
+          "name": "titre",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "budget": {
+          "name": "budget",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "montant_reel": {
+          "name": "montant_reel",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_debut": {
+          "name": "date_debut",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_fin": {
+          "name": "date_fin",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "statut": {
+          "name": "statut",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'planifié'"
+        },
+        "prestataire": {
+          "name": "prestataire",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "am_travaux_actif_id_am_actifs_id_fk": {
+          "name": "am_travaux_actif_id_am_actifs_id_fk",
+          "tableFrom": "am_travaux",
+          "tableTo": "am_actifs",
+          "columnsFrom": [
+            "actif_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "am_travaux_sci_id_am_scis_id_fk": {
+          "name": "am_travaux_sci_id_am_scis_id_fk",
+          "tableFrom": "am_travaux",
+          "tableTo": "am_scis",
+          "columnsFrom": [
+            "sci_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "password": {
+          "name": "password",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "first_name": {
+          "name": "first_name",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_name": {
+          "name": "last_name",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "role": {
+          "name": "role",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'user'"
+        },
+        "is_approved": {
+          "name": "is_approved",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "users_email_unique": {
+          "name": "users_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

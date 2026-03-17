@@ -5,6 +5,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import bcrypt from "bcrypt";
 import { eq } from "drizzle-orm";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { pool, db } from "./db";
 import { users } from "@shared/schema";
 import { registerAuthRoutes } from "./routes/auth";
@@ -116,10 +117,21 @@ async function seedAdminUser() {
   }
 }
 
-seedAdminUser().then(() => {
+// Run migrations then seed, then start listening
+(async () => {
+  try {
+    logger.info("running database migrations");
+    await migrate(db, { migrationsFolder: "./drizzle" });
+    logger.info("database migrations complete");
+  } catch (error: any) {
+    logger.error("migration failed", { error: error.message });
+  }
+
+  await seedAdminUser();
+
   app.listen(PORT, "0.0.0.0", () => {
     logger.info("server started", { port: PORT, env: process.env.NODE_ENV || "development" });
   });
-});
+})();
 
 export default app;
