@@ -36,6 +36,12 @@ export function registerAuthRoutes(app: Express) {
       req.session.email = user.email;
       req.session.role = user.role;
 
+      // Wait for session to be persisted before responding,
+      // otherwise parallel dashboard requests may arrive before the session is saved
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err: any) => (err ? reject(err) : resolve()));
+      });
+
       res.json({
         id: user.id,
         email: user.email,
