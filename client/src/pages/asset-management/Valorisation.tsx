@@ -540,11 +540,11 @@ export default function ValorisationPage() {
                     <th className="px-4 py-3 text-left font-semibold">SCI</th>
                     <th className="px-4 py-3 text-right font-semibold">Surface</th>
                     <th className="px-4 py-3 text-right font-semibold">Prix acq.</th>
-                    <th className="px-4 py-3 text-right font-semibold">€/m² acq.</th>
-                    <th className="px-4 py-3 text-right font-semibold">Val. estimée</th>
-                    <th className="px-4 py-3 text-right font-semibold">€/m² est.</th>
+                    <th className="px-4 py-3 text-right font-semibold">Taux capi</th>
+                    <th className="px-4 py-3 text-right font-semibold">Val. Capitalisation</th>
+                    <th className="px-4 py-3 text-right font-semibold">Val. Comparables</th>
+                    <th className="px-4 py-3 text-right font-semibold">Val. retenue</th>
                     <th className="px-4 py-3 text-right font-semibold">+/- Value</th>
-                    <th className="px-4 py-3 text-right font-semibold">Rdt brut</th>
                     <th className="px-4 py-3 text-right font-semibold">Rdt net</th>
                   </tr>
                 </thead>
@@ -561,14 +561,14 @@ export default function ValorisationPage() {
                       <td className="px-4 py-3 text-muted-foreground">{a.sciNom}</td>
                       <td className="px-4 py-3 text-right">{a.surface > 0 ? `${a.surface.toFixed(0)} m²` : "—"}</td>
                       <td className="px-4 py-3 text-right">{formatCurrency(a.prixAcquisition)}</td>
-                      <td className="px-4 py-3 text-right text-muted-foreground">{a.prixM2 > 0 ? formatCurrency(a.prixM2) : "—"}</td>
+                      <td className="px-4 py-3 text-right text-muted-foreground">{a.tauxCapi > 0 ? `${a.tauxCapi.toFixed(1)}%` : "—"}</td>
+                      <td className="px-4 py-3 text-right text-purple-600">{a.valeurCapitalisation > 0 ? formatCurrency(a.valeurCapitalisation) : "—"}</td>
+                      <td className="px-4 py-3 text-right text-cyan-600">{a.valeurComparables > 0 ? formatCurrency(a.valeurComparables) : "—"}</td>
                       <td className="px-4 py-3 text-right font-medium">{formatCurrency(a.valeurEstimee)}</td>
-                      <td className="px-4 py-3 text-right text-muted-foreground">{a.valeurM2 > 0 ? formatCurrency(a.valeurM2) : "—"}</td>
                       <td className={`px-4 py-3 text-right font-medium ${a.plusValue >= 0 ? "text-green-600" : "text-red-500"}`}>
                         {a.plusValue >= 0 ? "+" : ""}{formatCurrency(a.plusValue)}
                         <span className="ml-1 text-xs opacity-70">({a.plusValuePct >= 0 ? "+" : ""}{a.plusValuePct.toFixed(1)}%)</span>
                       </td>
-                      <td className="px-4 py-3 text-right">{formatPercent(a.rendementBrut)}</td>
                       <td className={`px-4 py-3 text-right font-medium ${a.rendementNet > 5 ? "text-green-600" : a.rendementNet > 3 ? "text-amber-600" : "text-red-500"}`}>
                         {formatPercent(a.rendementNet)}
                       </td>
@@ -577,16 +577,16 @@ export default function ValorisationPage() {
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 bg-muted/20 font-semibold">
-                    <td className="px-4 py-3" colSpan={2}>Total / Moyenne</td>
+                    <td className="px-4 py-3" colSpan={2}>Total</td>
                     <td className="px-4 py-3 text-right">{totalSurface > 0 ? `${totalSurface.toFixed(0)} m²` : "—"}</td>
                     <td className="px-4 py-3 text-right">{formatCurrency(totalAcquisition)}</td>
-                    <td className="px-4 py-3 text-right text-muted-foreground">{avgPrixM2 > 0 ? formatCurrency(avgPrixM2) : "—"}</td>
+                    <td className="px-4 py-3 text-right"></td>
+                    <td className="px-4 py-3 text-right text-purple-600">{formatCurrency(actifData.reduce((s: number, a: any) => s + a.valeurCapitalisation, 0))}</td>
+                    <td className="px-4 py-3 text-right text-cyan-600">{formatCurrency(actifData.reduce((s: number, a: any) => s + a.valeurComparables, 0))}</td>
                     <td className="px-4 py-3 text-right">{formatCurrency(totalValorisation)}</td>
-                    <td className="px-4 py-3 text-right text-muted-foreground">{avgValeurM2 > 0 ? formatCurrency(avgValeurM2) : "—"}</td>
                     <td className={`px-4 py-3 text-right ${totalPlusValue >= 0 ? "text-green-600" : "text-red-500"}`}>
                       {totalPlusValue >= 0 ? "+" : ""}{formatCurrency(totalPlusValue)}
                     </td>
-                    <td className="px-4 py-3 text-right">{formatPercent(avgRendementBrut)}</td>
                     <td className="px-4 py-3 text-right">{formatPercent(avgRendementNet)}</td>
                   </tr>
                 </tfoot>

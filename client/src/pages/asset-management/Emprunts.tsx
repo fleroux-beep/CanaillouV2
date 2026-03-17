@@ -15,13 +15,15 @@ import { Section } from "../../components/ui/section";
 import { Badge } from "../../components/ui/badge";
 import { formatCurrency, formatPercent } from "../../lib/utils";
 import { Plus, Pencil, Trash2, TrendingDown, Calculator, RefreshCw, Landmark, Percent } from "lucide-react";
+import { getAnnuiteEmprunt, type AMEmprunt } from "../../lib/am-calculations";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area } from "recharts";
 
 interface Emprunt {
   id: string; sciId?: string; actifId?: string; banque?: string; montantEmprunte?: string;
   capitalRestantDu?: string; tauxAnnuel?: string; dureeAns?: number; dureeMois?: number;
   dateDebut?: string; dateFin?: string; typeAmortissement?: string; mensualite?: string;
-  assuranceMensuelle?: string; tauxAssurance?: string; typeGarantie?: string; notes?: string; archived?: boolean;
+  assuranceMensuelle?: string; tauxAssurance?: string; typeGarantie?: string; ira?: string;
+  notes?: string; archived?: boolean;
 }
 interface SCI { id: string; nom: string; }
 interface Actif { id: string; nom: string; }
@@ -46,7 +48,15 @@ function EmpruntsTab() {
     { key: "montantEmprunte", label: "Montant", align: "right", sortable: true, render: (r) => r.montantEmprunte ? formatCurrency(r.montantEmprunte) : "—" },
     { key: "capitalRestantDu", label: "CRD", align: "right", sortable: true, render: (r) => r.capitalRestantDu ? formatCurrency(r.capitalRestantDu) : "—" },
     { key: "tauxAnnuel", label: "Taux", align: "right", sortable: true, render: (r) => r.tauxAnnuel ? formatPercent(r.tauxAnnuel) : "—" },
-    { key: "mensualite", label: "Mensualité", align: "right", sortable: true, render: (r) => r.mensualite ? formatCurrency(r.mensualite) : "—" },
+    { key: "annuite", label: "Annuité", align: "right", sortable: true, render: (r) => {
+      const annuite = getAnnuiteEmprunt(r as unknown as AMEmprunt);
+      return annuite > 0 ? formatCurrency(annuite) : "—";
+    }, exportValue: (r) => {
+      const annuite = getAnnuiteEmprunt(r as unknown as AMEmprunt);
+      return annuite > 0 ? annuite.toFixed(2) : "";
+    }},
+    { key: "tauxAssurance", label: "Taux assur.", align: "right", sortable: true, render: (r) => r.tauxAssurance ? `${r.tauxAssurance}%` : "—" },
+    { key: "ira", label: "IRA", align: "right", sortable: true, render: (r) => r.ira ? formatCurrency(r.ira) : "—" },
     { key: "dateFin", label: "Échéance", sortable: true },
     { key: "actions", label: "", align: "right", render: (r) => (
       <div className="flex items-center justify-end gap-1">
@@ -93,6 +103,7 @@ function EmpruntsTab() {
           <FormField label="Type garantie" name="typeGarantie" value={form.typeGarantie} onChange={onChange} options={[
             { value: "hypotheque", label: "Hypotheque" }, { value: "caution", label: "Caution" }, { value: "privilege", label: "Privilege" },
           ]} />
+          <FormField label="IRA (Indemnité remb. anticipé)" name="ira" value={form.ira} onChange={onChange} type="number" suffix="EUR" />
         </FormGrid>
         <FormField label="Notes" name="notes" value={form.notes} onChange={onChange} rows={3} className="mt-4" />
       </FormDialog>

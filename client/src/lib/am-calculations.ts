@@ -199,9 +199,25 @@ export function getCapitalRestantDu(emprunt: AMEmprunt): number {
   return Number(emprunt?.capitalRestantDu || emprunt?.montantEmprunte || 0);
 }
 
-/** Annuité d'un emprunt (mensualité × 12) */
+/** Annuité d'un emprunt.
+ * Si mensualité connue : mensualité × 12.
+ * Sinon : calcul actuariel à partir de montant, taux et durée.
+ */
 export function getAnnuiteEmprunt(emprunt: AMEmprunt): number {
-  return Number(emprunt?.mensualite || 0) * 12;
+  const mensualite = Number(emprunt?.mensualite || 0);
+  if (mensualite > 0) return mensualite * 12;
+
+  // Calcul actuariel si données disponibles
+  const montant = Number(emprunt?.montantEmprunte || 0);
+  const taux = Number(emprunt?.tauxAnnuel || 0) / 100;
+  const duree = Number(emprunt?.dureeAns || 0);
+
+  if (montant <= 0 || duree <= 0) return 0;
+  if (taux <= 0) return montant / duree; // Taux 0% : linéaire
+
+  // Formule actuarielle : A = P × [r(1+r)^n] / [(1+r)^n - 1]
+  const factor = Math.pow(1 + taux, duree);
+  return montant * (taux * factor) / (factor - 1);
 }
 
 /** Service de la dette annuel pour une liste d'emprunts */
