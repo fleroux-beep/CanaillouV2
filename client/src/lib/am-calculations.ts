@@ -505,24 +505,25 @@ export function computeStressTests(
   return scenarios.map((s) => {
     const loyerAjuste = loyerBase * (1 - s.vacanceRate / 100);
     const chargesAjustees = chargesBase * (1 + s.chargesVariation / 100);
-    // Calcul du taux moyen pondéré depuis les emprunts réels
-    let tauxMoyenImplicite = 3; // fallback
-    if (emprunts && emprunts.length > 0) {
-      let totalPondere = 0;
-      let totalCRD = 0;
+    // Recalcul du service de dette emprunt par emprunt avec le taux stressé
+    let debtServiceAjuste = serviceDette;
+    if (s.tauxVariation !== 0 && emprunts && emprunts.length > 0) {
+      debtServiceAjuste = 0;
       for (const e of emprunts) {
-        const crd = Number(e.capitalRestantDu || e.montantEmprunte || 0);
-        const taux = Number(e.tauxAnnuel || 0);
-        if (crd > 0 && taux > 0) {
-          totalPondere += crd * taux;
-          totalCRD += crd;
+        const montant = Number(e.montantEmprunte || 0);
+        const tauxBase = Number(e.tauxAnnuel || 0) / 100; // pourcentage → décimal
+        const duree = Number(e.dureeAns || 0);
+        const tauxStresse = tauxBase + s.tauxVariation / 100; // +200bp = +0.02
+
+        if (montant <= 0 || duree <= 0) continue;
+        if (tauxStresse <= 0) {
+          debtServiceAjuste += montant / duree;
+        } else {
+          const factor = Math.pow(1 + tauxStresse, duree);
+          debtServiceAjuste += montant * (tauxStresse * factor) / (factor - 1);
         }
       }
-      if (totalCRD > 0) tauxMoyenImplicite = totalPondere / totalCRD;
     }
-    const debtServiceAjuste = tauxMoyenImplicite > 0
-      ? serviceDette * (1 + s.tauxVariation / tauxMoyenImplicite)
-      : serviceDette;
     const noiAjuste = loyerAjuste - chargesAjustees;
     const cashFlowAjuste = noiAjuste - debtServiceAjuste;
     const dscr = debtServiceAjuste > 0 ? noiAjuste / debtServiceAjuste : 0;
