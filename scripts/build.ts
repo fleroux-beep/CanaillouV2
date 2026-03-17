@@ -47,7 +47,7 @@ await esbuild.build({
 });
 
 // Copy Excel data file for import
-const xlsxSrc = "BDD SCI 04 01 2026 - proposition FLE new BDD (5).xlsx";
+const xlsxSrc = "BDD_SCI_restructuree.xlsx";
 if (existsSync(xlsxSrc)) {
   copyFileSync(xlsxSrc, `dist/${xlsxSrc}`);
   console.log("Copied Excel data file to dist/");
