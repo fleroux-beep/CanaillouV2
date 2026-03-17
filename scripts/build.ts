@@ -15,7 +15,7 @@ await esbuild.build({
   target: "node20",
   format: "esm",
   banner: {
-    js: "import{createRequire}from'module';const require=createRequire(import.meta.url);",
+    js: "import{createRequire}from'module';import{fileURLToPath as __file}from'url';import{dirname as __dir}from'path';const require=createRequire(import.meta.url);const __filename=__file(import.meta.url);const __dirname=__dir(__filename);",
   },
   external: [
     "pg-native",
