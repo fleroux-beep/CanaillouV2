@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { useAuth } from "../contexts/AuthContext";
 import { useDarkMode } from "../hooks/useDarkMode";
-// Logo removed — using text-based branding
 import {
   LayoutDashboard, Building2, FileText, Users, Landmark, PiggyBank,
   Map, BarChart3, TrendingUp, Calculator, Calendar,
@@ -38,7 +37,7 @@ const amNavGroups: NavGroup[] = [
     items: [
       { label: "Tableau de bord", href: "/asset-management/dashboard", icon: LayoutDashboard },
       { label: "Patrimoine", href: "/asset-management/patrimoine", icon: TreePine },
-      { label: "SCI & Associés", href: "/asset-management/scis-associes", icon: Landmark },
+      { label: "SCI & Associes", href: "/asset-management/scis-associes", icon: Landmark },
     ],
   },
   {
@@ -87,14 +86,14 @@ const glNavGroups: NavGroup[] = [
       { label: "Baux", href: "/gestion-locative/baux", icon: FileText },
       { label: "Bailleurs", href: "/gestion-locative/bailleurs", icon: Building2 },
       { label: "Locataires", href: "/gestion-locative/locataires", icon: Users },
-      { label: "Contrôle bailleur", href: "/gestion-locative/controle-bailleur", icon: ShieldCheck },
+      { label: "Controle bailleur", href: "/gestion-locative/controle-bailleur", icon: ShieldCheck },
     ],
   },
   {
     label: "Analyse",
     items: [
       { label: "Projections", href: "/gestion-locative/projections", icon: TrendingUp },
-      { label: "Trésorerie", href: "/gestion-locative/tresorerie", icon: DollarSign },
+      { label: "Tresorerie", href: "/gestion-locative/tresorerie", icon: DollarSign },
       { label: "Paiements", href: "/gestion-locative/paiements", icon: PiggyBank },
       { label: "Indices", href: "/gestion-locative/indices", icon: Calculator },
     ],
@@ -123,13 +122,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const sectionTitle = isAM ? "Asset Management" : isGL ? "Gestion Locative" : "";
   const sectionColor = isAM ? "from-blue-500 to-indigo-600" : "from-violet-500 to-purple-600";
 
-  /* Shared sidebar content renderer — used for both desktop and mobile */
   const renderSidebarContent = (isMobile: boolean) => {
     const isExpanded = isMobile ? true : !collapsed;
     return (
       <>
         {/* Logo */}
-        <div className="flex h-16 items-center border-b border-white/5 px-4">
+        <div className="flex h-16 items-center border-b border-white/[0.06] px-4">
           <Link
             href="/"
             className="flex items-center gap-3"
@@ -138,7 +136,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           >
             <motion.div
               whileHover={{ scale: 1.05 }}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 shadow-lg shadow-blue-500/20"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 shadow-lg shadow-blue-500/25"
             >
               <span className="text-sm font-extrabold text-white leading-none">C2</span>
             </motion.div>
@@ -148,18 +146,17 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   initial={{ opacity: 0, width: 0 }}
                   animate={{ opacity: 1, width: "auto" }}
                   exit={{ opacity: 0, width: 0 }}
-                  className="overflow-hidden text-lg font-bold whitespace-nowrap tracking-tight"
+                  className="overflow-hidden text-base font-bold whitespace-nowrap tracking-tight"
                 >
                   CANAILLOU <span className="text-blue-400">V2</span>
                 </motion.span>
               )}
             </AnimatePresence>
           </Link>
-          {/* Close button on mobile */}
           {isMobile && (
             <button
               onClick={closeMobile}
-              className="ml-auto text-white/50 hover:text-white/80"
+              className="ml-auto rounded-lg p-1.5 text-white/40 hover:bg-white/5 hover:text-white/70 transition-colors"
               aria-label="Fermer le menu"
             >
               <X className="h-5 w-5" aria-hidden="true" />
@@ -169,24 +166,24 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
         {/* Section badge */}
         {sectionTitle && isExpanded && (
-          <div className="px-4 pt-4 pb-2">
-            <div className={`inline-flex rounded-full bg-gradient-to-r ${sectionColor} px-3 py-1 text-xs font-medium text-white`}>
+          <div className="px-4 pt-4 pb-1">
+            <div className={`inline-flex rounded-lg bg-gradient-to-r ${sectionColor} px-3 py-1.5 text-[11px] font-semibold tracking-wide text-white shadow-sm`}>
               {sectionTitle}
             </div>
           </div>
         )}
 
-        {/* Grouped Nav */}
-        <nav className="flex-1 overflow-y-auto scrollbar-thin px-2 py-2" aria-label={sectionTitle || "Navigation"}>
+        {/* Navigation */}
+        <nav className="flex-1 overflow-y-auto scrollbar-thin px-3 py-3" aria-label={sectionTitle || "Navigation"}>
           {navGroups.map((group, gi) => (
-            <div key={gi} className={gi > 0 ? "mt-3" : ""}>
+            <div key={gi} className={gi > 0 ? "mt-4" : ""}>
               {group.label && isExpanded && (
-                <div className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-white/25">
+                <div className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.15em] text-white/20">
                   {group.label}
                 </div>
               )}
               {!isExpanded && gi > 0 && group.label && (
-                <div className="mx-3 mb-1 border-t border-white/5" />
+                <div className="mx-3 mb-2 border-t border-white/[0.06]" />
               )}
               {group.items.map((item) => {
                 const active =
@@ -203,13 +200,13 @@ export function AppLayout({ children }: { children: ReactNode }) {
                     <motion.div
                       whileHover={{ x: 2 }}
                       className={cn(
-                        "mb-0.5 flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all",
+                        "relative mb-0.5 flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all",
                         active
-                          ? "bg-white/10 text-white font-medium"
-                          : "text-white/50 hover:bg-white/5 hover:text-white/80"
+                          ? "bg-white/[0.08] text-white shadow-sm"
+                          : "text-white/40 hover:bg-white/[0.04] hover:text-white/70"
                       )}
                     >
-                      <item.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                      <item.icon className={cn("h-[18px] w-[18px] shrink-0", active && "text-blue-400")} aria-hidden="true" />
                       <AnimatePresence>
                         {isExpanded && (
                           <motion.span
@@ -225,7 +222,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                       {active && (
                         <motion.div
                           layoutId={isMobile ? "nav-indicator-mobile" : "nav-indicator"}
-                          className="absolute left-0 h-6 w-1 rounded-r-full bg-gradient-to-b from-blue-400 to-violet-500"
+                          className="absolute left-0 h-5 w-[3px] rounded-r-full bg-gradient-to-b from-blue-400 to-violet-500"
                           transition={{ type: "spring", stiffness: 300, damping: 30 }}
                         />
                       )}
@@ -241,10 +238,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
                       <TooltipPrimitive.Content
                         side="right"
                         sideOffset={8}
-                        className="z-50 rounded-md bg-zinc-900 px-3 py-1.5 text-xs text-white shadow-md border border-white/10"
+                        className="z-50 rounded-lg bg-zinc-800 px-3 py-2 text-xs font-medium text-white shadow-xl border border-white/10"
                       >
                         {item.label}
-                        <TooltipPrimitive.Arrow className="fill-zinc-900" />
+                        <TooltipPrimitive.Arrow className="fill-zinc-800" />
                       </TooltipPrimitive.Content>
                     </TooltipPrimitive.Portal>
                   </TooltipPrimitive.Root>
@@ -255,14 +252,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
         </nav>
 
         {/* Footer */}
-        <div className="border-t border-white/5 p-2 space-y-1">
+        <div className="border-t border-white/[0.06] p-3 space-y-1">
           <motion.button
             whileHover={{ x: 2 }}
             onClick={toggle}
             aria-label={dark ? "Activer le mode clair" : "Activer le mode sombre"}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-white/50 hover:bg-white/5 hover:text-white/80"
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium text-white/40 hover:bg-white/[0.04] hover:text-white/70 transition-all"
           >
-            {dark ? <Sun className="h-4 w-4" aria-hidden="true" /> : <Moon className="h-4 w-4" aria-hidden="true" />}
+            {dark ? <Sun className="h-[18px] w-[18px]" aria-hidden="true" /> : <Moon className="h-[18px] w-[18px]" aria-hidden="true" />}
             <AnimatePresence>
               {isExpanded && (
                 <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -272,20 +269,19 @@ export function AppLayout({ children }: { children: ReactNode }) {
             </AnimatePresence>
           </motion.button>
 
-          {/* Collapse toggle — desktop only */}
           {!isMobile && (
             <button
               onClick={() => setCollapsed(!collapsed)}
-              aria-label={collapsed ? "Déplier la barre latérale" : "Replier la barre latérale"}
+              aria-label={collapsed ? "Deplier la barre laterale" : "Replier la barre laterale"}
               aria-expanded={!collapsed}
-              className="flex w-full items-center justify-center rounded-lg p-2 text-white/30 hover:bg-white/5 hover:text-white/60"
+              className="flex w-full items-center justify-center rounded-xl p-2 text-white/20 hover:bg-white/[0.04] hover:text-white/50 transition-all"
             >
               {collapsed ? <ChevronRight className="h-4 w-4" aria-hidden="true" /> : <ChevronLeft className="h-4 w-4" aria-hidden="true" />}
             </button>
           )}
 
           {(isAM || isGL) && (() => {
-            const switchLabel = isAM ? "Gestion Locative \u2192" : "Asset Management \u2192";
+            const switchLabel = isAM ? "Gestion Locative" : "Asset Management";
             const switchLink = (
               <Link
                 href={isAM ? "/gestion-locative/dashboard" : "/asset-management/dashboard"}
@@ -293,9 +289,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
               >
                 <motion.div
                   whileHover={{ x: 2 }}
-                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-white/40 hover:bg-white/5 hover:text-white/70 transition-all"
+                  className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium text-white/30 hover:bg-white/[0.04] hover:text-white/60 transition-all"
                 >
-                  <ArrowLeftRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <ArrowLeftRight className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
                   <AnimatePresence>
                     {isExpanded && (
                       <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="truncate">
@@ -315,10 +311,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   <TooltipPrimitive.Content
                     side="right"
                     sideOffset={8}
-                    className="z-50 rounded-md bg-zinc-900 px-3 py-1.5 text-xs text-white shadow-md border border-white/10"
+                    className="z-50 rounded-lg bg-zinc-800 px-3 py-2 text-xs font-medium text-white shadow-xl border border-white/10"
                   >
                     {switchLabel}
-                    <TooltipPrimitive.Arrow className="fill-zinc-900" />
+                    <TooltipPrimitive.Arrow className="fill-zinc-800" />
                   </TooltipPrimitive.Content>
                 </TooltipPrimitive.Portal>
               </TooltipPrimitive.Root>
@@ -329,18 +325,21 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2"
+              className="flex items-center justify-between rounded-xl bg-white/[0.04] px-3 py-2.5"
             >
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-400 to-violet-500 text-xs font-bold text-white">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-400 to-violet-500 text-xs font-bold text-white shadow-sm">
                   {(user?.firstName?.[0] || user?.email?.[0] || "U").toUpperCase()}
                 </div>
-                <span className="truncate text-xs text-white/60">{user?.email}</span>
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-medium text-white/70">{user?.firstName || "Utilisateur"}</p>
+                  <p className="truncate text-[10px] text-white/30">{user?.email}</p>
+                </div>
               </div>
               <button
                 onClick={logout}
-                className="shrink-0 text-white/30 hover:text-red-400 transition-colors"
-                aria-label="Déconnexion"
+                className="shrink-0 rounded-lg p-1.5 text-white/20 hover:bg-white/5 hover:text-red-400 transition-all"
+                aria-label="Deconnexion"
               >
                 <LogOut className="h-4 w-4" aria-hidden="true" />
               </button>
@@ -354,32 +353,30 @@ export function AppLayout({ children }: { children: ReactNode }) {
   return (
     <TooltipPrimitive.Provider delayDuration={0}>
     <div className="flex h-screen overflow-hidden">
-      {/* ===== Desktop sidebar (hidden on mobile) ===== */}
+      {/* Desktop sidebar */}
       <motion.aside
         animate={{ width: collapsed ? 64 : 260 }}
         transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-        className="hidden md:flex flex-col bg-[hsl(var(--sidebar-bg))] text-[hsl(var(--sidebar-foreground))]"
+        className="hidden md:flex flex-col bg-[hsl(var(--sidebar-bg))] text-[hsl(var(--sidebar-foreground))] border-r border-white/[0.04]"
         aria-label="Navigation principale"
       >
         {renderSidebarContent(false)}
       </motion.aside>
 
-      {/* ===== Mobile sidebar overlay ===== */}
+      {/* Mobile sidebar overlay */}
       <AnimatePresence>
         {mobileOpen && (
           <>
-            {/* Backdrop */}
             <motion.div
               key="mobile-backdrop"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="fixed inset-0 z-40 bg-black/60 md:hidden"
+              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
               onClick={closeMobile}
               aria-hidden="true"
             />
-            {/* Slide-in sidebar */}
             <motion.aside
               key="mobile-sidebar"
               initial={{ x: "-100%" }}
@@ -395,19 +392,19 @@ export function AppLayout({ children }: { children: ReactNode }) {
         )}
       </AnimatePresence>
 
-      {/* ===== Main content ===== */}
+      {/* Main content */}
       <main className="flex-1 overflow-y-auto scrollbar-thin bg-background">
-        {/* Mobile hamburger header */}
-        <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:hidden">
+        {/* Mobile header */}
+        <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-border/60 bg-background/95 px-4 py-3 backdrop-blur-xl supports-[backdrop-filter]:bg-background/80 md:hidden">
           <button
             onClick={() => setMobileOpen(true)}
-            className="inline-flex items-center justify-center rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            className="inline-flex items-center justify-center rounded-xl p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
             aria-label="Ouvrir le menu"
           >
             <Menu className="h-5 w-5" aria-hidden="true" />
           </button>
           {sectionTitle && (
-            <span className={`inline-flex rounded-full bg-gradient-to-r ${sectionColor} px-3 py-1 text-xs font-medium text-white`}>
+            <span className={`inline-flex rounded-lg bg-gradient-to-r ${sectionColor} px-3 py-1.5 text-[11px] font-semibold tracking-wide text-white`}>
               {sectionTitle}
             </span>
           )}
