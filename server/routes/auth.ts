@@ -38,9 +38,13 @@ export function registerAuthRoutes(app: Express) {
 
       // Wait for session to be persisted before responding,
       // otherwise parallel dashboard requests may arrive before the session is saved
-      await new Promise<void>((resolve, reject) => {
-        req.session.save((err: any) => (err ? reject(err) : resolve()));
-      });
+      try {
+        await new Promise<void>((resolve, reject) => {
+          req.session.save((err: any) => (err ? reject(err) : resolve()));
+        });
+      } catch (saveErr: any) {
+        logger.warn("session save warning (continuing anyway)", { error: saveErr.message });
+      }
 
       res.json({
         id: user.id,
