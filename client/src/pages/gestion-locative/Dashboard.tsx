@@ -31,11 +31,18 @@ const chartTooltipStyle = {
   },
 };
 
+const toArray = (v: unknown): any[] => Array.isArray(v) ? v : [];
+
 export default function GLDashboard() {
   const [, navigate] = useLocation();
-  const { data: baux = [], isLoading: l1 } = useQuery({ queryKey: ["/api/gl/baux"], queryFn: () => apiRequest("/api/gl/baux") });
-  const { data: bailleurs = [], isLoading: l2 } = useQuery({ queryKey: ["/api/gl/bailleurs"], queryFn: () => apiRequest("/api/gl/bailleurs") });
-  const { data: paiements = [], isLoading: l3 } = useQuery({ queryKey: ["/api/gl/paiements"], queryFn: () => apiRequest("/api/gl/paiements") });
+  const { data: rawBaux, isLoading: l1, isError: e1 } = useQuery({ queryKey: ["/api/gl/baux"], queryFn: () => apiRequest("/api/gl/baux") });
+  const { data: rawBailleurs, isLoading: l2, isError: e2 } = useQuery({ queryKey: ["/api/gl/bailleurs"], queryFn: () => apiRequest("/api/gl/bailleurs") });
+  const { data: rawPaiements, isLoading: l3, isError: e3 } = useQuery({ queryKey: ["/api/gl/paiements"], queryFn: () => apiRequest("/api/gl/paiements") });
+
+  const baux = toArray(rawBaux);
+  const bailleurs = toArray(rawBailleurs);
+  const paiements = toArray(rawPaiements);
+  const hasError = e1 || e2 || e3;
 
   if (l1 || l2 || l3) {
     return (
@@ -49,6 +56,29 @@ export default function GLDashboard() {
           <SkeletonCard />
         </div>
         <SkeletonTable rows={5} columns={6} />
+      </div>
+    );
+  }
+
+  if (hasError) {
+    return (
+      <div className="space-y-8">
+        <PageHeader title="Gestion Locative" description="Suivi des baux commerciaux" />
+        <GlassCard>
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <AlertTriangle className="mb-4 h-12 w-12 text-amber-500" />
+            <h3 className="mb-2 text-lg font-semibold">Erreur de chargement</h3>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Impossible de charger les données. Vérifiez votre connexion et réessayez.
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="rounded-lg gradient-primary px-4 py-2 text-sm font-medium text-white"
+            >
+              Réessayer
+            </button>
+          </div>
+        </GlassCard>
       </div>
     );
   }

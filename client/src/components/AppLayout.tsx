@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { useAuth } from "../contexts/AuthContext";
 import { useDarkMode } from "../hooks/useDarkMode";
-import logoSrc from "../assets/logo.png";
+// Logo removed — using text-based branding
 import {
   LayoutDashboard, Building2, FileText, Users, Landmark, PiggyBank,
   Map, BarChart3, TrendingUp, Calculator, Calendar,
@@ -137,17 +137,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
             onClick={isMobile ? closeMobile : undefined}
           >
             <motion.div
-              whileHover={{ rotate: 5 }}
-              className="shrink-0"
+              whileHover={{ scale: 1.05 }}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 shadow-lg shadow-blue-500/20"
             >
-              <img
-                src={logoSrc}
-                alt="Les Petites Canailles"
-                className={cn(
-                  "object-contain transition-all",
-                  isExpanded ? "h-10" : "h-9 w-9"
-                )}
-              />
+              <span className="text-sm font-extrabold text-white leading-none">C2</span>
             </motion.div>
             <AnimatePresence>
               {isExpanded && (
@@ -155,9 +148,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   initial={{ opacity: 0, width: 0 }}
                   animate={{ opacity: 1, width: "auto" }}
                   exit={{ opacity: 0, width: 0 }}
-                  className="overflow-hidden text-lg font-bold whitespace-nowrap"
+                  className="overflow-hidden text-lg font-bold whitespace-nowrap tracking-tight"
                 >
-                  Les Petites Canailles
+                  CANAILLOU <span className="text-blue-400">V2</span>
                 </motion.span>
               )}
             </AnimatePresence>

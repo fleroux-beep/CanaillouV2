@@ -1,6 +1,7 @@
 import { Route, Switch } from "wouter";
 import { useAuth } from "./contexts/AuthContext";
 import { AppLayout } from "./components/AppLayout";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import LoginPage from "./pages/LoginPage";
 import HomePage from "./pages/HomePage";
 // Asset Management
@@ -58,6 +59,7 @@ export default function App() {
 
   return (
     <AppLayout>
+      <ErrorBoundary>
       <Switch>
         <Route path="/" component={HomePage} />
 
@@ -109,6 +111,7 @@ export default function App() {
           </div>
         </Route>
       </Switch>
+      </ErrorBoundary>
     </AppLayout>
   );
 }

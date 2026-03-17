@@ -1,93 +1,126 @@
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { Building2, FileText, ArrowRight } from "lucide-react";
-import logoSrc from "../assets/logo.png";
+import { Building2, FileText, ArrowRight, BarChart3, TrendingUp, Shield, Zap } from "lucide-react";
 
-const cards = [
+const modules = [
   {
     href: "/asset-management",
     icon: Building2,
     title: "Asset Management",
-    description: "Gestion de patrimoine immobilier : SCIs, actifs, lots, emprunts, valorisation, arbitrages, reporting.",
-    gradient: "from-blue-500 to-indigo-600",
-    shadow: "shadow-blue-500/20",
-    features: ["SCIs & Associes", "Valorisation", "LTV & DSCR", "Reporting"],
+    description: "Pilotez votre patrimoine immobilier avec une vision institutionnelle : SCIs, valorisation DCF, LTV, DSCR, arbitrages et reporting.",
+    gradient: "from-blue-600 via-blue-500 to-indigo-600",
+    iconBg: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+    borderAccent: "hover:border-blue-500/30",
+    features: ["SCIs & Associes", "Valorisation DCF", "LTV & DSCR", "Reporting"],
   },
   {
     href: "/gestion-locative",
     icon: FileText,
     title: "Gestion Locative",
-    description: "Suivi des baux commerciaux : loyers, indexations, charges, projections, KPI, tresorerie.",
-    gradient: "from-violet-500 to-purple-600",
-    shadow: "shadow-violet-500/20",
-    features: ["Baux commerciaux", "Indexation auto", "Projections", "KPI"],
+    description: "Suivez vos baux commerciaux en detail : loyers, indexations automatiques, echeancier, projections et tresorerie.",
+    gradient: "from-violet-600 via-purple-500 to-fuchsia-600",
+    iconBg: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+    borderAccent: "hover:border-violet-500/30",
+    features: ["Baux commerciaux", "Indexation auto", "Projections", "Tresorerie"],
   },
+];
+
+const highlights = [
+  { icon: BarChart3, label: "Tableaux de bord", desc: "KPIs en temps reel" },
+  { icon: TrendingUp, label: "Analyse", desc: "DCF, stress tests" },
+  { icon: Shield, label: "Controle", desc: "Suivi des risques" },
+  { icon: Zap, label: "Automatisation", desc: "Indexations, alertes" },
 ];
 
 export default function HomePage() {
   return (
-    <div className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center">
-      <div className="mx-auto max-w-4xl px-6 py-12">
-        {/* Hero */}
+    <div className="flex min-h-[calc(100vh-3.5rem)] flex-col">
+      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col justify-center px-6 py-12 lg:px-8">
+
+        {/* Hero section */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="mb-12 text-center"
+          className="mb-16 text-center"
         >
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: "spring", stiffness: 200, delay: 0.1 }}
-            className="mx-auto mb-6"
+            className="mx-auto mb-8 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600 shadow-2xl shadow-blue-500/25"
           >
-            <img
-              src={logoSrc}
-              alt="Les Petites Canailles"
-              className="mx-auto h-24 object-contain"
-            />
+            <Building2 className="h-10 w-10 text-white" />
           </motion.div>
-          <h1 className="text-4xl font-bold tracking-tight">
-            Bienvenue sur{" "}
-            <span className="gradient-text-primary">Les Petites Canailles</span>
+
+          <h1 className="text-5xl font-extrabold tracking-tight sm:text-6xl">
+            CANAILLOU <span className="gradient-text-primary">V2</span>
           </h1>
-          <p className="mt-3 text-lg text-muted-foreground">
-            Plateforme de gestion immobiliere
+          <p className="mx-auto mt-4 max-w-xl text-lg text-muted-foreground leading-relaxed">
+            Plateforme de gestion immobiliere pour piloter votre patrimoine
+            avec precision et efficacite.
           </p>
         </motion.div>
 
-        {/* Cards */}
+        {/* Quick highlights */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3 }}
+          className="mb-12 grid grid-cols-2 gap-3 sm:grid-cols-4"
+        >
+          {highlights.map((h, i) => (
+            <motion.div
+              key={h.label}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 + i * 0.08 }}
+              className="flex flex-col items-center rounded-xl border bg-card/50 p-4 text-center backdrop-blur-sm"
+            >
+              <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                <h.icon className="h-5 w-5 text-primary" />
+              </div>
+              <span className="text-sm font-semibold">{h.label}</span>
+              <span className="mt-0.5 text-xs text-muted-foreground">{h.desc}</span>
+            </motion.div>
+          ))}
+        </motion.div>
+
+        {/* Module cards */}
         <div className="grid gap-6 sm:grid-cols-2">
-          {cards.map((card, i) => (
-            <Link key={card.href} href={card.href}>
+          {modules.map((mod, i) => (
+            <Link key={mod.href} href={mod.href}>
               <motion.div
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.2 + i * 0.15 }}
-                whileHover={{ y: -6, transition: { duration: 0.2 } }}
-                className={`group cursor-pointer overflow-hidden rounded-2xl border bg-card shadow-lg ${card.shadow} transition-all hover:shadow-2xl`}
+                transition={{ duration: 0.5, delay: 0.4 + i * 0.15 }}
+                whileHover={{ y: -4, transition: { duration: 0.2 } }}
+                className={`group relative cursor-pointer overflow-hidden rounded-2xl border bg-card shadow-lg transition-all hover:shadow-2xl ${mod.borderAccent}`}
               >
-                {/* Gradient header */}
-                <div className={`bg-gradient-to-r ${card.gradient} p-6`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
-                      <card.icon className="h-6 w-6 text-white" />
-                    </div>
-                    <ArrowRight className="h-5 w-5 text-white/60 transition-transform group-hover:translate-x-1 group-hover:text-white" />
-                  </div>
-                  <h2 className="mt-4 text-xl font-bold text-white">{card.title}</h2>
-                </div>
+                {/* Gradient accent bar */}
+                <div className={`h-1.5 bg-gradient-to-r ${mod.gradient}`} />
 
-                {/* Content */}
                 <div className="p-6">
+                  {/* Header */}
+                  <div className="mb-4 flex items-start justify-between">
+                    <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${mod.iconBg}`}>
+                      <mod.icon className="h-6 w-6" />
+                    </div>
+                    <ArrowRight className="h-5 w-5 text-muted-foreground/40 transition-all group-hover:translate-x-1 group-hover:text-foreground" />
+                  </div>
+
+                  {/* Title & description */}
+                  <h2 className="mb-2 text-xl font-bold tracking-tight">{mod.title}</h2>
                   <p className="text-sm text-muted-foreground leading-relaxed">
-                    {card.description}
+                    {mod.description}
                   </p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {card.features.map((f) => (
+
+                  {/* Feature tags */}
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    {mod.features.map((f) => (
                       <span
                         key={f}
-                        className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground"
+                        className="rounded-full border bg-muted/50 px-3 py-1 text-xs font-medium text-muted-foreground transition-colors group-hover:bg-muted"
                       >
                         {f}
                       </span>
@@ -98,6 +131,16 @@ export default function HomePage() {
             </Link>
           ))}
         </div>
+
+        {/* Footer tagline */}
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.8 }}
+          className="mt-12 text-center text-xs text-muted-foreground/50"
+        >
+          Les Petites Canailles — Gestion immobiliere
+        </motion.p>
       </div>
     </div>
   );

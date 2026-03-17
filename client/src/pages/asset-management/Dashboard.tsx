@@ -37,16 +37,27 @@ const chartTooltipStyle = {
   },
 };
 
+const toArray = (v: unknown): any[] => Array.isArray(v) ? v : [];
+
 export default function AMDashboard() {
-  const { data: scis = [], isLoading: l1 } = useQuery({ queryKey: ["/api/am/scis"], queryFn: () => apiRequest("/api/am/scis") });
-  const { data: actifs = [], isLoading: l2 } = useQuery({ queryKey: ["/api/am/actifs"], queryFn: () => apiRequest("/api/am/actifs") });
-  const { data: lots = [], isLoading: l3 } = useQuery({ queryKey: ["/api/am/lots"], queryFn: () => apiRequest("/api/am/lots") });
-  const { data: baux = [], isLoading: l4 } = useQuery({ queryKey: ["/api/am/baux"], queryFn: () => apiRequest("/api/am/baux") });
-  const { data: emprunts = [], isLoading: l5 } = useQuery({ queryKey: ["/api/am/emprunts"], queryFn: () => apiRequest("/api/am/emprunts") });
-  const { data: locataires = [] } = useQuery({ queryKey: ["/api/am/locataires"], queryFn: () => apiRequest("/api/am/locataires") });
-  const { data: associes = [] } = useQuery({ queryKey: ["/api/am/associes"], queryFn: () => apiRequest("/api/am/associes") });
+  const { data: rawScis, isLoading: l1, isError: e1 } = useQuery({ queryKey: ["/api/am/scis"], queryFn: () => apiRequest("/api/am/scis") });
+  const { data: rawActifs, isLoading: l2, isError: e2 } = useQuery({ queryKey: ["/api/am/actifs"], queryFn: () => apiRequest("/api/am/actifs") });
+  const { data: rawLots, isLoading: l3, isError: e3 } = useQuery({ queryKey: ["/api/am/lots"], queryFn: () => apiRequest("/api/am/lots") });
+  const { data: rawBaux, isLoading: l4, isError: e4 } = useQuery({ queryKey: ["/api/am/baux"], queryFn: () => apiRequest("/api/am/baux") });
+  const { data: rawEmprunts, isLoading: l5, isError: e5 } = useQuery({ queryKey: ["/api/am/emprunts"], queryFn: () => apiRequest("/api/am/emprunts") });
+  const { data: rawLocataires } = useQuery({ queryKey: ["/api/am/locataires"], queryFn: () => apiRequest("/api/am/locataires") });
+  const { data: rawAssocies } = useQuery({ queryKey: ["/api/am/associes"], queryFn: () => apiRequest("/api/am/associes") });
+
+  const scis = toArray(rawScis);
+  const actifs = toArray(rawActifs);
+  const lots = toArray(rawLots);
+  const baux = toArray(rawBaux);
+  const emprunts = toArray(rawEmprunts);
+  const locataires = toArray(rawLocataires);
+  const associes = toArray(rawAssocies);
 
   const isLoading = l1 || l2 || l3 || l4 || l5;
+  const hasError = e1 || e2 || e3 || e4 || e5;
 
   if (isLoading) {
     return (
@@ -61,6 +72,29 @@ export default function AMDashboard() {
         </div>
         <SkeletonCard />
         <SkeletonTable rows={5} columns={8} />
+      </div>
+    );
+  }
+
+  if (hasError) {
+    return (
+      <div className="space-y-8">
+        <PageHeader title="Asset Management" description="Vue d'ensemble du patrimoine immobilier" />
+        <GlassCard>
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <AlertTriangle className="mb-4 h-12 w-12 text-amber-500" />
+            <h3 className="mb-2 text-lg font-semibold">Erreur de chargement</h3>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Impossible de charger les données. Vérifiez votre connexion et réessayez.
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="rounded-lg gradient-primary px-4 py-2 text-sm font-medium text-white"
+            >
+              Réessayer
+            </button>
+          </div>
+        </GlassCard>
       </div>
     );
   }
