@@ -113,7 +113,7 @@ async function seedAdminUser() {
       logger.info("admin user created", { email: "fleroux@lespetitescanailles.fr" });
     }
   } catch (error: any) {
-    logger.error("failed to seed admin user", { error: error.message });
+    logger.error("failed to seed admin user: " + error.message);
   }
 }
 
@@ -122,7 +122,7 @@ async function seedAdminUser() {
   try {
     await ensureSchema();
   } catch (error: any) {
-    logger.error("schema setup failed", { error: error.message });
+    logger.error("schema setup failed: " + error.message);
   }
 
   await seedAdminUser();
