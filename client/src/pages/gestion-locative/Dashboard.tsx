@@ -35,14 +35,15 @@ const toArray = (v: unknown): any[] => Array.isArray(v) ? v : [];
 
 export default function GLDashboard() {
   const [, navigate] = useLocation();
-  const { data: rawBaux, isLoading: l1, isError: e1 } = useQuery({ queryKey: ["/api/gl/baux"], queryFn: () => apiRequest("/api/gl/baux") });
-  const { data: rawBailleurs, isLoading: l2, isError: e2 } = useQuery({ queryKey: ["/api/gl/bailleurs"], queryFn: () => apiRequest("/api/gl/bailleurs") });
-  const { data: rawPaiements, isLoading: l3, isError: e3 } = useQuery({ queryKey: ["/api/gl/paiements"], queryFn: () => apiRequest("/api/gl/paiements") });
+  const { data: rawBaux, isLoading: l1, isError: e1, error: err1 } = useQuery({ queryKey: ["/api/gl/baux"], queryFn: () => apiRequest("/api/gl/baux") });
+  const { data: rawBailleurs, isLoading: l2, isError: e2, error: err2 } = useQuery({ queryKey: ["/api/gl/bailleurs"], queryFn: () => apiRequest("/api/gl/bailleurs") });
+  const { data: rawPaiements, isLoading: l3, isError: e3, error: err3 } = useQuery({ queryKey: ["/api/gl/paiements"], queryFn: () => apiRequest("/api/gl/paiements") });
 
   const baux = toArray(rawBaux);
   const bailleurs = toArray(rawBailleurs);
   const paiements = toArray(rawPaiements);
   const hasError = e1 || e2 || e3;
+  const errorDetail = [err1, err2, err3].filter(Boolean).map((e: any) => e?.message).join(" | ");
 
   if (l1 || l2 || l3) {
     return (
@@ -68,9 +69,14 @@ export default function GLDashboard() {
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <AlertTriangle className="mb-4 h-12 w-12 text-amber-500" />
             <h3 className="mb-2 text-lg font-semibold">Erreur de chargement</h3>
-            <p className="mb-4 text-sm text-muted-foreground">
+            <p className="mb-2 text-sm text-muted-foreground">
               Impossible de charger les données. Vérifiez votre connexion et réessayez.
             </p>
+            {errorDetail && (
+              <p className="mb-4 max-w-md rounded bg-muted/50 px-3 py-2 text-xs font-mono text-muted-foreground break-all">
+                {errorDetail}
+              </p>
+            )}
             <button
               onClick={() => window.location.reload()}
               className="rounded-lg gradient-primary px-4 py-2 text-sm font-medium text-white"

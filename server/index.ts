@@ -76,6 +76,31 @@ app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
+// Debug: check database tables (temporary — remove once resolved)
+app.get("/api/debug/tables", async (_req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name`
+    );
+    const tables = result.rows.map((r: any) => r.table_name);
+
+    // Also try a simple query on the main GL tables
+    const checks: Record<string, string> = {};
+    for (const t of ["gl_baux", "gl_bailleurs", "gl_paiements", "gl_locataires", "am_scis", "am_actifs", "am_lots", "users", "sessions"]) {
+      try {
+        const r = await pool.query(`SELECT count(*) as cnt FROM "${t}"`);
+        checks[t] = `ok (${r.rows[0].cnt} rows)`;
+      } catch (e: any) {
+        checks[t] = `ERROR: ${e.message}`;
+      }
+    }
+
+    res.json({ tables, checks, sessionConfig: { secure: process.env.NODE_ENV === "production" } });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // In production, serve the built frontend
 if (process.env.NODE_ENV === "production") {
   const publicDir = path.resolve(__dirname, "public");

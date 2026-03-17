@@ -40,11 +40,11 @@ const chartTooltipStyle = {
 const toArray = (v: unknown): any[] => Array.isArray(v) ? v : [];
 
 export default function AMDashboard() {
-  const { data: rawScis, isLoading: l1, isError: e1 } = useQuery({ queryKey: ["/api/am/scis"], queryFn: () => apiRequest("/api/am/scis") });
-  const { data: rawActifs, isLoading: l2, isError: e2 } = useQuery({ queryKey: ["/api/am/actifs"], queryFn: () => apiRequest("/api/am/actifs") });
-  const { data: rawLots, isLoading: l3, isError: e3 } = useQuery({ queryKey: ["/api/am/lots"], queryFn: () => apiRequest("/api/am/lots") });
-  const { data: rawBaux, isLoading: l4, isError: e4 } = useQuery({ queryKey: ["/api/am/baux"], queryFn: () => apiRequest("/api/am/baux") });
-  const { data: rawEmprunts, isLoading: l5, isError: e5 } = useQuery({ queryKey: ["/api/am/emprunts"], queryFn: () => apiRequest("/api/am/emprunts") });
+  const { data: rawScis, isLoading: l1, isError: e1, error: err1 } = useQuery({ queryKey: ["/api/am/scis"], queryFn: () => apiRequest("/api/am/scis") });
+  const { data: rawActifs, isLoading: l2, isError: e2, error: err2 } = useQuery({ queryKey: ["/api/am/actifs"], queryFn: () => apiRequest("/api/am/actifs") });
+  const { data: rawLots, isLoading: l3, isError: e3, error: err3 } = useQuery({ queryKey: ["/api/am/lots"], queryFn: () => apiRequest("/api/am/lots") });
+  const { data: rawBaux, isLoading: l4, isError: e4, error: err4 } = useQuery({ queryKey: ["/api/am/baux"], queryFn: () => apiRequest("/api/am/baux") });
+  const { data: rawEmprunts, isLoading: l5, isError: e5, error: err5 } = useQuery({ queryKey: ["/api/am/emprunts"], queryFn: () => apiRequest("/api/am/emprunts") });
   const { data: rawLocataires } = useQuery({ queryKey: ["/api/am/locataires"], queryFn: () => apiRequest("/api/am/locataires") });
   const { data: rawAssocies } = useQuery({ queryKey: ["/api/am/associes"], queryFn: () => apiRequest("/api/am/associes") });
 
@@ -58,6 +58,7 @@ export default function AMDashboard() {
 
   const isLoading = l1 || l2 || l3 || l4 || l5;
   const hasError = e1 || e2 || e3 || e4 || e5;
+  const errorDetail = [err1, err2, err3, err4, err5].filter(Boolean).map((e: any) => e?.message).join(" | ");
 
   if (isLoading) {
     return (
@@ -84,9 +85,14 @@ export default function AMDashboard() {
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <AlertTriangle className="mb-4 h-12 w-12 text-amber-500" />
             <h3 className="mb-2 text-lg font-semibold">Erreur de chargement</h3>
-            <p className="mb-4 text-sm text-muted-foreground">
+            <p className="mb-2 text-sm text-muted-foreground">
               Impossible de charger les données. Vérifiez votre connexion et réessayez.
             </p>
+            {errorDetail && (
+              <p className="mb-4 max-w-md rounded bg-muted/50 px-3 py-2 text-xs font-mono text-muted-foreground break-all">
+                {errorDetail}
+              </p>
+            )}
             <button
               onClick={() => window.location.reload()}
               className="rounded-lg gradient-primary px-4 py-2 text-sm font-medium text-white"
