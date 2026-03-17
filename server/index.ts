@@ -7,7 +7,8 @@ import bcrypt from "bcrypt";
 import { eq } from "drizzle-orm";
 import { pool, db } from "./db";
 import { ensureSchema } from "./ensure-schema";
-import { users, scis } from "@shared/schema";
+import { users, scis, actifs } from "@shared/schema";
+import { isNull } from "drizzle-orm";
 import { registerAuthRoutes } from "./routes/auth";
 import { registerAMRoutes } from "./routes/am";
 import { registerGLRoutes } from "./routes/gl";
@@ -190,6 +191,18 @@ async function withRetry<T>(fn: () => Promise<T>, label: string, retries = 5, de
     }
   } catch (err: any) {
     logger.warn("Auto-import Excel skipped: " + (err.message || err));
+  }
+
+  // Set default taux de capitalisation (6%) for actifs where it's null
+  try {
+    const result = await db.update(actifs)
+      .set({ tauxCapitalisation: "6" })
+      .where(isNull(actifs.tauxCapitalisation));
+    if (result.rowCount && result.rowCount > 0) {
+      logger.info(`Set default taux_capitalisation=6% on ${result.rowCount} actifs`);
+    }
+  } catch (err: any) {
+    logger.warn("Default taux_capitalisation update skipped: " + (err.message || err));
   }
 
   app.listen(PORT, "0.0.0.0", () => {

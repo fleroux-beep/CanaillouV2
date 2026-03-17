@@ -354,8 +354,9 @@ export async function importExcelData(): Promise<{
 
       await client.query(
         `INSERT INTO am_actifs (id, sci_id, nom, adresse, ville, code_postal, type, surface, surface_carrez,
-         reference_cadastrale, prix_acquisition, date_acquisition, regime_juridique, notes, erp, pmi, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, now(), now())`,
+         reference_cadastrale, prix_acquisition, date_acquisition, regime_juridique, notes, erp, pmi,
+         taux_capitalisation, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, now(), now())`,
         [
           actifId,
           sciIds[sciName],
@@ -375,6 +376,7 @@ export async function importExcelData(): Promise<{
           first.description,
           false,
           false,
+          6, // Taux de capitalisation par défaut : 6%
         ]
       );
       counts.actifs++;
