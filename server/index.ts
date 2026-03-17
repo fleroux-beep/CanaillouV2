@@ -5,8 +5,8 @@ import path from "path";
 import { fileURLToPath } from "url";
 import bcrypt from "bcrypt";
 import { eq } from "drizzle-orm";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { pool, db } from "./db";
+import { ensureSchema } from "./ensure-schema";
 import { users } from "@shared/schema";
 import { registerAuthRoutes } from "./routes/auth";
 import { registerAMRoutes } from "./routes/am";
@@ -120,11 +120,9 @@ async function seedAdminUser() {
 // Run migrations then seed, then start listening
 (async () => {
   try {
-    logger.info("running database migrations");
-    await migrate(db, { migrationsFolder: "./drizzle" });
-    logger.info("database migrations complete");
+    await ensureSchema();
   } catch (error: any) {
-    logger.error("migration failed", { error: error.message });
+    logger.error("schema setup failed", { error: error.message });
   }
 
   await seedAdminUser();
