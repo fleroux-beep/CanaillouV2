@@ -164,7 +164,7 @@ app.get("/api/debug/tables", async (_req, res) => {
 
     // Also try a simple query on the main GL tables
     const checks: Record<string, string> = {};
-    for (const t of ["gl_baux", "gl_bailleurs", "gl_paiements", "gl_locataires", "am_scis", "am_actifs", "am_lots", "users", "sessions"]) {
+    for (const t of ["gl_baux", "gl_bailleurs", "gl_paiements", "gl_locataires", "am_scis", "am_actifs", "am_lots", "users", "session"]) {
       try {
         const r = await pool.query(`SELECT count(*) as cnt FROM "${t}"`);
         checks[t] = `ok (${r.rows[0].cnt} rows)`;

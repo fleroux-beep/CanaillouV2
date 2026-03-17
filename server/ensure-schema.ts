@@ -11,13 +11,23 @@ export async function ensureSchema() {
   try {
     await client.query("BEGIN");
 
-    // Sessions
+    // Sessions (connect-pg-simple expects "session" singular by default)
     await client.query(`
-      CREATE TABLE IF NOT EXISTS "sessions" (
+      CREATE TABLE IF NOT EXISTS "session" (
         "sid" varchar PRIMARY KEY NOT NULL,
         "sess" jsonb NOT NULL,
         "expire" timestamp NOT NULL
       )
+    `);
+    // Rename legacy plural table if it exists and the singular one is empty
+    await client.query(`
+      DO $$ BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'sessions')
+        THEN
+          INSERT INTO "session" SELECT * FROM "sessions" ON CONFLICT DO NOTHING;
+          DROP TABLE "sessions";
+        END IF;
+      END $$;
     `);
 
     // Users
