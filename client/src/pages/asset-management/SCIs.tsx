@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
+// wouter useLocation unused after removing detail page navigation
 import { useCrud } from "../../hooks/useCrud";
 import { DataTable, type Column } from "../../components/ui/data-table";
 import { FormDialog } from "../../components/ui/form-dialog";
@@ -33,7 +33,6 @@ const emptySci: Partial<SCI> = { nom: "" };
 
 export default function SCIsPage() {
   const { data, create, update, remove, creating, updating, deleting } = useCrud<SCI>("/api/am/scis", "SCI");
-  const [, navigate] = useLocation();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<SCI | null>(null);
   const [form, setForm] = useState<Partial<SCI>>(emptySci);
@@ -98,7 +97,7 @@ export default function SCIsPage() {
         searchKeys={["nom", "ville", "gerant", "siret"]}
         searchPlaceholder="Rechercher une SCI..."
         emptyMessage="Aucune SCI enregistrée"
-        onRowClick={(r) => navigate(`/asset-management/scis/${r.id}`)}
+        onRowClick={(r) => openEdit(r)}
       />
 
       <FormDialog

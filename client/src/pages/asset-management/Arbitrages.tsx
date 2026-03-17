@@ -1,10 +1,11 @@
 import { useMemo } from "react";
+import { useSortableTable, SortHeader } from "../../hooks/useSortableTable";
 import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, ScatterChart, Scatter, ZAxis,
-  RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
+  RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, LabelList,
 } from "recharts";
 import { apiRequest } from "../../lib/queryClient";
 import { formatCurrency, formatPercent } from "../../lib/utils";
@@ -159,6 +160,9 @@ export default function ArbitragesPage() {
   }));
 
   // Stress tests (portfolio level)
+  const stressSort = useSortableTable();
+  const detailSort = useSortableTable();
+
   const stressResults: StressScenario[] = useMemo(() => {
     if (totalLoyers <= 0) return [];
     return computeStressTests(totalLoyers, totalCharges, totalServiceDette, totalValorisation, totalCRD, empruntsActifs);
@@ -260,6 +264,7 @@ export default function ArbitragesPage() {
                   {riskReturnData.map((d: any, i: number) => (
                     <Cell key={i} fill={d.color} />
                   ))}
+                  <LabelList dataKey="name" position="top" style={{ fontSize: 10, fill: "hsl(var(--foreground))" }} />
                 </Scatter>
               </ScatterChart>
             </ResponsiveContainer>
@@ -317,18 +322,18 @@ export default function ArbitragesPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/30">
-                    <th className="px-4 py-3 text-left font-semibold">Scénario</th>
-                    <th className="px-4 py-3 text-right font-semibold">Vacance</th>
-                    <th className="px-4 py-3 text-right font-semibold">Loyers ajustés</th>
-                    <th className="px-4 py-3 text-right font-semibold">Charges ajustées</th>
-                    <th className="px-4 py-3 text-right font-semibold">NOI</th>
-                    <th className="px-4 py-3 text-right font-semibold">Cash-flow</th>
-                    <th className="px-4 py-3 text-right font-semibold">DSCR</th>
-                    <th className="px-4 py-3 text-right font-semibold">Rdt net</th>
+                    <SortHeader sortKey="label" currentSortKey={stressSort.sortKey} sortDir={stressSort.sortDir} onSort={stressSort.handleSort}>Scénario</SortHeader>
+                    <SortHeader sortKey="vacanceRate" currentSortKey={stressSort.sortKey} sortDir={stressSort.sortDir} onSort={stressSort.handleSort} align="right">Vacance</SortHeader>
+                    <SortHeader sortKey="loyerAjuste" currentSortKey={stressSort.sortKey} sortDir={stressSort.sortDir} onSort={stressSort.handleSort} align="right">Loyers ajustés</SortHeader>
+                    <SortHeader sortKey="chargesAjustees" currentSortKey={stressSort.sortKey} sortDir={stressSort.sortDir} onSort={stressSort.handleSort} align="right">Charges ajustées</SortHeader>
+                    <SortHeader sortKey="noiAjuste" currentSortKey={stressSort.sortKey} sortDir={stressSort.sortDir} onSort={stressSort.handleSort} align="right">NOI</SortHeader>
+                    <SortHeader sortKey="cashFlowAjuste" currentSortKey={stressSort.sortKey} sortDir={stressSort.sortDir} onSort={stressSort.handleSort} align="right">Cash-flow</SortHeader>
+                    <SortHeader sortKey="dscr" currentSortKey={stressSort.sortKey} sortDir={stressSort.sortDir} onSort={stressSort.handleSort} align="right">DSCR</SortHeader>
+                    <SortHeader sortKey="rendementNet" currentSortKey={stressSort.sortKey} sortDir={stressSort.sortDir} onSort={stressSort.handleSort} align="right">Rdt net</SortHeader>
                   </tr>
                 </thead>
                 <tbody>
-                  {stressResults.map((s: StressScenario, i: number) => (
+                  {stressSort.sortData(stressResults).map((s: StressScenario, i: number) => (
                     <motion.tr
                       key={s.label}
                       initial={{ opacity: 0, x: -10 }}
@@ -382,21 +387,21 @@ export default function ArbitragesPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/30">
-                    <th className="px-4 py-3 text-left font-semibold">Actif</th>
-                    <th className="px-4 py-3 text-left font-semibold">SCI</th>
-                    <th className="px-4 py-3 text-right font-semibold">Prix acq.</th>
-                    <th className="px-4 py-3 text-right font-semibold">Val. est.</th>
-                    <th className="px-4 py-3 text-right font-semibold">+/- Value</th>
-                    <th className="px-4 py-3 text-right font-semibold">Rdt brut</th>
-                    <th className="px-4 py-3 text-right font-semibold">Rdt net</th>
-                    <th className="px-4 py-3 text-right font-semibold">LTV</th>
-                    <th className="px-4 py-3 text-right font-semibold">DSCR</th>
-                    <th className="px-4 py-3 text-right font-semibold">Cash-flow</th>
-                    <th className="px-4 py-3 text-center font-semibold">Score</th>
+                    <SortHeader sortKey="nom" currentSortKey={detailSort.sortKey} sortDir={detailSort.sortDir} onSort={detailSort.handleSort}>Actif</SortHeader>
+                    <SortHeader sortKey="sciNom" currentSortKey={detailSort.sortKey} sortDir={detailSort.sortDir} onSort={detailSort.handleSort}>SCI</SortHeader>
+                    <SortHeader sortKey="prixAcquisition" currentSortKey={detailSort.sortKey} sortDir={detailSort.sortDir} onSort={detailSort.handleSort} align="right">Prix acq.</SortHeader>
+                    <SortHeader sortKey="valeurEstimee" currentSortKey={detailSort.sortKey} sortDir={detailSort.sortDir} onSort={detailSort.handleSort} align="right">Val. est.</SortHeader>
+                    <SortHeader sortKey="plusValue" currentSortKey={detailSort.sortKey} sortDir={detailSort.sortDir} onSort={detailSort.handleSort} align="right">+/- Value</SortHeader>
+                    <SortHeader sortKey="rendementBrut" currentSortKey={detailSort.sortKey} sortDir={detailSort.sortDir} onSort={detailSort.handleSort} align="right">Rdt brut</SortHeader>
+                    <SortHeader sortKey="rendementNet" currentSortKey={detailSort.sortKey} sortDir={detailSort.sortDir} onSort={detailSort.handleSort} align="right">Rdt net</SortHeader>
+                    <SortHeader sortKey="ltv" currentSortKey={detailSort.sortKey} sortDir={detailSort.sortDir} onSort={detailSort.handleSort} align="right">LTV</SortHeader>
+                    <SortHeader sortKey="dscr" currentSortKey={detailSort.sortKey} sortDir={detailSort.sortDir} onSort={detailSort.handleSort} align="right">DSCR</SortHeader>
+                    <SortHeader sortKey="cashFlowNet" currentSortKey={detailSort.sortKey} sortDir={detailSort.sortDir} onSort={detailSort.handleSort} align="right">Cash-flow</SortHeader>
+                    <SortHeader sortKey="score.label" currentSortKey={detailSort.sortKey} sortDir={detailSort.sortDir} onSort={detailSort.handleSort} align="center">Score</SortHeader>
                   </tr>
                 </thead>
                 <tbody>
-                  {actifData.map((a: any, i: number) => (
+                  {detailSort.sortData(actifData).map((a: any, i: number) => (
                     <motion.tr
                       key={a.id}
                       initial={{ opacity: 0, x: -10 }}

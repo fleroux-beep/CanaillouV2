@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import React, { useState, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
@@ -21,6 +21,7 @@ import {
   computeAssocieNAV,
   type ProjectionYear,
 } from "../../lib/am-calculations";
+import { useSortableTable, SortHeader } from "../../hooks/useSortableTable";
 import { KpiCard } from "../../components/ui/kpi-card";
 import { GlassCard } from "../../components/ui/glass-card";
 import { PageHeader } from "../../components/ui/page-header";
@@ -29,6 +30,46 @@ import {
   Calculator, Receipt, TrendingUp, Percent, Building2,
   Users, ArrowDownUp, BarChart3, LineChartIcon,
 } from "lucide-react";
+
+function EditableCell({ actifId, field, value, updateFn }: { actifId: string; field: string; value: number; updateFn: any }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(String(value || 0));
+
+  if (!editing) {
+    return (
+      <td
+        className="px-4 py-3 text-right text-muted-foreground cursor-pointer hover:bg-muted/30 transition-colors"
+        onClick={() => { setVal(String(value || 0)); setEditing(true); }}
+        title="Cliquer pour modifier"
+      >
+        {value > 0 ? formatCurrency(value) : "—"}
+      </td>
+    );
+  }
+
+  return (
+    <td className="px-4 py-1 text-right">
+      <input
+        type="number"
+        autoFocus
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        onBlur={() => {
+          const num = parseFloat(val) || 0;
+          if (num !== value) {
+            updateFn.mutate({ id: actifId, [field]: String(num) });
+          }
+          setEditing(false);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          if (e.key === "Escape") setEditing(false);
+        }}
+        className="w-24 rounded border bg-background px-2 py-1 text-right text-sm"
+      />
+    </td>
+  );
+}
 
 const COLORS = ["#3b82f6", "#8b5cf6", "#06b6d4", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#6366f1"];
 
@@ -50,6 +91,18 @@ export default function ControleGestionPage() {
   const { data: emprunts = [] } = useQuery({ queryKey: ["/api/am/emprunts"], queryFn: () => apiRequest("/api/am/emprunts") });
   const { data: associes = [] } = useQuery({ queryKey: ["/api/am/associes"], queryFn: () => apiRequest("/api/am/associes") });
   const { data: participations = [] } = useQuery({ queryKey: ["/api/am/participations"], queryFn: () => apiRequest("/api/am/participations") });
+
+  const queryClient = useQueryClient();
+  const updateActif = useMutation({
+    mutationFn: (data: { id: string; [key: string]: any }) =>
+      apiRequest(`/api/am/actifs/${data.id}`, { method: "PUT", body: JSON.stringify(data) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/am/actifs"] }),
+  });
+
+  const actifSort = useSortableTable();
+  const sciSort = useSortableTable();
+  const navSort = useSortableTable();
+  const projSort = useSortableTable();
 
   const [projGrowthLoyer, setProjGrowthLoyer] = useState(2);
   const [projInflationCharges, setProjInflationCharges] = useState(2.5);
@@ -326,20 +379,20 @@ export default function ControleGestionPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/30">
-                    <th className="px-4 py-3 text-left font-semibold">Actif</th>
-                    <th className="px-4 py-3 text-left font-semibold">SCI</th>
-                    <th className="px-4 py-3 text-right font-semibold">Loyers/an</th>
-                    <th className="px-4 py-3 text-right font-semibold">Taxe fonc.</th>
-                    <th className="px-4 py-3 text-right font-semibold">Assurance</th>
-                    <th className="px-4 py-3 text-right font-semibold">Copropriété</th>
-                    <th className="px-4 py-3 text-right font-semibold">Charges tot.</th>
-                    <th className="px-4 py-3 text-right font-semibold">NOI</th>
-                    <th className="px-4 py-3 text-right font-semibold">Ratio</th>
-                    <th className="px-4 py-3 text-right font-semibold">Rdt net</th>
+                    <SortHeader label="Actif" sortKey="nom" currentSortKey={actifSort.sortKey} sortDir={actifSort.sortDir} onSort={actifSort.handleSort} />
+                    <SortHeader label="SCI" sortKey="sciNom" currentSortKey={actifSort.sortKey} sortDir={actifSort.sortDir} onSort={actifSort.handleSort} />
+                    <SortHeader label="Loyers/an" sortKey="loyerAnnuel" align="right" currentSortKey={actifSort.sortKey} sortDir={actifSort.sortDir} onSort={actifSort.handleSort} />
+                    <SortHeader label="Taxe fonc." sortKey="taxeFonciere" align="right" currentSortKey={actifSort.sortKey} sortDir={actifSort.sortDir} onSort={actifSort.handleSort} />
+                    <SortHeader label="Assurance" sortKey="assurancePno" align="right" currentSortKey={actifSort.sortKey} sortDir={actifSort.sortDir} onSort={actifSort.handleSort} />
+                    <SortHeader label="Copropriété" sortKey="chargesCopro" align="right" currentSortKey={actifSort.sortKey} sortDir={actifSort.sortDir} onSort={actifSort.handleSort} />
+                    <SortHeader label="Charges tot." sortKey="charges" align="right" currentSortKey={actifSort.sortKey} sortDir={actifSort.sortDir} onSort={actifSort.handleSort} />
+                    <SortHeader label="NOI" sortKey="noi" align="right" currentSortKey={actifSort.sortKey} sortDir={actifSort.sortDir} onSort={actifSort.handleSort} />
+                    <SortHeader label="Ratio" sortKey="ratioCharges" align="right" currentSortKey={actifSort.sortKey} sortDir={actifSort.sortDir} onSort={actifSort.handleSort} />
+                    <SortHeader label="Rdt net" sortKey="rendementNet" align="right" currentSortKey={actifSort.sortKey} sortDir={actifSort.sortDir} onSort={actifSort.handleSort} />
                   </tr>
                 </thead>
                 <tbody>
-                  {portfolioData.actifDetails.map((a: any, i: number) => (
+                  {actifSort.sortData(portfolioData.actifDetails).map((a: any, i: number) => (
                     <motion.tr
                       key={a.id}
                       initial={{ opacity: 0, x: -10 }}
@@ -350,9 +403,9 @@ export default function ControleGestionPage() {
                       <td className="px-4 py-3 font-medium">{a.nom}</td>
                       <td className="px-4 py-3 text-muted-foreground">{a.sciNom}</td>
                       <td className="px-4 py-3 text-right">{formatCurrency(a.loyerAnnuel)}</td>
-                      <td className="px-4 py-3 text-right text-muted-foreground">{a.taxeFonciere > 0 ? formatCurrency(a.taxeFonciere) : "—"}</td>
-                      <td className="px-4 py-3 text-right text-muted-foreground">{a.assurancePno > 0 ? formatCurrency(a.assurancePno) : "—"}</td>
-                      <td className="px-4 py-3 text-right text-muted-foreground">{a.chargesCopro > 0 ? formatCurrency(a.chargesCopro) : "—"}</td>
+                      <EditableCell actifId={a.id} field="taxeFonciere" value={a.taxeFonciere} updateFn={updateActif} />
+                      <EditableCell actifId={a.id} field="assurancePno" value={a.assurancePno} updateFn={updateActif} />
+                      <EditableCell actifId={a.id} field="chargesCopropriete" value={a.chargesCopro} updateFn={updateActif} />
                       <td className="px-4 py-3 text-right text-amber-600">{formatCurrency(a.charges)}</td>
                       <td className={`px-4 py-3 text-right font-medium ${a.noi >= 0 ? "text-green-600" : "text-red-500"}`}>
                         {formatCurrency(a.noi)}
@@ -404,18 +457,18 @@ export default function ControleGestionPage() {
                   <tr className="border-b bg-muted/30">
                     <th className="px-4 py-3 text-left font-semibold">SCI</th>
                     <th className="px-4 py-3 text-right font-semibold">Actifs</th>
-                    <th className="px-4 py-3 text-right font-semibold">Valorisation</th>
-                    <th className="px-4 py-3 text-right font-semibold">Loyers/an</th>
-                    <th className="px-4 py-3 text-right font-semibold">Charges/an</th>
-                    <th className="px-4 py-3 text-right font-semibold">NOI</th>
-                    <th className="px-4 py-3 text-right font-semibold">CRD</th>
-                    <th className="px-4 py-3 text-right font-semibold">Cash-flow</th>
+                    <SortHeader label="Valorisation" sortKey="valorisation" align="right" currentSortKey={sciSort.sortKey} sortDir={sciSort.sortDir} onSort={sciSort.handleSort} />
+                    <SortHeader label="Loyers/an" sortKey="loyerAnnuel" align="right" currentSortKey={sciSort.sortKey} sortDir={sciSort.sortDir} onSort={sciSort.handleSort} />
+                    <SortHeader label="Charges/an" sortKey="charges" align="right" currentSortKey={sciSort.sortKey} sortDir={sciSort.sortDir} onSort={sciSort.handleSort} />
+                    <SortHeader label="NOI" sortKey="noi" align="right" currentSortKey={sciSort.sortKey} sortDir={sciSort.sortDir} onSort={sciSort.handleSort} />
+                    <SortHeader label="CRD" sortKey="crd" align="right" currentSortKey={sciSort.sortKey} sortDir={sciSort.sortDir} onSort={sciSort.handleSort} />
+                    <SortHeader label="Cash-flow" sortKey="cashFlowNet" align="right" currentSortKey={sciSort.sortKey} sortDir={sciSort.sortDir} onSort={sciSort.handleSort} />
                     <th className="px-4 py-3 text-right font-semibold">Ratio</th>
-                    <th className="px-4 py-3 text-right font-semibold">LTV</th>
+                    <SortHeader label="LTV" sortKey="ltv" align="right" currentSortKey={sciSort.sortKey} sortDir={sciSort.sortDir} onSort={sciSort.handleSort} />
                   </tr>
                 </thead>
                 <tbody>
-                  {sciKpis.map((k: any, i: number) => {
+                  {sciSort.sortData(sciKpis).map((k: any, i: number) => {
                     const ratio = k.loyerAnnuel > 0 ? (k.charges / k.loyerAnnuel) * 100 : 0;
                     return (
                       <motion.tr
@@ -486,16 +539,16 @@ export default function ControleGestionPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/30">
-                    <th className="px-4 py-3 text-left font-semibold">Associé</th>
-                    <th className="px-4 py-3 text-right font-semibold">Part (%)</th>
-                    <th className="px-4 py-3 text-right font-semibold">Apport</th>
-                    <th className="px-4 py-3 text-right font-semibold">NAV</th>
-                    <th className="px-4 py-3 text-right font-semibold">+/- Value latente</th>
-                    <th className="px-4 py-3 text-right font-semibold">Rendement annualisé</th>
+                    <SortHeader label="Associé" sortKey="associeNom" currentSortKey={navSort.sortKey} sortDir={navSort.sortDir} onSort={navSort.handleSort} />
+                    <SortHeader label="Part (%)" sortKey="partPct" align="right" currentSortKey={navSort.sortKey} sortDir={navSort.sortDir} onSort={navSort.handleSort} />
+                    <SortHeader label="Apport" sortKey="apport" align="right" currentSortKey={navSort.sortKey} sortDir={navSort.sortDir} onSort={navSort.handleSort} />
+                    <SortHeader label="NAV" sortKey="navPart" align="right" currentSortKey={navSort.sortKey} sortDir={navSort.sortDir} onSort={navSort.handleSort} />
+                    <SortHeader label="+/- Value latente" sortKey="plusValueLatente" align="right" currentSortKey={navSort.sortKey} sortDir={navSort.sortDir} onSort={navSort.handleSort} />
+                    <SortHeader label="Rendement annualisé" sortKey="rendementAnnuelise" align="right" currentSortKey={navSort.sortKey} sortDir={navSort.sortDir} onSort={navSort.handleSort} />
                   </tr>
                 </thead>
                 <tbody>
-                  {associeNAVs.map((a, i) => (
+                  {navSort.sortData(associeNAVs).map((a, i) => (
                     <motion.tr
                       key={a.associeId}
                       initial={{ opacity: 0, x: -10 }}
@@ -600,19 +653,19 @@ export default function ControleGestionPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/30">
-                      <th className="px-4 py-3 text-left font-semibold">Année</th>
-                      <th className="px-4 py-3 text-right font-semibold">Loyers</th>
-                      <th className="px-4 py-3 text-right font-semibold">Charges</th>
-                      <th className="px-4 py-3 text-right font-semibold">NOI</th>
-                      <th className="px-4 py-3 text-right font-semibold">Cash-flow</th>
-                      <th className="px-4 py-3 text-right font-semibold">Valorisation</th>
-                      <th className="px-4 py-3 text-right font-semibold">Rdt net</th>
-                      <th className="px-4 py-3 text-right font-semibold">DSCR</th>
-                      <th className="px-4 py-3 text-right font-semibold">LTV</th>
+                      <SortHeader label="Année" sortKey="year" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
+                      <SortHeader label="Loyers" sortKey="loyers" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
+                      <SortHeader label="Charges" sortKey="charges" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
+                      <SortHeader label="NOI" sortKey="noi" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
+                      <SortHeader label="Cash-flow" sortKey="cashFlow" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
+                      <SortHeader label="Valorisation" sortKey="valorisation" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
+                      <SortHeader label="Rdt net" sortKey="rendementNet" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
+                      <SortHeader label="DSCR" sortKey="dscr" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
+                      <SortHeader label="LTV" sortKey="ltv" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
                     </tr>
                   </thead>
                   <tbody>
-                    {projection.map((p, i) => (
+                    {projSort.sortData(projection).map((p, i) => (
                       <motion.tr
                         key={p.year}
                         initial={{ opacity: 0, x: -10 }}

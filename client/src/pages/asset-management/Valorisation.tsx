@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, PieChart, Pie, LineChart, Line,
-  ScatterChart, Scatter, ZAxis, Legend,
+  ScatterChart, Scatter, ZAxis, Legend, LabelList,
 } from "recharts";
 import { apiRequest } from "../../lib/queryClient";
 import { formatCurrency, formatPercent, formatNumber } from "../../lib/utils";
@@ -20,6 +20,7 @@ import {
   computeNPV,
   type DCFResult,
 } from "../../lib/am-calculations";
+import { useSortableTable, SortHeader } from "../../hooks/useSortableTable";
 import { KpiCard } from "../../components/ui/kpi-card";
 import { GlassCard } from "../../components/ui/glass-card";
 import { PageHeader } from "../../components/ui/page-header";
@@ -47,6 +48,8 @@ export default function ValorisationPage() {
   const { data: lots = [] } = useQuery({ queryKey: ["/api/am/lots"], queryFn: () => apiRequest("/api/am/lots") });
   const { data: baux = [] } = useQuery({ queryKey: ["/api/am/baux"], queryFn: () => apiRequest("/api/am/baux") });
   const { data: emprunts = [] } = useQuery({ queryKey: ["/api/am/emprunts"], queryFn: () => apiRequest("/api/am/emprunts") });
+
+  const { sortKey, sortDir, handleSort, sortData } = useSortableTable();
 
   const [dcfDiscountRate, setDcfDiscountRate] = useState(6);
   const [dcfGrowthRate, setDcfGrowthRate] = useState(2);
@@ -368,6 +371,7 @@ export default function ValorisationPage() {
                   {scatterData.map((d: any, i: number) => (
                     <Cell key={i} fill={d.y >= d.x ? "#10b981" : "#ef4444"} />
                   ))}
+                  <LabelList dataKey="name" position="top" style={{ fontSize: 10, fill: "hsl(var(--foreground))" }} />
                 </Scatter>
               </ScatterChart>
             </ResponsiveContainer>
@@ -536,20 +540,20 @@ export default function ValorisationPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/30">
-                    <th className="px-4 py-3 text-left font-semibold">Actif</th>
-                    <th className="px-4 py-3 text-left font-semibold">SCI</th>
-                    <th className="px-4 py-3 text-right font-semibold">Surface</th>
-                    <th className="px-4 py-3 text-right font-semibold">Prix acq.</th>
-                    <th className="px-4 py-3 text-right font-semibold">Taux capi</th>
-                    <th className="px-4 py-3 text-right font-semibold">Val. Capitalisation</th>
-                    <th className="px-4 py-3 text-right font-semibold">Val. Comparables</th>
-                    <th className="px-4 py-3 text-right font-semibold">Val. retenue</th>
-                    <th className="px-4 py-3 text-right font-semibold">+/- Value</th>
-                    <th className="px-4 py-3 text-right font-semibold">Rdt net</th>
+                    <SortHeader sortKey="nom" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort}>Actif</SortHeader>
+                    <SortHeader sortKey="sciNom" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort}>SCI</SortHeader>
+                    <SortHeader sortKey="surface" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right">Surface</SortHeader>
+                    <SortHeader sortKey="prixAcquisition" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right">Prix acq.</SortHeader>
+                    <SortHeader sortKey="tauxCapi" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right">Taux capi</SortHeader>
+                    <SortHeader sortKey="valeurCapitalisation" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right">Val. Capitalisation</SortHeader>
+                    <SortHeader sortKey="valeurComparables" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right">Val. Comparables</SortHeader>
+                    <SortHeader sortKey="valeurEstimee" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right">Val. retenue</SortHeader>
+                    <SortHeader sortKey="plusValue" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right">+/- Value</SortHeader>
+                    <SortHeader sortKey="rendementNet" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right">Rdt net</SortHeader>
                   </tr>
                 </thead>
                 <tbody>
-                  {actifData.map((a: any, i: number) => (
+                  {sortData(actifData).map((a: any, i: number) => (
                     <motion.tr
                       key={a.id}
                       initial={{ opacity: 0, x: -10 }}

@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiRequest } from "../../lib/queryClient";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
@@ -9,6 +9,7 @@ import { GlassCard } from "../../components/ui/glass-card";
 import { Section } from "../../components/ui/section";
 import { Badge } from "../../components/ui/badge";
 import { formatCurrency, formatPercent } from "../../lib/utils";
+import { useSortableTable, SortHeader } from "../../hooks/useSortableTable";
 import {
   Landmark, Users, PieChart as PieChartIcon, TrendingUp,
   Wallet, BarChart3, CircleDollarSign,
@@ -62,6 +63,9 @@ const chartTooltipStyle = {
 };
 
 function CapitalGovernancePage() {
+  const capitalSort = useSortableTable();
+  const pvSort = useSortableTable();
+
   const { data: scis = [] } = useQuery<SCI[]>({
     queryKey: ["/api/am/scis"],
     queryFn: () => apiRequest("/api/am/scis"),
@@ -73,6 +77,21 @@ function CapitalGovernancePage() {
   const { data: actifs = [] } = useQuery<Actif[]>({
     queryKey: ["/api/am/actifs"],
     queryFn: () => apiRequest("/api/am/actifs"),
+  });
+  const { data: participations = [] } = useQuery({
+    queryKey: ["/api/am/participations"],
+    queryFn: () => apiRequest("/api/am/participations"),
+  });
+
+  const queryClient = useQueryClient();
+  const upsertParticipation = useMutation({
+    mutationFn: (data: any) => {
+      if (data.id) {
+        return apiRequest(`/api/am/participations/${data.id}`, { method: "PUT", body: JSON.stringify(data) });
+      }
+      return apiRequest("/api/am/participations", { method: "POST", body: JSON.stringify(data) });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/am/participations"] }),
   });
 
   const totalCapital = useMemo(
@@ -150,15 +169,15 @@ function CapitalGovernancePage() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b bg-muted/30">
-                          <th className="px-4 py-3 text-left font-semibold">SCI</th>
-                          <th className="px-4 py-3 text-left font-semibold">Forme</th>
-                          <th className="px-4 py-3 text-left font-semibold">Regime</th>
-                          <th className="px-4 py-3 text-right font-semibold">Capital</th>
+                          <SortHeader label="SCI" sortKey="nom" currentSortKey={capitalSort.sortKey} sortDir={capitalSort.sortDir} onSort={capitalSort.handleSort} />
+                          <SortHeader label="Forme" sortKey="formeJuridique" currentSortKey={capitalSort.sortKey} sortDir={capitalSort.sortDir} onSort={capitalSort.handleSort} />
+                          <SortHeader label="Regime" sortKey="regimeFiscal" currentSortKey={capitalSort.sortKey} sortDir={capitalSort.sortDir} onSort={capitalSort.handleSort} />
+                          <SortHeader label="Capital" sortKey="capital" align="right" currentSortKey={capitalSort.sortKey} sortDir={capitalSort.sortDir} onSort={capitalSort.handleSort} />
                           <th className="px-4 py-3 text-right font-semibold">Part</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {scis.map((sci) => {
+                        {capitalSort.sortData(scis).map((sci) => {
                           const cap = sci.capital ? parseFloat(sci.capital) : 0;
                           const pct = totalCapital > 0 ? ((cap / totalCapital) * 100).toFixed(1) : "0";
                           return (
@@ -184,20 +203,87 @@ function CapitalGovernancePage() {
           </Section>
         )}
 
+        <Section title="Répartition du capital entre associés" delay={1.5}>
+          <GlassCard>
+            <p className="mb-4 text-xs text-muted-foreground">
+              Saisissez le pourcentage de détention de chaque associé dans chaque SCI.
+            </p>
+            <div className="overflow-x-auto rounded-xl border bg-card">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/30">
+                    <th className="px-4 py-3 text-left font-semibold">SCI</th>
+                    {associes.map((a: any) => (
+                      <th key={a.id} className="px-4 py-3 text-center font-semibold">
+                        {a.prenom ? `${a.prenom} ${a.nom}` : a.nom}
+                      </th>
+                    ))}
+                    <th className="px-4 py-3 text-center font-semibold">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {scis.map((sci: any) => {
+                    const sciParts = participations.filter((p: any) => p.sciId === sci.id);
+                    const total = sciParts.reduce((s: number, p: any) => s + (Number(p.pourcentage) || 0), 0);
+                    return (
+                      <tr key={sci.id} className="border-t hover:bg-muted/20">
+                        <td className="px-4 py-3 font-medium">{sci.nom}</td>
+                        {associes.map((a: any) => {
+                          const part = sciParts.find((p: any) => p.associeId === a.id);
+                          const pct = part ? Number(part.pourcentage) || 0 : 0;
+                          return (
+                            <td key={a.id} className="px-4 py-1 text-center">
+                              <input
+                                type="number"
+                                defaultValue={pct}
+                                min={0}
+                                max={100}
+                                step={0.1}
+                                onBlur={(e) => {
+                                  const newPct = parseFloat(e.target.value) || 0;
+                                  if (newPct !== pct) {
+                                    upsertParticipation.mutate({
+                                      ...(part ? { id: part.id } : {}),
+                                      sciId: sci.id,
+                                      associeId: a.id,
+                                      pourcentage: String(newPct),
+                                    });
+                                  }
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                                }}
+                                className="w-20 rounded border bg-background px-2 py-1 text-center text-sm"
+                              />
+                            </td>
+                          );
+                        })}
+                        <td className={`px-4 py-3 text-center font-medium ${Math.abs(total - 100) < 0.01 ? "text-green-600" : "text-red-500"}`}>
+                          {total.toFixed(1)}%
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </GlassCard>
+        </Section>
+
         <Section title="Plus-value latente par SCI" delay={2}>
           <div className="overflow-x-auto rounded-xl border bg-card shadow-sm">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/30">
-                  <th className="px-4 py-3 text-left font-semibold">SCI</th>
-                  <th className="px-4 py-3 text-right font-semibold">Actifs</th>
-                  <th className="px-4 py-3 text-right font-semibold">Valeur acquisition</th>
-                  <th className="px-4 py-3 text-right font-semibold">Valeur marche estimee</th>
-                  <th className="px-4 py-3 text-right font-semibold">Plus-value latente</th>
+                  <SortHeader label="SCI" sortKey="sci" currentSortKey={pvSort.sortKey} sortDir={pvSort.sortDir} onSort={pvSort.handleSort} />
+                  <SortHeader label="Actifs" sortKey="nbActifs" align="right" currentSortKey={pvSort.sortKey} sortDir={pvSort.sortDir} onSort={pvSort.handleSort} />
+                  <SortHeader label="Valeur acquisition" sortKey="acquisition" align="right" currentSortKey={pvSort.sortKey} sortDir={pvSort.sortDir} onSort={pvSort.handleSort} />
+                  <SortHeader label="Valeur marche estimee" sortKey="marche" align="right" currentSortKey={pvSort.sortKey} sortDir={pvSort.sortDir} onSort={pvSort.handleSort} />
+                  <SortHeader label="Plus-value latente" sortKey="plusValue" align="right" currentSortKey={pvSort.sortKey} sortDir={pvSort.sortDir} onSort={pvSort.handleSort} />
                 </tr>
               </thead>
               <tbody>
-                {plusValueBySci.map((row) => (
+                {pvSort.sortData(plusValueBySci).map((row) => (
                   <tr key={row.sci} className="border-t hover:bg-muted/20">
                     <td className="px-4 py-3 font-medium">{row.sci}</td>
                     <td className="px-4 py-3 text-right">{row.nbActifs}</td>
@@ -249,6 +335,8 @@ function CapitalGovernancePage() {
 
 /** Reporting investisseur — NAV, rendement, distribution par associe */
 function InvestorReportingPage() {
+  const reportSort = useSortableTable();
+
   const { data: scis = [] } = useQuery({ queryKey: ["/api/am/scis"], queryFn: () => apiRequest("/api/am/scis") });
   const { data: actifs = [] } = useQuery({ queryKey: ["/api/am/actifs"], queryFn: () => apiRequest("/api/am/actifs") });
   const { data: lots = [] } = useQuery({ queryKey: ["/api/am/lots"], queryFn: () => apiRequest("/api/am/lots") });
@@ -377,18 +465,18 @@ function InvestorReportingPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/30">
-                  <th className="px-4 py-3 text-left font-semibold">Associe</th>
-                  <th className="px-4 py-3 text-right font-semibold">Part (%)</th>
-                  <th className="px-4 py-3 text-right font-semibold">Apport</th>
-                  <th className="px-4 py-3 text-right font-semibold">NAV</th>
-                  <th className="px-4 py-3 text-right font-semibold">Plus-value</th>
-                  <th className="px-4 py-3 text-right font-semibold">Rdt annualise</th>
+                  <SortHeader label="Associe" sortKey="associeNom" currentSortKey={reportSort.sortKey} sortDir={reportSort.sortDir} onSort={reportSort.handleSort} />
+                  <SortHeader label="Part (%)" sortKey="partPct" align="right" currentSortKey={reportSort.sortKey} sortDir={reportSort.sortDir} onSort={reportSort.handleSort} />
+                  <SortHeader label="Apport" sortKey="apport" align="right" currentSortKey={reportSort.sortKey} sortDir={reportSort.sortDir} onSort={reportSort.handleSort} />
+                  <SortHeader label="NAV" sortKey="navPart" align="right" currentSortKey={reportSort.sortKey} sortDir={reportSort.sortDir} onSort={reportSort.handleSort} />
+                  <SortHeader label="Plus-value" sortKey="plusValueLatente" align="right" currentSortKey={reportSort.sortKey} sortDir={reportSort.sortDir} onSort={reportSort.handleSort} />
+                  <SortHeader label="Rdt annualise" sortKey="rendementAnnuelise" align="right" currentSortKey={reportSort.sortKey} sortDir={reportSort.sortDir} onSort={reportSort.handleSort} />
                   <th className="px-4 py-3 text-right font-semibold">Distribution estimee</th>
                   <th className="px-4 py-3 text-center font-semibold">Statut</th>
                 </tr>
               </thead>
               <tbody>
-                {navData.map((n, i) => {
+                {reportSort.sortData(navData).map((n, i) => {
                   const distribution = cashFlowDistribuable > 0 ? cashFlowDistribuable * (n.partPct / 100) : 0;
                   return (
                     <motion.tr

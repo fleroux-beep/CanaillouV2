@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import L from "leaflet";
@@ -74,10 +74,12 @@ export default function CartePage() {
 
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
+  const [geocoded, setGeocoded] = useState<Record<string, { lat: number; lng: number }>>({});
+  const geocodedRef = useRef<Set<string>>(new Set());
 
   const sciMap = Object.fromEntries(scis.map((s) => [s.id, s.nom]));
   const activeActifs = actifs.filter((a) => !a.archived);
-  const geoActifs = activeActifs.filter((a) => a.lat && a.lng);
+  const geoActifs = activeActifs.filter((a) => a.lat && a.lng || geocoded[a.id]);
 
   const nbActifs = activeActifs.length;
   const villes = new Set(activeActifs.map((a) => a.ville).filter(Boolean));
@@ -97,6 +99,53 @@ export default function CartePage() {
   const sortedVilles = Object.keys(grouped).sort((a, b) =>
     a === "Sans ville" ? 1 : b === "Sans ville" ? -1 : a.localeCompare(b)
   );
+
+  // Geocode actifs that have addresses but no GPS coordinates
+  useEffect(() => {
+    const toGeocode = activeActifs.filter(
+      (a) => !a.lat && !a.lng && (a.adresse || a.ville) && !geocodedRef.current.has(a.id)
+    );
+    if (toGeocode.length === 0) return;
+
+    // Mark as in-progress to avoid double-fetching
+    toGeocode.forEach((a) => geocodedRef.current.add(a.id));
+
+    const geocodeActif = async (actif: Actif) => {
+      const parts = [actif.adresse, actif.codePostal, actif.ville, "France"].filter(Boolean);
+      const query = encodeURIComponent(parts.join(", "));
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${query}`,
+          { headers: { "Accept-Language": "fr" } }
+        );
+        const data = await res.json();
+        if (data && data.length > 0) {
+          return { id: actif.id, lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+        }
+      } catch {
+        // Geocoding failed silently
+      }
+      return null;
+    };
+
+    // Geocode sequentially with a small delay to respect Nominatim rate limits
+    (async () => {
+      const results: Record<string, { lat: number; lng: number }> = {};
+      for (const actif of toGeocode) {
+        const result = await geocodeActif(actif);
+        if (result) {
+          results[result.id] = { lat: result.lat, lng: result.lng };
+        }
+        // Nominatim rate limit: 1 request per second
+        if (toGeocode.indexOf(actif) < toGeocode.length - 1) {
+          await new Promise((r) => setTimeout(r, 1100));
+        }
+      }
+      if (Object.keys(results).length > 0) {
+        setGeocoded((prev) => ({ ...prev, ...results }));
+      }
+    })();
+  }, [activeActifs]);
 
   // Initialize Leaflet map
   useEffect(() => {
@@ -134,11 +183,14 @@ export default function CartePage() {
     const bounds = L.latLngBounds([]);
 
     for (const actif of geoActifs) {
-      if (!actif.lat || !actif.lng) continue;
+      const coords = actif.lat && actif.lng
+        ? { lat: actif.lat, lng: actif.lng }
+        : geocoded[actif.id];
+      if (!coords) continue;
 
       const color = typeMarkerColors[actif.type || ""] || "#6b7280";
       const icon = createMarkerIcon(color);
-      const marker = L.marker([actif.lat, actif.lng], { icon }).addTo(map);
+      const marker = L.marker([coords.lat, coords.lng], { icon }).addTo(map);
 
       const sciNom = actif.sciId ? sciMap[actif.sciId] || "" : "";
       const popupContent = `
@@ -152,13 +204,13 @@ export default function CartePage() {
         </div>
       `;
       marker.bindPopup(popupContent);
-      bounds.extend([actif.lat, actif.lng]);
+      bounds.extend([coords.lat, coords.lng]);
     }
 
     if (bounds.isValid()) {
       map.fitBounds(bounds, { padding: [50, 50], maxZoom: 14 });
     }
-  }, [geoActifs, sciMap]);
+  }, [geoActifs, sciMap, geocoded]);
 
   return (
     <AnimatePresence>
@@ -187,21 +239,18 @@ export default function CartePage() {
           <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Carte interactive
           </h3>
-          {geoActifs.length > 0 ? (
-            <div
-              ref={mapRef}
-              className="h-[400px] w-full rounded-lg overflow-hidden border"
-              style={{ zIndex: 0 }}
-            />
-          ) : (
-            <div ref={mapRef} className="hidden" />
-          )}
+          <div
+            ref={mapRef}
+            className="h-[400px] w-full rounded-lg overflow-hidden border"
+            style={{ zIndex: 0 }}
+          />
           {geoActifs.length === 0 && (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <MapPin className="h-12 w-12 text-muted-foreground" />
               <p className="mt-4 text-sm text-muted-foreground">
-                Aucun actif avec coordonnées GPS.
-                Renseignez la latitude et longitude de vos actifs pour les voir sur la carte.
+                {activeActifs.some((a) => (a.adresse || a.ville) && !a.lat && !a.lng)
+                  ? "Géocodage des adresses en cours..."
+                  : "Aucun actif avec adresse ou coordonnées GPS."}
               </p>
             </div>
           )}
