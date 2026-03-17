@@ -1,20 +1,34 @@
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  LineChart, Line, Legend,
+  AreaChart, Area,
 } from "recharts";
 import { apiRequest } from "../../lib/queryClient";
-import { formatCurrency, formatPercent } from "../../lib/utils";
+import { formatCurrency, formatPercent, formatNumber } from "../../lib/utils";
 import {
   computeSciKpis,
   getLoyerAnnuelActif,
   getChargesAnnuelles,
+  getRendementNet,
+  getValeurEstimee,
+  getTotalCRD,
+  getServiceDette,
+  computeMultiYearProjection,
+  computeAssocieNAV,
+  type ProjectionYear,
 } from "../../lib/am-calculations";
 import { KpiCard } from "../../components/ui/kpi-card";
 import { GlassCard } from "../../components/ui/glass-card";
 import { PageHeader } from "../../components/ui/page-header";
 import { Section } from "../../components/ui/section";
-import { Calculator, Receipt, TrendingUp, Percent } from "lucide-react";
+import {
+  Calculator, Receipt, TrendingUp, Percent, Building2,
+  Users, ArrowDownUp, BarChart3, LineChartIcon,
+} from "lucide-react";
 
 const COLORS = ["#3b82f6", "#8b5cf6", "#06b6d4", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#6366f1"];
 
@@ -34,47 +48,152 @@ export default function ControleGestionPage() {
   const { data: lots = [] } = useQuery({ queryKey: ["/api/am/lots"], queryFn: () => apiRequest("/api/am/lots") });
   const { data: baux = [] } = useQuery({ queryKey: ["/api/am/baux"], queryFn: () => apiRequest("/api/am/baux") });
   const { data: emprunts = [] } = useQuery({ queryKey: ["/api/am/emprunts"], queryFn: () => apiRequest("/api/am/emprunts") });
+  const { data: associes = [] } = useQuery({ queryKey: ["/api/am/associes"], queryFn: () => apiRequest("/api/am/associes") });
+  const { data: participations = [] } = useQuery({ queryKey: ["/api/am/participations"], queryFn: () => apiRequest("/api/am/participations") });
 
-  const actifsActifs = actifs.filter((a: any) => !a.archived);
+  const [projGrowthLoyer, setProjGrowthLoyer] = useState(2);
+  const [projInflationCharges, setProjInflationCharges] = useState(2.5);
+  const [projAppreciation, setProjAppreciation] = useState(1.5);
+  const [projYears, setProjYears] = useState(10);
+
+  const actifsActifs = useMemo(() => actifs.filter((a: any) => !a.archived), [actifs]);
+  const empruntsActifs = useMemo(() => emprunts.filter((e: any) => !e.archived), [emprunts]);
 
   // Portfolio-level aggregation
-  let totalLoyers = 0;
-  let totalCharges = 0;
-  let totalTaxeFonciere = 0;
-  let totalAssurancePno = 0;
-  let totalChargesCopro = 0;
-  let totalAutres = 0;
+  const portfolioData = useMemo(() => {
+    let totalLoyers = 0;
+    let totalCharges = 0;
+    let totalTaxeFonciere = 0;
+    let totalAssurancePno = 0;
+    let totalChargesCopro = 0;
+    let totalValorisation = 0;
 
-  for (const a of actifsActifs) {
-    totalLoyers += getLoyerAnnuelActif(a, baux, lots);
-    totalCharges += getChargesAnnuelles(a);
+    const actifDetails: any[] = [];
 
-    const taxeFonciere = Number(a.taxeFonciere || 0);
-    const assurancePno = Number(a.assurancePno || 0);
-    const chargesCopro = Number(a.chargesCopropriete || a.chargesAnnuelles || 0);
-    totalTaxeFonciere += taxeFonciere;
-    totalAssurancePno += assurancePno;
-    totalChargesCopro += chargesCopro;
-  }
+    for (const a of actifsActifs) {
+      const loyerAnnuel = getLoyerAnnuelActif(a, baux, lots);
+      const charges = getChargesAnnuelles(a);
+      const valorisation = getValeurEstimee(a, baux, lots);
+      const noi = loyerAnnuel - charges;
+      const rendementNet = getRendementNet(loyerAnnuel, charges, valorisation);
 
-  // "Autres" = total charges minus the categorized charges
-  // (in case getChargesAnnuelles adds them all together)
-  totalAutres = totalCharges - totalTaxeFonciere - totalAssurancePno - totalChargesCopro;
-  if (totalAutres < 0) totalAutres = 0;
+      const taxeFonciere = Number(a.taxeFonciere || 0);
+      const assurancePno = Number(a.assurancePno || 0);
+      const chargesCopro = Number(a.chargesCopropriete || a.chargesAnnuelles || 0);
 
-  const noi = totalLoyers - totalCharges;
-  const ratioChargesLoyers = totalLoyers > 0 ? (totalCharges / totalLoyers) * 100 : 0;
+      totalLoyers += loyerAnnuel;
+      totalCharges += charges;
+      totalTaxeFonciere += taxeFonciere;
+      totalAssurancePno += assurancePno;
+      totalChargesCopro += chargesCopro;
+      totalValorisation += valorisation;
+
+      const sci = scis.find((s: any) => s.id === a.sciId);
+      actifDetails.push({
+        id: a.id,
+        nom: a.nom || a.adresse || `Actif #${a.id}`,
+        sciNom: sci?.nom || "—",
+        loyerAnnuel,
+        charges,
+        noi,
+        rendementNet,
+        taxeFonciere,
+        assurancePno,
+        chargesCopro,
+        ratioCharges: loyerAnnuel > 0 ? (charges / loyerAnnuel) * 100 : 0,
+      });
+    }
+
+    let totalAutres = totalCharges - totalTaxeFonciere - totalAssurancePno - totalChargesCopro;
+    if (totalAutres < 0) totalAutres = 0;
+
+    const totalCRD = getTotalCRD(empruntsActifs);
+    const totalServiceDette = getServiceDette(empruntsActifs);
+    const noi = totalLoyers - totalCharges;
+    const cashFlowNet = noi - totalServiceDette;
+
+    return {
+      totalLoyers, totalCharges, totalTaxeFonciere, totalAssurancePno,
+      totalChargesCopro, totalAutres, totalValorisation, totalCRD,
+      totalServiceDette, noi, cashFlowNet, actifDetails,
+      ratioChargesLoyers: totalLoyers > 0 ? (totalCharges / totalLoyers) * 100 : 0,
+    };
+  }, [actifsActifs, baux, lots, scis, empruntsActifs]);
 
   // Per-SCI data
-  const sciKpis = scis.map((sci: any) => computeSciKpis(sci, actifs, baux, lots, emprunts));
+  const sciKpis = useMemo(
+    () => scis.map((sci: any) => computeSciKpis(sci, actifs, baux, lots, emprunts)),
+    [scis, actifs, baux, lots, emprunts]
+  );
 
-  // Pie chart: charges breakdown
+  // NAV per associé
+  const totalNAV = portfolioData.totalValorisation - portfolioData.totalCRD;
+  const associeNAVs = useMemo(
+    () => computeAssocieNAV(totalNAV, portfolioData.totalLoyers, associes, participations),
+    [totalNAV, portfolioData.totalLoyers, associes, participations]
+  );
+
+  // Multi-year projection
+  const amortAnnuel = useMemo(() => {
+    if (empruntsActifs.length === 0) return 0;
+    return empruntsActifs.reduce((sum: number, e: any) => {
+      const montant = Number(e.montantEmprunte || 0);
+      const duree = Number(e.dureeAns || 0);
+      return sum + (duree > 0 ? montant / duree : 0);
+    }, 0);
+  }, [empruntsActifs]);
+
+  const projection: ProjectionYear[] = useMemo(() => {
+    if (portfolioData.totalLoyers <= 0) return [];
+    return computeMultiYearProjection(
+      portfolioData.totalLoyers,
+      portfolioData.totalCharges,
+      portfolioData.totalServiceDette,
+      portfolioData.totalValorisation,
+      portfolioData.totalCRD,
+      projGrowthLoyer,
+      projInflationCharges,
+      projAppreciation,
+      amortAnnuel,
+      projYears,
+    );
+  }, [portfolioData, projGrowthLoyer, projInflationCharges, projAppreciation, amortAnnuel, projYears]);
+
+  // Charts data
   const chargesPieData = [
-    { name: "Taxe foncière", value: totalTaxeFonciere },
-    { name: "Assurance PNO", value: totalAssurancePno },
-    { name: "Charges copropriété", value: totalChargesCopro },
-    { name: "Autres", value: totalAutres },
+    { name: "Taxe foncière", value: portfolioData.totalTaxeFonciere },
+    { name: "Assurance PNO", value: portfolioData.totalAssurancePno },
+    { name: "Charges copropriété", value: portfolioData.totalChargesCopro },
+    { name: "Autres", value: portfolioData.totalAutres },
   ].filter((d) => d.value > 0);
+
+  // Waterfall: Loyers → - Charges → NOI → - Dette → Cash-flow
+  const waterfallData = [
+    { name: "Loyers", value: portfolioData.totalLoyers, fill: "#10b981" },
+    { name: "Charges", value: -portfolioData.totalCharges, fill: "#f59e0b" },
+    { name: "NOI", value: portfolioData.noi, fill: portfolioData.noi >= 0 ? "#3b82f6" : "#ef4444" },
+    { name: "Service dette", value: -portfolioData.totalServiceDette, fill: "#8b5cf6" },
+    { name: "Cash-flow net", value: portfolioData.cashFlowNet, fill: portfolioData.cashFlowNet >= 0 ? "#10b981" : "#ef4444" },
+  ];
+
+  // Per-actif NOI chart
+  const actifNoiChart = portfolioData.actifDetails
+    .sort((a: any, b: any) => b.noi - a.noi)
+    .map((a: any) => ({
+      name: a.nom.length > 18 ? a.nom.substring(0, 18) + "…" : a.nom,
+      "Loyers": a.loyerAnnuel,
+      "Charges": a.charges,
+      "NOI": a.noi,
+    }));
+
+  // Projection chart data
+  const projectionChart = projection.map((p) => ({
+    year: p.label,
+    "Cash-flow": Math.round(p.cashFlow),
+    "NOI": Math.round(p.noi),
+    "DSCR": Number(p.dscr.toFixed(2)),
+    "LTV": Number(p.ltv.toFixed(1)),
+  }));
 
   return (
     <AnimatePresence>
@@ -85,92 +204,195 @@ export default function ControleGestionPage() {
       >
         <PageHeader
           title="Contrôle de gestion"
-          description="Suivi budgétaire et analyse des charges"
+          description="Suivi budgétaire, projections et analyse des charges"
         />
 
-        {/* Hero KPIs */}
+        {/* Hero KPIs - Row 1 */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <KpiCard
-            label="Loyers annuels"
-            value={totalLoyers}
-            formatFn={formatCurrency}
-            icon={TrendingUp}
-            variant="success"
-            gradient
-            delay={0}
-          />
-          <KpiCard
-            label="Charges totales"
-            value={totalCharges}
-            formatFn={formatCurrency}
-            icon={Receipt}
-            variant="warning"
-            gradient
-            delay={1}
-          />
-          <KpiCard
-            label="NOI"
-            value={noi}
-            formatFn={formatCurrency}
-            icon={Calculator}
-            variant={noi >= 0 ? "primary" : "danger"}
-            gradient
-            delay={2}
-          />
+          <KpiCard label="Loyers annuels" value={portfolioData.totalLoyers} formatFn={formatCurrency} icon={TrendingUp} variant="success" gradient delay={0} />
+          <KpiCard label="Charges totales" value={portfolioData.totalCharges} formatFn={formatCurrency} icon={Receipt} variant="warning" gradient delay={1} />
+          <KpiCard label="NOI" value={portfolioData.noi} formatFn={formatCurrency} icon={Calculator} variant={portfolioData.noi >= 0 ? "primary" : "danger"} gradient delay={2} />
           <KpiCard
             label="Ratio charges/loyers"
-            value={ratioChargesLoyers}
+            value={portfolioData.ratioChargesLoyers}
             formatFn={(n) => formatPercent(n)}
             icon={Percent}
-            variant={ratioChargesLoyers < 30 ? "success" : ratioChargesLoyers < 50 ? "warning" : "danger"}
+            variant={portfolioData.ratioChargesLoyers < 30 ? "success" : portfolioData.ratioChargesLoyers < 50 ? "warning" : "danger"}
             gradient
             delay={3}
           />
         </div>
 
-        {/* Charges breakdown pie chart */}
-        {chargesPieData.length > 0 && (
-          <GlassCard delay={4}>
-            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Répartition des charges
-            </h3>
-            <ResponsiveContainer width="100%" height={280}>
-              <PieChart>
-                <Pie
-                  data={chargesPieData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
-                  paddingAngle={3}
-                  dataKey="value"
-                  animationBegin={200}
-                  animationDuration={1000}
-                >
-                  {chargesPieData.map((_: any, i: number) => (
-                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
+        {/* KPIs Row 2 */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard label="Service de la dette" value={portfolioData.totalServiceDette} formatFn={formatCurrency} icon={ArrowDownUp} delay={4} />
+          <KpiCard label="Cash-flow net" value={portfolioData.cashFlowNet} formatFn={formatCurrency} icon={BarChart3} variant={portfolioData.cashFlowNet >= 0 ? "success" : "danger"} delay={5} />
+          <KpiCard label="NAV portefeuille" value={totalNAV} formatFn={formatCurrency} icon={Building2} variant="primary" delay={6} />
+          <KpiCard label="Nombre d'actifs" value={actifsActifs.length} icon={Building2} delay={7} />
+        </div>
+
+        {/* Waterfall: Loyers → Cash-flow */}
+        <GlassCard delay={8}>
+          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            Cascade de trésorerie — Du loyer au cash-flow
+          </h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={waterfallData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+              <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
+              <Tooltip {...chartTooltipStyle} formatter={(v: number) => formatCurrency(v)} />
+              <Bar dataKey="value" name="Montant" radius={[4, 4, 0, 0]} animationDuration={800}>
+                {waterfallData.map((d, i) => (
+                  <Cell key={i} fill={d.fill} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </GlassCard>
+
+        {/* Charges pie + Per-actif NOI side by side */}
+        <div className="grid gap-4 lg:grid-cols-2">
+          {/* Charges breakdown pie chart */}
+          {chargesPieData.length > 0 && (
+            <GlassCard delay={9}>
+              <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Répartition des charges
+              </h3>
+              <ResponsiveContainer width="100%" height={280}>
+                <PieChart>
+                  <Pie
+                    data={chargesPieData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={100}
+                    paddingAngle={3}
+                    dataKey="value"
+                    animationBegin={200}
+                    animationDuration={1000}
+                  >
+                    {chargesPieData.map((_: any, i: number) => (
+                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip {...chartTooltipStyle} formatter={(v: number) => formatCurrency(v)} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="mt-2 flex flex-wrap justify-center gap-3">
+                {chargesPieData.map((d: any, i: number) => (
+                  <div key={d.name} className="flex items-center gap-1.5 text-xs">
+                    <div className="h-2.5 w-2.5 rounded-full" style={{ background: COLORS[i % COLORS.length] }} />
+                    {d.name}: {formatCurrency(d.value)}
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
+          )}
+
+          {/* NOI per actif */}
+          {actifNoiChart.length > 0 && (
+            <GlassCard delay={10}>
+              <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Loyers vs Charges par actif
+              </h3>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={actifNoiChart} barGap={2}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-20} textAnchor="end" height={60} />
+                  <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
+                  <Tooltip {...chartTooltipStyle} formatter={(v: number) => formatCurrency(v)} />
+                  <Bar dataKey="Loyers" fill="#10b981" radius={[4, 4, 0, 0]} animationDuration={800} />
+                  <Bar dataKey="Charges" fill="#f59e0b" radius={[4, 4, 0, 0]} animationDuration={800} />
+                </BarChart>
+              </ResponsiveContainer>
+              <div className="mt-2 flex justify-center gap-6">
+                <div className="flex items-center gap-1.5 text-xs"><div className="h-2.5 w-2.5 rounded-full" style={{ background: "#10b981" }} /> Loyers</div>
+                <div className="flex items-center gap-1.5 text-xs"><div className="h-2.5 w-2.5 rounded-full" style={{ background: "#f59e0b" }} /> Charges</div>
+              </div>
+            </GlassCard>
+          )}
+        </div>
+
+        {/* Per-actif detail table */}
+        {portfolioData.actifDetails.length > 0 && (
+          <Section title="Détail par actif" delay={11}>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              className="overflow-x-auto rounded-xl border bg-card shadow-sm"
+            >
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/30">
+                    <th className="px-4 py-3 text-left font-semibold">Actif</th>
+                    <th className="px-4 py-3 text-left font-semibold">SCI</th>
+                    <th className="px-4 py-3 text-right font-semibold">Loyers/an</th>
+                    <th className="px-4 py-3 text-right font-semibold">Taxe fonc.</th>
+                    <th className="px-4 py-3 text-right font-semibold">Assurance</th>
+                    <th className="px-4 py-3 text-right font-semibold">Copropriété</th>
+                    <th className="px-4 py-3 text-right font-semibold">Charges tot.</th>
+                    <th className="px-4 py-3 text-right font-semibold">NOI</th>
+                    <th className="px-4 py-3 text-right font-semibold">Ratio</th>
+                    <th className="px-4 py-3 text-right font-semibold">Rdt net</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {portfolioData.actifDetails.map((a: any, i: number) => (
+                    <motion.tr
+                      key={a.id}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: Math.min(0.6 + i * 0.05, 1.1) }}
+                      className="border-t transition-colors hover:bg-muted/20"
+                    >
+                      <td className="px-4 py-3 font-medium">{a.nom}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{a.sciNom}</td>
+                      <td className="px-4 py-3 text-right">{formatCurrency(a.loyerAnnuel)}</td>
+                      <td className="px-4 py-3 text-right text-muted-foreground">{a.taxeFonciere > 0 ? formatCurrency(a.taxeFonciere) : "—"}</td>
+                      <td className="px-4 py-3 text-right text-muted-foreground">{a.assurancePno > 0 ? formatCurrency(a.assurancePno) : "—"}</td>
+                      <td className="px-4 py-3 text-right text-muted-foreground">{a.chargesCopro > 0 ? formatCurrency(a.chargesCopro) : "—"}</td>
+                      <td className="px-4 py-3 text-right text-amber-600">{formatCurrency(a.charges)}</td>
+                      <td className={`px-4 py-3 text-right font-medium ${a.noi >= 0 ? "text-green-600" : "text-red-500"}`}>
+                        {formatCurrency(a.noi)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                          a.ratioCharges < 30 ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
+                          a.ratioCharges < 50 ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
+                          "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                        }`}>
+                          {formatPercent(a.ratioCharges)}
+                        </span>
+                      </td>
+                      <td className={`px-4 py-3 text-right font-medium ${a.rendementNet > 4 ? "text-green-600" : a.rendementNet > 2 ? "text-amber-600" : "text-red-500"}`}>
+                        {formatPercent(a.rendementNet)}
+                      </td>
+                    </motion.tr>
                   ))}
-                </Pie>
-                <Tooltip
-                  {...chartTooltipStyle}
-                  formatter={(v: number) => formatCurrency(v)}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="mt-2 flex flex-wrap justify-center gap-3">
-              {chargesPieData.map((d: any, i: number) => (
-                <div key={d.name} className="flex items-center gap-1.5 text-xs">
-                  <div className="h-2.5 w-2.5 rounded-full" style={{ background: COLORS[i % COLORS.length] }} />
-                  {d.name}: {formatCurrency(d.value)}
-                </div>
-              ))}
-            </div>
-          </GlassCard>
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 bg-muted/20 font-semibold">
+                    <td className="px-4 py-3" colSpan={2}>Total</td>
+                    <td className="px-4 py-3 text-right">{formatCurrency(portfolioData.totalLoyers)}</td>
+                    <td className="px-4 py-3 text-right">{formatCurrency(portfolioData.totalTaxeFonciere)}</td>
+                    <td className="px-4 py-3 text-right">{formatCurrency(portfolioData.totalAssurancePno)}</td>
+                    <td className="px-4 py-3 text-right">{formatCurrency(portfolioData.totalChargesCopro)}</td>
+                    <td className="px-4 py-3 text-right text-amber-600">{formatCurrency(portfolioData.totalCharges)}</td>
+                    <td className={`px-4 py-3 text-right ${portfolioData.noi >= 0 ? "text-green-600" : "text-red-500"}`}>{formatCurrency(portfolioData.noi)}</td>
+                    <td className="px-4 py-3 text-right">{formatPercent(portfolioData.ratioChargesLoyers)}</td>
+                    <td className="px-4 py-3 text-right">—</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </motion.div>
+          </Section>
         )}
 
         {/* Per-SCI table */}
         {sciKpis.length > 0 && (
-          <Section title="Détail par SCI" delay={5}>
+          <Section title="Synthèse par SCI" delay={12}>
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -181,11 +403,15 @@ export default function ControleGestionPage() {
                 <thead>
                   <tr className="border-b bg-muted/30">
                     <th className="px-4 py-3 text-left font-semibold">SCI</th>
+                    <th className="px-4 py-3 text-right font-semibold">Actifs</th>
+                    <th className="px-4 py-3 text-right font-semibold">Valorisation</th>
                     <th className="px-4 py-3 text-right font-semibold">Loyers/an</th>
                     <th className="px-4 py-3 text-right font-semibold">Charges/an</th>
                     <th className="px-4 py-3 text-right font-semibold">NOI</th>
-                    <th className="px-4 py-3 text-right font-semibold">Ratio charges</th>
-                    <th className="px-4 py-3 text-right font-semibold">Cash-flow net</th>
+                    <th className="px-4 py-3 text-right font-semibold">CRD</th>
+                    <th className="px-4 py-3 text-right font-semibold">Cash-flow</th>
+                    <th className="px-4 py-3 text-right font-semibold">Ratio</th>
+                    <th className="px-4 py-3 text-right font-semibold">LTV</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -196,14 +422,20 @@ export default function ControleGestionPage() {
                         key={k.sci.id}
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: Math.min(0.6 + i * 0.05, 0.6 + 0.5) }}
+                        transition={{ delay: Math.min(0.6 + i * 0.05, 1.1) }}
                         className="border-t transition-colors hover:bg-muted/20"
                       >
                         <td className="px-4 py-3 font-medium">{k.sci.nom}</td>
+                        <td className="px-4 py-3 text-right">{k.actifs.length}</td>
+                        <td className="px-4 py-3 text-right">{formatCurrency(k.valorisation)}</td>
                         <td className="px-4 py-3 text-right">{formatCurrency(k.loyerAnnuel)}</td>
                         <td className="px-4 py-3 text-right text-amber-600">{formatCurrency(k.charges)}</td>
                         <td className={`px-4 py-3 text-right font-medium ${k.noi >= 0 ? "text-green-600" : "text-red-500"}`}>
                           {formatCurrency(k.noi)}
+                        </td>
+                        <td className="px-4 py-3 text-right">{formatCurrency(k.crd)}</td>
+                        <td className={`px-4 py-3 text-right font-medium ${k.cashFlowNet >= 0 ? "text-green-600" : "text-red-500"}`}>
+                          {formatCurrency(k.cashFlowNet)}
                         </td>
                         <td className="px-4 py-3 text-right">
                           <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -214,8 +446,10 @@ export default function ControleGestionPage() {
                             {formatPercent(ratio)}
                           </span>
                         </td>
-                        <td className={`px-4 py-3 text-right font-medium ${k.cashFlowNet >= 0 ? "text-green-600" : "text-red-500"}`}>
-                          {formatCurrency(k.cashFlowNet)}
+                        <td className="px-4 py-3 text-right">
+                          <span className={k.ltv < 60 ? "text-green-600" : k.ltv < 80 ? "text-amber-600" : "text-red-500"}>
+                            {formatPercent(k.ltv)}
+                          </span>
                         </td>
                       </motion.tr>
                     );
@@ -224,17 +458,191 @@ export default function ControleGestionPage() {
                 <tfoot>
                   <tr className="border-t-2 bg-muted/20 font-semibold">
                     <td className="px-4 py-3">Total</td>
-                    <td className="px-4 py-3 text-right">{formatCurrency(totalLoyers)}</td>
-                    <td className="px-4 py-3 text-right text-amber-600">{formatCurrency(totalCharges)}</td>
-                    <td className={`px-4 py-3 text-right ${noi >= 0 ? "text-green-600" : "text-red-500"}`}>
-                      {formatCurrency(noi)}
-                    </td>
-                    <td className="px-4 py-3 text-right">{formatPercent(ratioChargesLoyers)}</td>
-                    <td className="px-4 py-3 text-right">—</td>
+                    <td className="px-4 py-3 text-right">{actifsActifs.length}</td>
+                    <td className="px-4 py-3 text-right">{formatCurrency(portfolioData.totalValorisation)}</td>
+                    <td className="px-4 py-3 text-right">{formatCurrency(portfolioData.totalLoyers)}</td>
+                    <td className="px-4 py-3 text-right text-amber-600">{formatCurrency(portfolioData.totalCharges)}</td>
+                    <td className={`px-4 py-3 text-right ${portfolioData.noi >= 0 ? "text-green-600" : "text-red-500"}`}>{formatCurrency(portfolioData.noi)}</td>
+                    <td className="px-4 py-3 text-right">{formatCurrency(portfolioData.totalCRD)}</td>
+                    <td className={`px-4 py-3 text-right ${portfolioData.cashFlowNet >= 0 ? "text-green-600" : "text-red-500"}`}>{formatCurrency(portfolioData.cashFlowNet)}</td>
+                    <td className="px-4 py-3 text-right">{formatPercent(portfolioData.ratioChargesLoyers)}</td>
+                    <td className="px-4 py-3 text-right">{portfolioData.totalValorisation > 0 ? formatPercent((portfolioData.totalCRD / portfolioData.totalValorisation) * 100) : "—"}</td>
                   </tr>
                 </tfoot>
               </table>
             </motion.div>
+          </Section>
+        )}
+
+        {/* NAV par associé */}
+        {associeNAVs.length > 0 && (
+          <Section title="Valeur liquidative par associé (NAV)" delay={13}>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              className="overflow-x-auto rounded-xl border bg-card shadow-sm"
+            >
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/30">
+                    <th className="px-4 py-3 text-left font-semibold">Associé</th>
+                    <th className="px-4 py-3 text-right font-semibold">Part (%)</th>
+                    <th className="px-4 py-3 text-right font-semibold">Apport</th>
+                    <th className="px-4 py-3 text-right font-semibold">NAV</th>
+                    <th className="px-4 py-3 text-right font-semibold">+/- Value latente</th>
+                    <th className="px-4 py-3 text-right font-semibold">Rendement annualisé</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {associeNAVs.map((a, i) => (
+                    <motion.tr
+                      key={a.associeId}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: Math.min(0.6 + i * 0.05, 1.1) }}
+                      className="border-t transition-colors hover:bg-muted/20"
+                    >
+                      <td className="px-4 py-3 font-medium flex items-center gap-2">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        {a.associeNom}
+                      </td>
+                      <td className="px-4 py-3 text-right">{formatPercent(a.partPct)}</td>
+                      <td className="px-4 py-3 text-right">{formatCurrency(a.apport)}</td>
+                      <td className="px-4 py-3 text-right font-medium">{formatCurrency(a.navPart)}</td>
+                      <td className={`px-4 py-3 text-right font-medium ${a.plusValueLatente >= 0 ? "text-green-600" : "text-red-500"}`}>
+                        {a.plusValueLatente >= 0 ? "+" : ""}{formatCurrency(a.plusValueLatente)}
+                      </td>
+                      <td className={`px-4 py-3 text-right font-medium ${a.rendementAnnuelise > 5 ? "text-green-600" : a.rendementAnnuelise > 2 ? "text-amber-600" : "text-red-500"}`}>
+                        {formatPercent(a.rendementAnnuelise)}
+                      </td>
+                    </motion.tr>
+                  ))}
+                </tbody>
+              </table>
+            </motion.div>
+          </Section>
+        )}
+
+        {/* Multi-year projection */}
+        {portfolioData.totalLoyers > 0 && (
+          <Section title="Projections multi-annuelles" delay={14}>
+            <GlassCard>
+              <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Croissance loyers (%/an)</label>
+                  <input type="number" value={projGrowthLoyer} onChange={(e) => setProjGrowthLoyer(Number(e.target.value))}
+                    className="w-full rounded-lg border bg-background/60 px-3 py-2 text-sm" step={0.5} min={0} max={10} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Inflation charges (%/an)</label>
+                  <input type="number" value={projInflationCharges} onChange={(e) => setProjInflationCharges(Number(e.target.value))}
+                    className="w-full rounded-lg border bg-background/60 px-3 py-2 text-sm" step={0.5} min={0} max={10} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Appréciation actifs (%/an)</label>
+                  <input type="number" value={projAppreciation} onChange={(e) => setProjAppreciation(Number(e.target.value))}
+                    className="w-full rounded-lg border bg-background/60 px-3 py-2 text-sm" step={0.5} min={-5} max={10} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Horizon (années)</label>
+                  <input type="number" value={projYears} onChange={(e) => setProjYears(Number(e.target.value))}
+                    className="w-full rounded-lg border bg-background/60 px-3 py-2 text-sm" step={1} min={3} max={30} />
+                </div>
+              </div>
+
+              {/* Cash-flow + NOI projection chart */}
+              {projectionChart.length > 0 && (
+                <>
+                  <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Évolution NOI et Cash-flow
+                  </h4>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <AreaChart data={projectionChart}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="year" tick={{ fontSize: 11 }} />
+                      <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
+                      <Tooltip {...chartTooltipStyle} formatter={(v: number) => formatCurrency(v)} />
+                      <Area type="monotone" dataKey="NOI" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.15} strokeWidth={2} animationDuration={800} />
+                      <Area type="monotone" dataKey="Cash-flow" stroke="#10b981" fill="#10b981" fillOpacity={0.15} strokeWidth={2} animationDuration={800} />
+                      <Legend />
+                    </AreaChart>
+                  </ResponsiveContainer>
+
+                  {/* DSCR + LTV projection */}
+                  <h4 className="mb-3 mt-6 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Évolution DSCR et LTV
+                  </h4>
+                  <ResponsiveContainer width="100%" height={240}>
+                    <LineChart data={projectionChart}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="year" tick={{ fontSize: 11 }} />
+                      <YAxis yAxisId="left" tick={{ fontSize: 11 }} />
+                      <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} />
+                      <Tooltip {...chartTooltipStyle} />
+                      <Line yAxisId="left" type="monotone" dataKey="DSCR" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 3 }} animationDuration={800} />
+                      <Line yAxisId="right" type="monotone" dataKey="LTV" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} animationDuration={800} />
+                      <Legend />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </>
+              )}
+            </GlassCard>
+
+            {/* Projection table */}
+            {projection.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.6 }}
+                className="mt-4 overflow-x-auto rounded-xl border bg-card shadow-sm"
+              >
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/30">
+                      <th className="px-4 py-3 text-left font-semibold">Année</th>
+                      <th className="px-4 py-3 text-right font-semibold">Loyers</th>
+                      <th className="px-4 py-3 text-right font-semibold">Charges</th>
+                      <th className="px-4 py-3 text-right font-semibold">NOI</th>
+                      <th className="px-4 py-3 text-right font-semibold">Cash-flow</th>
+                      <th className="px-4 py-3 text-right font-semibold">Valorisation</th>
+                      <th className="px-4 py-3 text-right font-semibold">Rdt net</th>
+                      <th className="px-4 py-3 text-right font-semibold">DSCR</th>
+                      <th className="px-4 py-3 text-right font-semibold">LTV</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {projection.map((p, i) => (
+                      <motion.tr
+                        key={p.year}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: Math.min(0.7 + i * 0.03, 1.2) }}
+                        className={`border-t transition-colors hover:bg-muted/20 ${i === 0 ? "bg-muted/10 font-medium" : ""}`}
+                      >
+                        <td className="px-4 py-3 font-medium">{p.label}</td>
+                        <td className="px-4 py-3 text-right">{formatCurrency(p.loyers)}</td>
+                        <td className="px-4 py-3 text-right">{formatCurrency(p.charges)}</td>
+                        <td className={`px-4 py-3 text-right ${p.noi >= 0 ? "" : "text-red-500"}`}>{formatCurrency(p.noi)}</td>
+                        <td className={`px-4 py-3 text-right font-medium ${p.cashFlow >= 0 ? "text-green-600" : "text-red-500"}`}>{formatCurrency(p.cashFlow)}</td>
+                        <td className="px-4 py-3 text-right">{formatCurrency(p.valorisation)}</td>
+                        <td className="px-4 py-3 text-right">{formatPercent(p.rendementNet)}</td>
+                        <td className="px-4 py-3 text-right">
+                          <span className={p.dscr > 1.2 ? "text-green-600" : p.dscr > 1 ? "text-amber-600" : "text-red-500"}>
+                            {p.dscr > 0 ? p.dscr.toFixed(2) + "x" : "N/A"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <span className={p.ltv < 60 ? "text-green-600" : p.ltv < 80 ? "text-amber-600" : "text-red-500"}>
+                            {formatPercent(p.ltv)}
+                          </span>
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </tbody>
+                </table>
+              </motion.div>
+            )}
           </Section>
         )}
       </motion.div>
