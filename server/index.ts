@@ -7,7 +7,7 @@ import bcrypt from "bcrypt";
 import { eq } from "drizzle-orm";
 import { pool, db } from "./db";
 import { ensureSchema } from "./ensure-schema";
-import { users } from "@shared/schema";
+import { users, scis } from "@shared/schema";
 import { registerAuthRoutes } from "./routes/auth";
 import { registerAMRoutes } from "./routes/am";
 import { registerGLRoutes } from "./routes/gl";
@@ -177,6 +177,19 @@ async function withRetry<T>(fn: () => Promise<T>, label: string, retries = 5, de
     await withRetry(() => seedAdminUser(), "seed admin");
   } catch (_) {
     // already logged
+  }
+
+  // Auto-import Excel data if AM tables are empty
+  try {
+    const existingScis = await db.select().from(scis).limit(1);
+    if (existingScis.length === 0) {
+      logger.info("AM tables empty — auto-importing Excel data...");
+      const { importExcelData } = await import("./import-excel");
+      const counts = await importExcelData();
+      logger.info("Auto-import completed", counts);
+    }
+  } catch (err: any) {
+    logger.warn("Auto-import Excel skipped: " + (err.message || err));
   }
 
   app.listen(PORT, "0.0.0.0", () => {
