@@ -2,7 +2,18 @@ import type { Request, Response, NextFunction } from "express";
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (!req.session?.userId) {
-    return res.status(401).json({ error: "Non authentifié" });
+    return res.status(401).json({
+      error: "Non authentifié",
+      debug: {
+        hasSession: !!req.session,
+        sessionID: req.sessionID?.substring(0, 8) + "...",
+        hasCookie: !!req.headers.cookie,
+        cookieHeader: req.headers.cookie?.substring(0, 80),
+        secure: req.secure,
+        proto: req.headers["x-forwarded-proto"],
+        sessionKeys: req.session ? Object.keys(req.session) : [],
+      },
+    });
   }
   next();
 }
