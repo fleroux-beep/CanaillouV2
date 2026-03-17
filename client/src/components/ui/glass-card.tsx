@@ -22,7 +22,10 @@ export function GlassCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: delay * 0.08, ease: [0.4, 0, 0.2, 1] }}
       whileHover={hover ? { y: -2, transition: { duration: 0.2 } } : undefined}
-      className={cn("glass rounded-xl p-6 transition-shadow hover:shadow-lg", className)}
+      className={cn(
+        "rounded-xl border border-border/50 bg-card p-6 shadow-sm transition-all hover:shadow-md",
+        className
+      )}
       {...props}
     >
       {children}

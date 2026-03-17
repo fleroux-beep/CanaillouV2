@@ -568,12 +568,10 @@ export async function ensureSchema() {
     ];
 
     for (const fk of fks) {
-      try {
-        await client.query(fk);
-      } catch (e: any) {
-        // Constraint already exists — safe to ignore
-        if (!e.message?.includes("already exists")) throw e;
-      }
+      // Wrap in DO block so PostgreSQL handles "already exists" internally
+      // without aborting the transaction (error 25P02)
+      const safe = `DO $$ BEGIN ${fk}; EXCEPTION WHEN duplicate_object THEN NULL; END $$;`;
+      await client.query(safe);
     }
 
     await client.query("COMMIT");

@@ -34,9 +34,8 @@ export function FormField({
 }: FormFieldProps) {
   const id = useId();
   const baseClass =
-    "w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/20";
+    "w-full rounded-xl border border-border/60 bg-background px-3.5 py-2.5 text-sm outline-none transition-all placeholder:text-muted-foreground/50 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:shadow-sm";
 
-  // Support both controlled (value+onChange) and uncontrolled (defaultValue) modes
   const isControlled = onChange !== undefined && value !== undefined;
   const valueProps = isControlled
     ? { value: value ?? "", onChange: (e: any) => onChange(name, e.target.value) }
@@ -45,7 +44,7 @@ export function FormField({
   if (options) {
     return (
       <div className={className}>
-        <label htmlFor={id} className="mb-1.5 block text-sm font-medium">{label}</label>
+        <label htmlFor={id} className="mb-2 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</label>
         <select
           id={id}
           name={name}
@@ -66,7 +65,7 @@ export function FormField({
   if (rows) {
     return (
       <div className={className}>
-        <label htmlFor={id} className="mb-1.5 block text-sm font-medium">{label}</label>
+        <label htmlFor={id} className="mb-2 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</label>
         <textarea
           id={id}
           name={name}
@@ -83,10 +82,10 @@ export function FormField({
 
   return (
     <div className={className}>
-      <label htmlFor={id} className="mb-1.5 block text-sm font-medium">{label}</label>
+      <label htmlFor={id} className="mb-2 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</label>
       <div className="relative">
         {prefix && (
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground" aria-hidden="true">{prefix}</span>
+          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground/60" aria-hidden="true">{prefix}</span>
         )}
         <input
           id={id}
@@ -100,18 +99,18 @@ export function FormField({
           step={type === "number" ? "any" : undefined}
         />
         {suffix && (
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground" aria-hidden="true">{suffix}</span>
+          <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-medium text-muted-foreground/50" aria-hidden="true">{suffix}</span>
         )}
       </div>
     </div>
   );
 }
 
-/** Two-column grid for form fields */
+/** Responsive grid for form fields */
 export function FormGrid({ children, cols = 2 }: { children: React.ReactNode; cols?: 2 | 3 | 4 }) {
   return (
     <div className={cn(
-      "grid gap-4",
+      "grid gap-5",
       cols === 2 && "sm:grid-cols-2",
       cols === 3 && "sm:grid-cols-3",
       cols === 4 && "sm:grid-cols-2 lg:grid-cols-4"
