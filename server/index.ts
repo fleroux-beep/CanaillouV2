@@ -13,6 +13,7 @@ import { registerAMRoutes } from "./routes/am";
 import { registerGLRoutes } from "./routes/gl";
 import { registerImportRoutes } from "./routes/import";
 import { logger, requestLogger } from "./lib/logger";
+import { requireAdmin } from "./middleware/auth";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -74,6 +75,17 @@ registerAuthRoutes(app);
 registerAMRoutes(app);
 registerGLRoutes(app);
 registerImportRoutes(app);
+
+// Admin: import Excel SCI data (one-time migration)
+app.post("/api/admin/import-excel", requireAdmin, async (_req, res) => {
+  try {
+    const { importExcelData } = await import("./import-excel");
+    const counts = await importExcelData();
+    res.json({ ok: true, counts });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // Health check (no DB dependency)
 app.get("/api/health", (_req, res) => {

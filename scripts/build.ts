@@ -1,4 +1,5 @@
 import { execSync } from "child_process";
+import { copyFileSync, existsSync } from "fs";
 import esbuild from "esbuild";
 
 // Build frontend with Vite
@@ -22,6 +23,7 @@ await esbuild.build({
     "bcrypt",
     "better-sqlite3",
     "lightningcss",
+    "xlsx",
   ],
   define: {
     "process.env.NODE_ENV": '"production"',
@@ -43,5 +45,12 @@ await esbuild.build({
   ],
   sourcemap: true,
 });
+
+// Copy Excel data file for import
+const xlsxSrc = "BDD SCI 04 01 2026 - proposition FLE new BDD (5).xlsx";
+if (existsSync(xlsxSrc)) {
+  copyFileSync(xlsxSrc, `dist/${xlsxSrc}`);
+  console.log("Copied Excel data file to dist/");
+}
 
 console.log("Build complete!");
