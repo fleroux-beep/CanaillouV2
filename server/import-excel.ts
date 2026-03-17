@@ -783,7 +783,7 @@ export async function importExcelData(): Promise<{
           if (f.duree) {
             // Parse "15 CE et 7 SG" or "15" or "15.5" or "20"
             const dMatch = f.duree.match(/(\d+(?:\.\d+)?)/);
-            if (dMatch) dureeAns = parseFloat(dMatch[1]);
+            if (dMatch) dureeAns = Math.round(parseFloat(dMatch[1]));
           }
           if (f.dateFinEmprunt) dateFin = f.dateFinEmprunt;
           if (f.tauxAssurance) {
