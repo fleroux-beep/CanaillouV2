@@ -120,7 +120,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const isGL = location.startsWith("/gestion-locative");
   const navGroups = isAM ? amNavGroups : isGL ? glNavGroups : [];
   const sectionTitle = isAM ? "Asset Management" : isGL ? "Gestion Locative" : "";
-  const sectionColor = isAM ? "from-blue-500 to-indigo-600" : "from-violet-500 to-purple-600";
+  const sectionColor = isAM ? "from-orange-500 to-amber-600" : "from-rose-500 to-pink-600";
 
   const renderSidebarContent = (isMobile: boolean) => {
     const isExpanded = isMobile ? true : !collapsed;
@@ -136,7 +136,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           >
             <motion.div
               whileHover={{ scale: 1.05 }}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 shadow-lg shadow-blue-500/25"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-rose-600 shadow-lg shadow-orange-500/25"
             >
               <span className="text-sm font-extrabold text-white leading-none">C2</span>
             </motion.div>
@@ -148,7 +148,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   exit={{ opacity: 0, width: 0 }}
                   className="overflow-hidden text-base font-bold whitespace-nowrap tracking-tight"
                 >
-                  CANAILLOU <span className="text-blue-400">V2</span>
+                  CANAILLOU <span className="text-orange-400">V2</span>
                 </motion.span>
               )}
             </AnimatePresence>
@@ -206,7 +206,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                           : "text-white/40 hover:bg-white/[0.04] hover:text-white/70"
                       )}
                     >
-                      <item.icon className={cn("h-[18px] w-[18px] shrink-0", active && "text-blue-400")} aria-hidden="true" />
+                      <item.icon className={cn("h-[18px] w-[18px] shrink-0", active && "text-orange-400")} aria-hidden="true" />
                       <AnimatePresence>
                         {isExpanded && (
                           <motion.span
@@ -222,7 +222,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                       {active && (
                         <motion.div
                           layoutId={isMobile ? "nav-indicator-mobile" : "nav-indicator"}
-                          className="absolute left-0 h-5 w-[3px] rounded-r-full bg-gradient-to-b from-blue-400 to-violet-500"
+                          className="absolute left-0 h-5 w-[3px] rounded-r-full bg-gradient-to-b from-orange-400 to-rose-500"
                           transition={{ type: "spring", stiffness: 300, damping: 30 }}
                         />
                       )}
@@ -328,7 +328,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               className="flex items-center justify-between rounded-xl bg-white/[0.04] px-3 py-2.5"
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-400 to-violet-500 text-xs font-bold text-white shadow-sm">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-orange-400 to-rose-500 text-xs font-bold text-white shadow-sm">
                   {(user?.firstName?.[0] || user?.email?.[0] || "U").toUpperCase()}
                 </div>
                 <div className="min-w-0">

@@ -17,7 +17,7 @@ export function PageHeader({ title, description, actions }: PageHeaderProps) {
     >
       <div className="space-y-1">
         <div className="flex items-center gap-3">
-          <div className="h-8 w-1 rounded-full bg-gradient-to-b from-blue-500 to-violet-500" />
+          <div className="h-8 w-1 rounded-full bg-gradient-to-b from-orange-500 to-rose-500" />
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{title}</h1>
         </div>
         {description && (

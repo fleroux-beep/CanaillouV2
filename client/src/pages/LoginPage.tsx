@@ -32,17 +32,17 @@ export default function LoginPage() {
 
   return (
     <div className="relative flex min-h-screen overflow-hidden">
-      {/* Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-blue-50/50 to-violet-50 dark:from-slate-950 dark:via-indigo-950/50 dark:to-violet-950" />
+      {/* Background — warm tones */}
+      <div className="absolute inset-0 bg-gradient-to-br from-amber-50 via-orange-50/50 to-rose-50 dark:from-stone-950 dark:via-orange-950/30 dark:to-rose-950/20" />
 
       {/* Subtle floating shapes */}
       <motion.div
-        className="absolute -left-32 -top-32 h-[500px] w-[500px] rounded-full bg-blue-400/10 blur-3xl"
+        className="absolute -left-32 -top-32 h-[500px] w-[500px] rounded-full bg-orange-400/10 blur-3xl"
         animate={{ x: [0, 40, 0], y: [0, -30, 0] }}
         transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
       />
       <motion.div
-        className="absolute -bottom-32 -right-32 h-[500px] w-[500px] rounded-full bg-violet-400/10 blur-3xl"
+        className="absolute -bottom-32 -right-32 h-[500px] w-[500px] rounded-full bg-rose-400/10 blur-3xl"
         animate={{ x: [0, -40, 0], y: [0, 30, 0] }}
         transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
       />
@@ -55,7 +55,7 @@ export default function LoginPage() {
         className="relative z-10 hidden w-1/2 flex-col justify-center px-12 lg:flex xl:px-20"
       >
         <div className="max-w-lg">
-          <div className="mb-8 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600 shadow-xl shadow-blue-500/20">
+          <div className="mb-8 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-rose-600 shadow-xl shadow-orange-500/20">
             <Building2 className="h-7 w-7 text-white" />
           </div>
 
@@ -102,7 +102,7 @@ export default function LoginPage() {
               className="mb-8 text-center"
             >
               {/* Mobile-only icon */}
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600 shadow-xl shadow-blue-500/25 lg:hidden">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-rose-600 shadow-xl shadow-orange-500/25 lg:hidden">
                 <Building2 className="h-7 w-7 text-white" />
               </div>
 
@@ -161,7 +161,7 @@ export default function LoginPage() {
                 disabled={loading}
                 whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.99 }}
-                className="group flex w-full items-center justify-center gap-2 rounded-lg gradient-primary px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:shadow-xl hover:shadow-blue-500/30 disabled:opacity-50"
+                className="group flex w-full items-center justify-center gap-2 rounded-lg gradient-primary px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-orange-500/25 transition-all hover:shadow-xl hover:shadow-orange-500/30 disabled:opacity-50"
               >
                 {loading ? (
                   <motion.div

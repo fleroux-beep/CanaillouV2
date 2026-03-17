@@ -8,9 +8,9 @@ const modules = [
     icon: Building2,
     title: "Asset Management",
     description: "Pilotez votre patrimoine immobilier avec une vision institutionnelle : SCIs, valorisation DCF, LTV, DSCR, arbitrages et reporting.",
-    gradient: "from-blue-600 via-blue-500 to-indigo-600",
-    iconBg: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
-    borderAccent: "hover:border-blue-500/30",
+    gradient: "from-orange-500 via-amber-500 to-yellow-500",
+    iconBg: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
+    borderAccent: "hover:border-orange-500/30",
     features: ["SCIs & Associes", "Valorisation DCF", "LTV & DSCR", "Reporting"],
   },
   {
@@ -18,9 +18,9 @@ const modules = [
     icon: FileText,
     title: "Gestion Locative",
     description: "Suivez vos baux commerciaux en detail : loyers, indexations automatiques, echeancier, projections et tresorerie.",
-    gradient: "from-violet-600 via-purple-500 to-fuchsia-600",
-    iconBg: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
-    borderAccent: "hover:border-violet-500/30",
+    gradient: "from-rose-500 via-pink-500 to-fuchsia-500",
+    iconBg: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
+    borderAccent: "hover:border-rose-500/30",
     features: ["Baux commerciaux", "Indexation auto", "Projections", "Tresorerie"],
   },
 ];
@@ -48,7 +48,7 @@ export default function HomePage() {
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: "spring", stiffness: 200, delay: 0.1 }}
-            className="mx-auto mb-8 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600 shadow-2xl shadow-blue-500/25"
+            className="mx-auto mb-8 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-rose-600 shadow-2xl shadow-orange-500/25"
           >
             <Building2 className="h-10 w-10 text-white" />
           </motion.div>

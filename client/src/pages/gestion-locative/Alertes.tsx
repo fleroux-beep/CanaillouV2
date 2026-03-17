@@ -34,9 +34,9 @@ const levelConfig: Record<AlertLevel, { color: string; bg: string; border: strin
     icon: AlertTriangle,
   },
   info: {
-    color: "text-blue-600 dark:text-blue-400",
-    bg: "bg-blue-50 dark:bg-blue-900/10",
-    border: "border-blue-200 dark:border-blue-800/40",
+    color: "text-orange-600 dark:text-orange-400",
+    bg: "bg-orange-50 dark:bg-orange-900/10",
+    border: "border-orange-200 dark:border-orange-800/40",
     badgeVariant: "primary",
     icon: Info,
   },
@@ -235,7 +235,7 @@ export default function AlertesPage() {
                   transition={{ delay: Math.min(0.15 + i * 0.06, 0.65), duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
                   className={`flex items-start gap-4 rounded-xl border p-4 transition-shadow hover:shadow-md ${config.bg} ${config.border}`}
                 >
-                  <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${alert.level === "urgent" ? "bg-red-100 dark:bg-red-900/30" : alert.level === "warning" ? "bg-amber-100 dark:bg-amber-900/30" : "bg-blue-100 dark:bg-blue-900/30"}`}>
+                  <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${alert.level === "urgent" ? "bg-red-100 dark:bg-red-900/30" : alert.level === "warning" ? "bg-amber-100 dark:bg-amber-900/30" : "bg-orange-100 dark:bg-orange-900/30"}`}>
                     <Icon className={`h-4.5 w-4.5 ${config.color}`} />
                   </div>
                   <div className="min-w-0 flex-1">

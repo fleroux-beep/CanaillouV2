@@ -47,9 +47,9 @@ const VARIANT_CONFIG: Record<
   default: {
     icon: Info,
     containerClass:
-      "border-blue-300 bg-blue-50 text-blue-900 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-100",
-    iconClass: "text-blue-600 dark:text-blue-400",
-    progressClass: "bg-blue-500 dark:bg-blue-400",
+      "border-orange-300 bg-orange-50 text-orange-900 dark:border-orange-700 dark:bg-orange-950 dark:text-orange-100",
+    iconClass: "text-orange-600 dark:text-orange-400",
+    progressClass: "bg-orange-500 dark:bg-orange-400",
   },
   success: {
     icon: CheckCircle2,

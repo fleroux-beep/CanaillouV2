@@ -88,7 +88,7 @@ function ArbrePatrimoine() {
                   className="flex w-full items-center gap-3 text-left"
                 >
                   <ChevronRight className={`h-4 w-4 transition-transform ${sciExpanded ? "rotate-90" : ""}`} />
-                  <Landmark className="h-5 w-5 text-blue-500" />
+                  <Landmark className="h-5 w-5 text-orange-500" />
                   <span className="text-lg font-semibold">{sci.nom}</span>
                   <Badge variant="primary" className="ml-2">{sciActifs.length} actif(s)</Badge>
                 </button>
@@ -111,7 +111,7 @@ function ArbrePatrimoine() {
                             className="flex w-full items-center gap-3 text-left"
                           >
                             <ChevronRight className={`h-3.5 w-3.5 transition-transform ${actifExpanded ? "rotate-90" : ""}`} />
-                            <Building2 className="h-4 w-4 text-violet-500" />
+                            <Building2 className="h-4 w-4 text-rose-500" />
                             <span className="font-medium">{actif.nom}</span>
                             {actif.ville && (
                               <span className="text-xs text-muted-foreground flex items-center gap-1">

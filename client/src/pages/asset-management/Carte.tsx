@@ -31,8 +31,8 @@ interface SCI {
 }
 
 const typeColors: Record<string, string> = {
-  residentiel: "from-blue-500 to-blue-600",
-  commercial: "from-violet-500 to-violet-600",
+  residentiel: "from-orange-500 to-amber-600",
+  commercial: "from-rose-500 to-pink-600",
   bureau: "from-cyan-500 to-cyan-600",
   mixte: "from-amber-500 to-amber-600",
 };

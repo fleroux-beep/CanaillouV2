@@ -81,7 +81,7 @@ export function FormDialog({
             )}
           >
             {/* Accent bar */}
-            <div className="h-1 w-full bg-gradient-to-r from-blue-500 to-violet-500" />
+            <div className="h-1 w-full bg-gradient-to-r from-orange-500 to-rose-500" />
 
             {/* Header */}
             <div className="flex items-start justify-between px-6 pt-5 pb-4">
@@ -119,7 +119,7 @@ export function FormDialog({
                       aria-disabled={loading}
                       whileHover={{ scale: 1.01 }}
                       whileTap={{ scale: 0.99 }}
-                      className="rounded-xl gradient-primary px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 disabled:opacity-50 transition-shadow hover:shadow-xl hover:shadow-blue-500/25"
+                      className="rounded-xl gradient-primary px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 disabled:opacity-50 transition-shadow hover:shadow-xl hover:shadow-orange-500/25"
                     >
                       {loading ? "Enregistrement..." : submitLabel}
                     </motion.button>

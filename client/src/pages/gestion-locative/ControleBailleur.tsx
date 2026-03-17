@@ -486,7 +486,7 @@ function SyntheseTab() {
                   className={`flex items-center gap-3 rounded-lg border px-4 py-3 ${
                     a.type === "danger" ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-900/20 dark:text-red-300" :
                     a.type === "warning" ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-900/20 dark:text-amber-300" :
-                    "border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-900 dark:bg-blue-900/20 dark:text-blue-300"
+                    "border-orange-200 bg-orange-50 text-orange-800 dark:border-orange-900 dark:bg-orange-900/20 dark:text-orange-300"
                   }`}
                 >
                   <AlertTriangle className="h-4 w-4 shrink-0" />

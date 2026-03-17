@@ -67,7 +67,7 @@ function EmpruntsTab() {
     <div className="space-y-6">
       <div className="flex justify-end">
         <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => { setEditing(null); setForm(empty); setDialogOpen(true); }}
-          className="flex items-center gap-2 rounded-lg gradient-primary px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/25">
+          className="flex items-center gap-2 rounded-lg gradient-primary px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-orange-500/25">
           <Plus className="h-4 w-4" /> Nouvel emprunt
         </motion.button>
       </div>

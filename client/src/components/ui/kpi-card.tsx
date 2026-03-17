@@ -20,7 +20,7 @@ interface KpiCardProps {
 
 const variantStyles: Record<Variant, string> = {
   default: "border-border/50",
-  primary: "border-blue-200/60 dark:border-blue-800/40",
+  primary: "border-orange-200/60 dark:border-orange-800/40",
   success: "border-emerald-200/60 dark:border-emerald-800/40",
   warning: "border-amber-200/60 dark:border-amber-800/40",
   danger: "border-red-200/60 dark:border-red-800/40",
@@ -36,7 +36,7 @@ const gradientStyles: Record<Variant, string> = {
 
 const iconColors: Record<Variant, string> = {
   default: "text-primary",
-  primary: "text-blue-600 dark:text-blue-400",
+  primary: "text-orange-600 dark:text-orange-400",
   success: "text-emerald-600 dark:text-emerald-400",
   warning: "text-amber-600 dark:text-amber-400",
   danger: "text-red-600 dark:text-red-400",
@@ -44,7 +44,7 @@ const iconColors: Record<Variant, string> = {
 
 const iconBgColors: Record<Variant, string> = {
   default: "bg-primary/8",
-  primary: "bg-blue-500/8 dark:bg-blue-400/10",
+  primary: "bg-orange-500/8 dark:bg-orange-400/10",
   success: "bg-emerald-500/8 dark:bg-emerald-400/10",
   warning: "bg-amber-500/8 dark:bg-amber-400/10",
   danger: "bg-red-500/8 dark:bg-red-400/10",
