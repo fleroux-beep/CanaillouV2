@@ -579,7 +579,8 @@ export async function ensureSchema() {
     await client.query("COMMIT");
     logger.info("database schema ensured");
   } catch (error: any) {
-    await client.query("ROLLBACK");
+    try { await client.query("ROLLBACK"); } catch (_) { /* ignore rollback error */ }
+    logger.error("ensure-schema error detail: " + String(error) + " | code=" + (error?.code ?? "none"));
     throw error;
   } finally {
     client.release();
