@@ -507,26 +507,50 @@ export async function importExcelData(): Promise<{
 
       const sciId = sciIds[sciName];
 
-      // Parse duration from emprunt name or data
+      // Parse duration, taux assurance, IRA from BDD rows
       let dureeAns: number | null = null;
-      // Try to get it from BDD rows
+      let dateFin: string | null = null;
+      let tauxAssurance: number | null = null;
+      let iraPercent: number | null = null;
       const sciRows = bddRows.filter((r) => r.sciName === sciName);
       for (const r of sciRows) {
-        if (r.banques?.includes(e.banque) && r.duree) {
-          const dMatch = r.duree.match(/(\d+)/);
-          if (dMatch) dureeAns = Number(dMatch[1]);
+        if (r.banques?.includes(e.banque)) {
+          if (r.duree) {
+            const dMatch = r.duree.match(/(\d+)/);
+            if (dMatch) dureeAns = Number(dMatch[1]);
+          }
+          if (r.dateFinEmprunt) dateFin = r.dateFinEmprunt;
+          if (r.tauxAssurance) {
+            const aMatch = r.tauxAssurance.match(/([\d.,]+)/);
+            if (aMatch) tauxAssurance = parseFloat(aMatch[1].replace(",", "."));
+          }
+          if (r.tauxIRA) {
+            const iMatch = r.tauxIRA.match(/([\d.,]+)/);
+            if (iMatch) iraPercent = parseFloat(iMatch[1].replace(",", "."));
+          }
           break;
         }
       }
 
-      // Calculate mensualité from yearly data if available
-      // We know yearly échéance from the Emprunts sheet
-      // Use capitalRestantDu2025 for current outstanding balance
+      // Fallback: calculate duree from dateDebut and dateFin
+      if (!dureeAns && e.dateDebut && dateFin) {
+        const start = new Date(e.dateDebut);
+        const end = new Date(dateFin);
+        const diffYears = (end.getTime() - start.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
+        if (diffYears > 0) dureeAns = Math.round(diffYears);
+      }
+
+      // Last resort: default 20 years for real estate loans
+      if (!dureeAns) dureeAns = 20;
+
+      // Calculate IRA amount from percentage if available
+      const iraAmount = iraPercent && e.montant ? (iraPercent / 100) * e.montant : null;
 
       await client.query(
         `INSERT INTO am_emprunts (id, sci_id, banque, montant_emprunte, capital_restant_du,
-         taux_annuel, duree_ans, date_debut, type_amortissement, notes, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), now())`,
+         taux_annuel, duree_ans, date_debut, date_fin, type_amortissement,
+         taux_assurance, ira, notes, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now(), now())`,
         [
           id(),
           sciId,
@@ -536,7 +560,10 @@ export async function importExcelData(): Promise<{
           e.taux * 100, // Convert from decimal to percentage
           dureeAns,
           e.dateDebut,
+          dateFin,
           "constant",
+          tauxAssurance,
+          iraAmount,
           `Prêt: ${e.nomPret}`,
         ]
       );
