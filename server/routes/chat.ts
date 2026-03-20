@@ -1,7 +1,10 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { requireAuth } from "../middleware/auth";
+import { rateLimit } from "../lib/rate-limit";
 import { logger } from "../lib/logger";
+
+const chatLimiter = rateLimit(30, 60 * 1000); // 30 messages per minute
 import {
   scis, actifs, emprunts, lots, bauxAM, associes, participations,
   bauxGL, bailleurs, paiementsGL, indices, locatairesGL,
@@ -217,7 +220,7 @@ Tu es un expert en asset management immobilier, gestion locative, et finance imm
 
 // ─── Route handler ──────────────────────────────────────────
 export function registerChatRoutes(app: Express) {
-  app.post("/api/chat", requireAuth, async (req: Request, res: Response) => {
+  app.post("/api/chat", requireAuth, chatLimiter, async (req: Request, res: Response) => {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
       return res.status(503).json({ error: "L'assistant IA n'est pas configuré. Ajoutez ANTHROPIC_API_KEY dans les variables d'environnement." });

@@ -29,6 +29,14 @@ export function formatPercent(value: number | string | null | undefined, decimal
   }).format(toSafeNumber(value)) + " %";
 }
 
+/** Format an ISO date string as JJ/MM/AAAA */
+export function formatDate(value: string | null | undefined): string {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return value; // Return raw string if unparsable
+  return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
 /** Format a number with French locale */
 export function formatNumber(value: number | string | null | undefined, decimals = 0): string {
   return new Intl.NumberFormat("fr-FR", {

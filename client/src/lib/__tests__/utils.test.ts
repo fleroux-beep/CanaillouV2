@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatCurrency, formatPercent, formatNumber } from "../utils";
+import { formatCurrency, formatPercent, formatNumber, formatDate } from "../utils";
 
 describe("formatCurrency", () => {
   it("formats positive numbers", () => {
@@ -67,5 +67,31 @@ describe("formatNumber", () => {
   it("respects decimals", () => {
     const result = formatNumber(1234.567, 2);
     expect(result).toMatch(/1[\s\u202f\u00a0]234,57/);
+  });
+});
+
+describe("formatDate", () => {
+  it("formats ISO date as JJ/MM/AAAA", () => {
+    expect(formatDate("2024-03-15")).toBe("15/03/2024");
+  });
+
+  it("formats ISO datetime", () => {
+    expect(formatDate("2024-12-25T10:30:00Z")).toBe("25/12/2024");
+  });
+
+  it("returns dash for null", () => {
+    expect(formatDate(null)).toBe("—");
+  });
+
+  it("returns dash for undefined", () => {
+    expect(formatDate(undefined)).toBe("—");
+  });
+
+  it("returns dash for empty string", () => {
+    expect(formatDate("")).toBe("—");
+  });
+
+  it("returns raw string for unparsable date", () => {
+    expect(formatDate("not-a-date")).toBe("not-a-date");
   });
 });

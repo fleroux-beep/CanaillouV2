@@ -579,13 +579,13 @@ export default function ValorisationPage() {
                       <td className="px-4 py-3 text-muted-foreground">{a.sciNom}</td>
                       <td className="px-4 py-3 text-right">{a.surface > 0 ? `${a.surface.toFixed(0)} m²` : "—"}</td>
                       <td className="px-4 py-3 text-right">{formatCurrency(a.prixAcquisition)}</td>
-                      <td className="px-4 py-3 text-right text-muted-foreground">{a.tauxCapi > 0 ? `${a.tauxCapi.toFixed(1)}%` : "—"}</td>
+                      <td className="px-4 py-3 text-right text-muted-foreground">{a.tauxCapi > 0 ? formatPercent(a.tauxCapi) : "—"}</td>
                       <td className="px-4 py-3 text-right text-purple-600">{a.valeurCapitalisation > 0 ? formatCurrency(a.valeurCapitalisation) : "—"}</td>
                       <td className="px-4 py-3 text-right text-cyan-600">{a.valeurComparables > 0 ? formatCurrency(a.valeurComparables) : "—"}</td>
                       <td className="px-4 py-3 text-right font-medium">{formatCurrency(a.valeurEstimee)}</td>
                       <td className={`px-4 py-3 text-right font-medium ${a.plusValue >= 0 ? "text-green-600" : "text-red-500"}`}>
                         {a.plusValue >= 0 ? "+" : ""}{formatCurrency(a.plusValue)}
-                        <span className="ml-1 text-xs opacity-70">({a.plusValuePct >= 0 ? "+" : ""}{a.plusValuePct.toFixed(1)}%)</span>
+                        <span className="ml-1 text-xs opacity-70">({a.plusValuePct >= 0 ? "+" : ""}{formatPercent(a.plusValuePct)})</span>
                       </td>
                       <td className={`px-4 py-3 text-right font-medium ${a.rendementNet > 5 ? "text-green-600" : a.rendementNet > 3 ? "text-amber-600" : "text-red-500"}`}>
                         {formatPercent(a.rendementNet)}

@@ -2,13 +2,19 @@ import type { Express } from "express";
 import { db } from "../db";
 import { scis, associes, participations, actifs, lots, locatairesAM, bauxAM, emprunts, travaux, documentsAM } from "@shared/schema";
 import { eq, desc, count, isNull, and } from "drizzle-orm";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, requireWriteAdmin } from "../middleware/auth";
 import { validate, amSchemas } from "../lib/validation";
 import { logger } from "../lib/logger";
 
-function paramId(req: any): string {
-  const id = req.params.id;
-  return Array.isArray(id) ? id[0] : id;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function paramId(req: any, res?: any): string {
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  if (res && !UUID_RE.test(id)) {
+    res.status(400).json({ error: "ID invalide" });
+    return "";
+  }
+  return id;
 }
 
 // Generic CRUD factory with Zod validation
@@ -39,7 +45,7 @@ function registerCrud(app: Express, path: string, table: any) {
     }
   });
 
-  app.post(`/api/am/${path}`, requireAuth, ...(schema ? [validate(schema)] : []), async (req: any, res: any) => {
+  app.post(`/api/am/${path}`, requireWriteAdmin, ...(schema ? [validate(schema)] : []), async (req: any, res: any) => {
     try {
       const rows = await db.insert(table).values(req.body).returning() as any[];
       res.status(201).json(rows[0]);
@@ -49,7 +55,7 @@ function registerCrud(app: Express, path: string, table: any) {
     }
   });
 
-  app.patch(`/api/am/${path}/:id`, requireAuth, ...(schema ? [validate(schema.partial())] : []), async (req: any, res: any) => {
+  app.patch(`/api/am/${path}/:id`, requireWriteAdmin, ...(schema ? [validate(schema.partial())] : []), async (req: any, res: any) => {
     try {
       const updateData = "updatedAt" in table
         ? { ...req.body, updatedAt: new Date() }
@@ -67,7 +73,7 @@ function registerCrud(app: Express, path: string, table: any) {
     }
   });
 
-  app.delete(`/api/am/${path}/:id`, requireAuth, async (req: any, res: any) => {
+  app.delete(`/api/am/${path}/:id`, requireWriteAdmin, async (req: any, res: any) => {
     try {
       const id = paramId(req);
       const now = new Date();

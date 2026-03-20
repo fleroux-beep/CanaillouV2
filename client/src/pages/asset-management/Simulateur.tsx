@@ -256,13 +256,13 @@ export default function SimulateurPage() {
               <GlassCard delay={0}>
                 <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4" />
-                  Scenarios de stress
+                  Scénarios de stress
                 </h3>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b bg-muted/30">
-                        <th className="px-4 py-3 text-left font-semibold">Scenario</th>
+                        <th className="px-4 py-3 text-left font-semibold">Scénario</th>
                         <th className="px-4 py-3 text-right font-semibold">Loyers</th>
                         <th className="px-4 py-3 text-right font-semibold">Charges</th>
                         <th className="px-4 py-3 text-right font-semibold">NOI</th>
@@ -475,7 +475,7 @@ export default function SimulateurPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b bg-muted/30">
-                        <th className="px-3 py-2 text-left font-semibold">Scenario</th>
+                        <th className="px-3 py-2 text-left font-semibold">Scénario</th>
                         <th className="px-3 py-2 text-right font-semibold">Rdt net</th>
                         <th className="px-3 py-2 text-right font-semibold">LTV</th>
                         <th className="px-3 py-2 text-right font-semibold">DSCR</th>

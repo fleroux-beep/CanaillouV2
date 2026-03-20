@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "../../lib/queryClient";
 import { motion, AnimatePresence } from "framer-motion";
-import { formatCurrency } from "../../lib/utils";
+import { formatCurrency, formatDate } from "../../lib/utils";
 import { KpiCard } from "../../components/ui/kpi-card";
 import { GlassCard } from "../../components/ui/glass-card";
 import { PageHeader } from "../../components/ui/page-header";
@@ -251,8 +251,8 @@ export default function BailGLDetailPage() {
               label="Capacité (berceaux)"
               value={bail.capacite != null ? String(bail.capacite) : "—"}
             />
-            <InfoRow label="Date signature" value={bail.dateSignature || "—"} />
-            <InfoRow label="Date effet" value={bail.dateEffet || "—"} />
+            <InfoRow label="Date signature" value={formatDate(bail.dateSignature)} />
+            <InfoRow label="Date effet" value={formatDate(bail.dateEffet)} />
             <InfoRow
               label="Statut"
               value={
@@ -277,15 +277,15 @@ export default function BailGLDetailPage() {
             Dates & Périodes
           </h3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <InfoRow label="Date début" value={bail.dateDebut || "—"} />
-            <InfoRow label="Date fin" value={bail.dateFin || "—"} />
+            <InfoRow label="Date début" value={formatDate(bail.dateDebut)} />
+            <InfoRow label="Date fin" value={formatDate(bail.dateFin)} />
             <InfoRow
               label="Période ferme début"
-              value={bail.periodeFermeDebut || "—"}
+              value={formatDate(bail.periodeFermeDebut)}
             />
             <InfoRow
               label="Période ferme fin"
-              value={bail.periodeFermeFin || "—"}
+              value={formatDate(bail.periodeFermeFin)}
             />
             <InfoRow
               label="Durée période ferme"
@@ -515,7 +515,7 @@ export default function BailGLDetailPage() {
                         className="border-b last:border-0 hover:bg-muted/50 transition-colors"
                       >
                         <td className="py-3">
-                          {p.date || p.datePaiement || "—"}
+                          {formatDate(p.date || p.datePaiement)}
                         </td>
                         <td className="py-3 text-right font-medium">
                           {p.montant ? formatCurrency(p.montant) : "—"}

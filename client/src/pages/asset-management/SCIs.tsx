@@ -42,8 +42,8 @@ export default function SCIsPage() {
     { key: "nom", label: "Nom", sortable: true, render: (r) => <span className="font-medium">{r.nom}</span> },
     { key: "formeJuridique", label: "Forme", sortable: true, render: (r) => r.formeJuridique ? <Badge variant="primary">{r.formeJuridique}</Badge> : "—" },
     { key: "capital", label: "Capital", align: "right", sortable: true, render: (r) => r.capital ? formatCurrency(r.capital) : "—" },
-    { key: "regimeFiscal", label: "Regime", sortable: true },
-    { key: "gerant", label: "Gerant", sortable: true },
+    { key: "regimeFiscal", label: "Régime", sortable: true },
+    { key: "gerant", label: "Gérant", sortable: true },
     { key: "ville", label: "Ville", sortable: true },
     {
       key: "actions", label: "", align: "right",
@@ -118,13 +118,13 @@ export default function SCIsPage() {
             { value: "SAS", label: "SAS" },
           ]} />
           <FormField label="Capital" name="capital" value={form.capital} onChange={onChange} type="number" suffix="EUR" />
-          <FormField label="Regime fiscal" name="regimeFiscal" value={form.regimeFiscal} onChange={onChange} options={[
+          <FormField label="Régime fiscal" name="regimeFiscal" value={form.regimeFiscal} onChange={onChange} options={[
             { value: "IR", label: "IR (transparence)" },
             { value: "IS", label: "IS (opaque)" },
           ]} />
           <FormField label="SIRET" name="siret" value={form.siret} onChange={onChange} />
           <FormField label="Date creation" name="dateCreation" value={form.dateCreation} onChange={onChange} type="date" />
-          <FormField label="Gerant" name="gerant" value={form.gerant} onChange={onChange} />
+          <FormField label="Gérant" name="gerant" value={form.gerant} onChange={onChange} />
           <FormField label="Expert comptable" name="expertComptable" value={form.expertComptable} onChange={onChange} />
           <FormField label="Banque" name="banque" value={form.banque} onChange={onChange} />
           <FormField label="IBAN" name="iban" value={form.iban} onChange={onChange} />

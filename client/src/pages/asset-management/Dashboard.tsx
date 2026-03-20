@@ -247,7 +247,7 @@ export default function AMDashboard() {
                 label="DSCR" value={dscr}
                 formatFn={(n) => n > 0 ? n.toFixed(2) + "x" : "N/A"}
                 icon={Shield}
-                variant={dscr >= 1.2 ? "success" : dscr > 0 ? "danger" : "default"}
+                variant={dscr >= 1.4 ? "success" : dscr >= 1.2 ? "primary" : dscr >= 1.0 ? "warning" : dscr > 0 ? "danger" : "default"}
                 delay={8} metricKey="dscr"
               />
             </div>

@@ -247,37 +247,6 @@ export default function GLKPIPage() {
           />
         </div>
 
-        {/* Other KPIs */}
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <KpiCard
-            label="Charges / m²"
-            value={chargesMoyennesM2}
-            formatFn={(n) => n > 0 ? `${formatCurrency(n)}/m²` : "N/A"}
-            icon={PiggyBank}
-            delay={12}
-          />
-          <KpiCard
-            label="Taxe foncière totale"
-            value={totalTaxeFonciere}
-            formatFn={formatCurrency}
-            icon={Calculator}
-            delay={13}
-          />
-          <KpiCard
-            label="Charges / berceau"
-            value={chargesParBerceau}
-            formatFn={(n) => n > 0 ? `${formatCurrency(n)}/berc.` : "N/A"}
-            icon={PiggyBank}
-            delay={14}
-          />
-          <KpiCard
-            label="Surface / berceau"
-            value={surfaceParBerceau}
-            formatFn={(n) => n > 0 ? `${formatNumber(n)} m²/berc.` : "N/A"}
-            icon={Building2}
-            delay={15}
-          />
-        </div>
 
         {/* Lease expiry profile */}
         {expiryProfile.length > 0 && (

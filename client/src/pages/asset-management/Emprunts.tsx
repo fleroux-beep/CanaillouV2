@@ -55,7 +55,7 @@ function EmpruntsTab() {
       const annuite = getAnnuiteEmprunt(r as unknown as AMEmprunt);
       return annuite > 0 ? annuite.toFixed(2) : "";
     }},
-    { key: "tauxAssurance", label: "Taux assur.", align: "right", sortable: true, render: (r) => r.tauxAssurance ? `${r.tauxAssurance}%` : "—" },
+    { key: "tauxAssurance", label: "Taux assur.", align: "right", sortable: true, render: (r) => r.tauxAssurance ? formatPercent(r.tauxAssurance) : "—" },
     { key: "ira", label: "IRA", align: "right", sortable: true, render: (r) => r.ira ? formatCurrency(r.ira) : "—" },
     { key: "dateFin", label: "Échéance", sortable: true },
     { key: "actions", label: "", align: "right", render: (r) => (
@@ -234,12 +234,12 @@ function CoutCreditTab() {
                     <td className="px-4 py-3 font-medium">{c.banque}</td>
                     <td className="px-4 py-3">{c.sci}</td>
                     <td className="px-4 py-3 text-right">{formatCurrency(c.montant)}</td>
-                    <td className="px-4 py-3 text-right">{c.taux.toFixed(2)}%</td>
+                    <td className="px-4 py-3 text-right">{formatPercent(c.taux, 2)}</td>
                     <td className="px-4 py-3 text-right">{c.duree > 0 ? `${Math.round(c.duree / 12)} ans` : "—"}</td>
                     <td className="px-4 py-3 text-right text-red-600">{formatCurrency(c.coutInterets)}</td>
                     <td className="px-4 py-3 text-right text-amber-600">{formatCurrency(c.coutAssurance)}</td>
                     <td className="px-4 py-3 text-right font-semibold text-red-600">{formatCurrency(c.coutTotal)}</td>
-                    <td className="px-4 py-3 text-right">{c.taeg.toFixed(2)}%</td>
+                    <td className="px-4 py-3 text-right">{formatPercent(c.taeg, 2)}</td>
                   </tr>
                 ))}
               </tbody>

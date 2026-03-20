@@ -6,13 +6,19 @@ import {
   avenantsGL, renouvellementsGL, documentsGL, indices,
 } from "@shared/schema";
 import { eq, desc, count, isNotNull, isNull, and } from "drizzle-orm";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, requireWriteAdmin } from "../middleware/auth";
 import { validate, glSchemas } from "../lib/validation";
 import { logger } from "../lib/logger";
 
-function paramId(req: any): string {
-  const id = req.params.id;
-  return Array.isArray(id) ? id[0] : id;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function paramId(req: any, res?: any): string {
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  if (res && !UUID_RE.test(id)) {
+    res.status(400).json({ error: "ID invalide" });
+    return "";
+  }
+  return id;
 }
 
 function registerCrud(app: Express, path: string, table: any) {
@@ -42,7 +48,7 @@ function registerCrud(app: Express, path: string, table: any) {
     }
   });
 
-  app.post(`/api/gl/${path}`, requireAuth, ...(schema ? [validate(schema)] : []), async (req: any, res: any) => {
+  app.post(`/api/gl/${path}`, requireWriteAdmin, ...(schema ? [validate(schema)] : []), async (req: any, res: any) => {
     try {
       const rows = await db.insert(table).values(req.body).returning() as any[];
       res.status(201).json(rows[0]);
@@ -52,7 +58,7 @@ function registerCrud(app: Express, path: string, table: any) {
     }
   });
 
-  app.patch(`/api/gl/${path}/:id`, requireAuth, ...(schema ? [validate(schema.partial())] : []), async (req: any, res: any) => {
+  app.patch(`/api/gl/${path}/:id`, requireWriteAdmin, ...(schema ? [validate(schema.partial())] : []), async (req: any, res: any) => {
     try {
       const updateData = table.updatedAt
         ? { ...req.body, updatedAt: new Date() }
@@ -66,13 +72,25 @@ function registerCrud(app: Express, path: string, table: any) {
     }
   });
 
-  app.delete(`/api/gl/${path}/:id`, requireAuth, async (req: any, res: any) => {
+  app.delete(`/api/gl/${path}/:id`, requireWriteAdmin, async (req: any, res: any) => {
     try {
+      const id = paramId(req);
+
+      // Prevent deleting a bailleur that still has linked baux
+      if (path === "bailleurs") {
+        const linkedBaux = await db.select({ id: bauxGL.id }).from(bauxGL)
+          .where(and(eq(bauxGL.bailleurId, id), isNull(bauxGL.deletedAt)))
+          .limit(1);
+        if (linkedBaux.length > 0) {
+          return res.status(409).json({ error: "Impossible de supprimer ce bailleur : des baux y sont encore liés" });
+        }
+      }
+
       const hasDeletedAt = "deletedAt" in table;
       if (hasDeletedAt) {
-        await db.update(table).set({ deletedAt: new Date() }).where(eq(table.id, paramId(req)));
+        await db.update(table).set({ deletedAt: new Date() }).where(eq(table.id, id));
       } else {
-        await db.delete(table).where(eq(table.id, paramId(req)));
+        await db.delete(table).where(eq(table.id, id));
       }
       res.json({ ok: true });
     } catch (error: any) {
@@ -99,7 +117,9 @@ export function registerGLRoutes(app: Express) {
   // Get all baux for a bailleur
   app.get("/api/gl/bailleurs/:id/baux", requireAuth, async (req: any, res: any) => {
     try {
-      const rows = await db.select().from(bauxGL).where(eq(bauxGL.bailleurId, paramId(req)));
+      const rows = await db.select().from(bauxGL).where(
+        and(eq(bauxGL.bailleurId, paramId(req)), isNull(bauxGL.deletedAt))
+      );
       res.json(rows);
     } catch (error: any) {
       logger.error("route error", { error: error.message });
@@ -130,7 +150,7 @@ export function registerGLRoutes(app: Express) {
   app.get("/api/gl/stats", requireAuth, async (_req: any, res: any) => {
     try {
       const [cntBaux, cntBailleurs, cntLocataires] = await Promise.all([
-        db.select({ value: count() }).from(bauxGL).where(eq(bauxGL.archived, false)),
+        db.select({ value: count() }).from(bauxGL).where(and(eq(bauxGL.archived, false), isNull(bauxGL.deletedAt))),
         db.select({ value: count() }).from(bailleurs),
         db.select({ value: count() }).from(locatairesGL),
       ]);

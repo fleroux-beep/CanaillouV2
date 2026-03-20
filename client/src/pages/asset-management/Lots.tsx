@@ -6,7 +6,7 @@ import { ConfirmDialog } from "../../components/ui/confirm-dialog";
 import { FormField, FormGrid } from "../../components/ui/form-field";
 import { PageHeader } from "../../components/ui/page-header";
 import { Badge } from "../../components/ui/badge";
-import { formatCurrency } from "../../lib/utils";
+import { formatCurrency, formatNumber } from "../../lib/utils";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -26,11 +26,11 @@ export default function LotsPage() {
   const actifMap = Object.fromEntries(actifs.map((a) => [a.id, a.nom]));
 
   const columns: Column<Lot>[] = [
-    { key: "designation", label: "Designation", sortable: true, render: (r) => <span className="font-medium">{r.designation}</span> },
+    { key: "designation", label: "Désignation", sortable: true, render: (r) => <span className="font-medium">{r.designation}</span> },
     { key: "actifId", label: "Actif", sortable: true, render: (r) => r.actifId ? <Badge variant="primary">{actifMap[r.actifId] || "—"}</Badge> : "—", exportValue: (r) => r.actifId ? actifMap[r.actifId] || "" : "" },
     { key: "type", label: "Type", sortable: true, render: (r) => r.type ? <Badge>{r.type}</Badge> : "—" },
     { key: "etage", label: "Étage", sortable: true },
-    { key: "surface", label: "Surface", align: "right", sortable: true, render: (r) => r.surface ? `${r.surface} m²` : "—" },
+    { key: "surface", label: "Surface", align: "right", sortable: true, render: (r) => r.surface ? `${formatNumber(r.surface)} m²` : "—" },
     { key: "statut", label: "Statut", sortable: true, render: (r) => (
       <Badge variant={r.statut?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === "loue" ? "success" : r.statut === "vacant" ? "warning" : "default"}>
         {r.statut || "—"}

@@ -35,15 +35,19 @@ export default function BauxGLPage() {
     { key: "loyerTTC", label: "Loyer TTC", align: "right", sortable: true, render: (r) => {
       const ht = Number(r.loyerHTActu || r.loyerBaseHT || 0);
       if (ht <= 0) return "—";
-      if (r.taxe === "TVA" && r.tvaTaux) {
-        return formatCurrency(ht * (1 + Number(r.tvaTaux) / 100));
+      const tva = Number(r.tvaTaux || 20);
+      if (r.taxe === "TVA") {
+        return formatCurrency(ht * (1 + tva / 100));
       }
-      if (r.taxe === "CRL") return <span>{formatCurrency(ht)} <span className="text-xs text-muted-foreground">(CRL)</span></span>;
+      if (r.taxe === "CRL") {
+        const crl = ht * 0.025;
+        return <span>{formatCurrency(ht)} <span className="text-xs text-muted-foreground">(+{formatCurrency(crl)} CRL)</span></span>;
+      }
       return formatCurrency(ht);
     }},
-    { key: "taxe", label: "Regime fiscal", render: (r) => {
+    { key: "taxe", label: "Régime fiscal", render: (r) => {
       if (r.taxe === "TVA") return <Badge variant="primary">TVA {r.tvaTaux || 20}%</Badge>;
-      if (r.taxe === "CRL") return <Badge variant="warning">CRL</Badge>;
+      if (r.taxe === "CRL") return <Badge variant="warning">CRL 2,5%</Badge>;
       return "—";
     }},
     { key: "surface", label: "Surface", align: "right", render: (r) => r.surface ? `${r.surface} m²` : "—" },
