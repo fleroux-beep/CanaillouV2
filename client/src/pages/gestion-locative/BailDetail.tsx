@@ -121,7 +121,7 @@ export default function BailGLDetailPage() {
   // Dialog state for avenants
   const [avenantDialogOpen, setAvenantDialogOpen] = useState(false);
   const [editingAvenant, setEditingAvenant] = useState<Avenant | null>(null);
-  const [avenantForm, setAvenantForm] = useState<Partial<Avenant>>({ bailId: params.id, dateEffet: "", champsModifies: "", titre: "", notes: "", dateSignature: "" });
+  const [avenantForm, setAvenantForm] = useState<Partial<Avenant> & { nouveauLoyerHT?: string }>({ bailId: params.id, dateEffet: "", champsModifies: "", titre: "", notes: "", dateSignature: "", nouveauLoyerHT: "" });
   const [deleteAvenantId, setDeleteAvenantId] = useState<string | null>(null);
 
   // Dialog state for renouvellements
@@ -135,13 +135,27 @@ export default function BailGLDetailPage() {
 
   const handleAvenantSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const { nouveauLoyerHT, ...avenantData } = avenantForm;
     if (editingAvenant) {
-      await updateAvenant.mutateAsync({ ...avenantForm, id: editingAvenant.id } as any);
+      await updateAvenant.mutateAsync({ ...avenantData, id: editingAvenant.id } as any);
     } else {
-      await createAvenant.mutateAsync({ ...avenantForm, bailId: params.id });
+      await createAvenant.mutateAsync({ ...avenantData, bailId: params.id });
+    }
+    // If a new rent was specified, propagate it to the bail
+    if (nouveauLoyerHT && Number(nouveauLoyerHT) > 0) {
+      await updateBail.mutateAsync({ loyerHTActu: nouveauLoyerHT });
     }
     setAvenantDialogOpen(false);
   };
+
+  const updateBail = useMutation({
+    mutationFn: (data: Record<string, unknown>) =>
+      apiRequest(`/api/gl/baux/${params.id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/gl/baux/${params.id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/gl/baux"] });
+    },
+  });
 
   const handleRenouvelSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,6 +163,10 @@ export default function BailGLDetailPage() {
       await updateRenouvellement.mutateAsync({ ...renouvelForm, id: editingRenouvel.id } as any);
     } else {
       await createRenouvellement.mutateAsync({ ...renouvelForm, bailId: params.id });
+    }
+    // Propagate the new end date to the bail itself
+    if (renouvelForm.nouvelleDateFin) {
+      await updateBail.mutateAsync({ dateFin: renouvelForm.nouvelleDateFin });
     }
     setRenouvelDialogOpen(false);
   };
@@ -606,7 +624,7 @@ export default function BailGLDetailPage() {
                 whileTap={{ scale: 0.98 }}
                 onClick={() => {
                   setEditingAvenant(null);
-                  setAvenantForm({ bailId: params.id, dateEffet: "", champsModifies: "", titre: "", notes: "", dateSignature: "" });
+                  setAvenantForm({ bailId: params.id, dateEffet: "", champsModifies: "", titre: "", notes: "", dateSignature: "", nouveauLoyerHT: "" });
                   setAvenantDialogOpen(true);
                 }}
                 className="flex items-center gap-2 rounded-lg gradient-primary px-3 py-1.5 text-xs font-semibold text-white shadow-lg shadow-orange-500/25"
@@ -739,6 +757,10 @@ export default function BailGLDetailPage() {
           <FormGrid cols={2}>
             <FormField label="Date de signature" name="dateSignature" value={avenantForm.dateSignature} onChange={onAvenantChange} type="date" />
             <FormField label="Champs modifiés" name="champsModifies" value={avenantForm.champsModifies} onChange={onAvenantChange} required placeholder="Ex: Loyer HT, charges, surface" />
+          </FormGrid>
+          <FormGrid cols={2}>
+            <FormField label="Nouveau loyer HT (optionnel)" name="nouveauLoyerHT" value={avenantForm.nouveauLoyerHT} onChange={onAvenantChange} type="number" placeholder="Sera appliqué au bail" />
+            <div />
           </FormGrid>
           <FormField label="Notes / Détails" name="notes" value={avenantForm.notes} onChange={onAvenantChange} rows={3} className="mt-4" placeholder="Détails de l'avenant : modifications apportées, motifs, conditions..." />
         </FormDialog>

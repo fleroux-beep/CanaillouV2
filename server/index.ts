@@ -16,9 +16,15 @@ import { registerImportRoutes } from "./routes/import";
 import { registerChatRoutes } from "./routes/chat";
 import { logger, requestLogger } from "./lib/logger";
 import { requireAdmin } from "./middleware/auth";
+import helmet from "helmet";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
+
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: false, // Disabled to allow inline scripts from Vite in dev
+}));
 const PORT = Number(process.env.PORT) || 5000;
 
 // Logging
@@ -130,17 +136,23 @@ app.use((err: any, _req: any, res: any, _next: any) => {
 
 // Seed default admin user if none exists (throws on failure for retry logic)
 async function seedAdminUser() {
-  const existing = await db.select().from(users).where(eq(users.email, "fleroux@lespetitescanailles.fr")).limit(1);
+  const adminEmail = process.env.ADMIN_EMAIL || "admin@canaillou.local";
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  if (!adminPassword) {
+    logger.warn("ADMIN_PASSWORD env var not set — skipping admin seed");
+    return;
+  }
+  const existing = await db.select().from(users).where(eq(users.email, adminEmail)).limit(1);
   if (existing.length === 0) {
-    const hashed = await bcrypt.hash("LPC040411", 10);
+    const hashed = await bcrypt.hash(adminPassword, 12);
     await db.insert(users).values({
-      email: "fleroux@lespetitescanailles.fr",
+      email: adminEmail,
       password: hashed,
-      firstName: "Fleroux",
+      firstName: process.env.ADMIN_FIRST_NAME || "Admin",
       role: "admin",
       isApproved: true,
     });
-    logger.info("admin user created");
+    logger.info("admin user created", { email: adminEmail });
   }
 }
 

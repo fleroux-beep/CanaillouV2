@@ -92,9 +92,11 @@ export default function GLKPIPage() {
       const dateFin = (b as any).dateFin;
       if (loyer > 0 && dateFin) {
         const fin = new Date(dateFin);
-        const yearsLeft = Math.max(0, (fin.getTime() - now.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-        weightedSum += yearsLeft * loyer;
-        totalWeight += loyer;
+        if (!isNaN(fin.getTime())) {
+          const yearsLeft = Math.max(0, (fin.getTime() - now.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+          weightedSum += yearsLeft * loyer;
+          totalWeight += loyer;
+        }
       }
     }
     return totalWeight > 0 ? weightedSum / totalWeight : 0;

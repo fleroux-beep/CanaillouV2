@@ -25,7 +25,7 @@ export default function IndicesPage() {
 
   const updateBail = useMutation({
     mutationFn: (payload: { id: string; loyerHTActu: string }) =>
-      apiRequest(`/api/gl/baux/${payload.id}`, { method: "PUT", body: JSON.stringify(payload) }),
+      apiRequest(`/api/gl/baux/${payload.id}`, { method: "PATCH", body: JSON.stringify(payload) }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/gl/baux"] }),
   });
 

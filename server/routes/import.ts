@@ -6,7 +6,7 @@ import {
 import {
   bailleurs, bauxGL, locatairesGL, paiementsGL, facturesGL, indices,
 } from "@shared/schema";
-import { requireAuth } from "../middleware/auth";
+import { requireAdmin } from "../middleware/auth";
 import { logger } from "../lib/logger";
 
 // Map module + entity name to Drizzle table
@@ -32,7 +32,7 @@ const tableMap: Record<string, Record<string, any>> = {
 };
 
 export function registerImportRoutes(app: Express) {
-  app.post("/api/import/:module/:entity", requireAuth, async (req: any, res: any) => {
+  app.post("/api/import/:module/:entity", requireAdmin, async (req: any, res: any) => {
     try {
       const moduleName = req.params.module as string;
       const entity = req.params.entity as string;

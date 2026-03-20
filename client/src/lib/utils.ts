@@ -21,9 +21,12 @@ export function formatCurrency(value: number | string | null | undefined): strin
   }).format(toSafeNumber(value));
 }
 
-/** Format a number as percentage */
+/** Format a number as percentage (French locale: comma separator) */
 export function formatPercent(value: number | string | null | undefined, decimals = 1): string {
-  return `${toSafeNumber(value).toFixed(Math.max(0, decimals))} %`;
+  return new Intl.NumberFormat("fr-FR", {
+    minimumFractionDigits: Math.max(0, decimals),
+    maximumFractionDigits: Math.max(0, decimals),
+  }).format(toSafeNumber(value)) + " %";
 }
 
 /** Format a number with French locale */

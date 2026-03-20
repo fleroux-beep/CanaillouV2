@@ -201,23 +201,28 @@ export function getCapitalRestantDu(emprunt: AMEmprunt): number {
 
 /** Annuité d'un emprunt.
  * Si mensualité connue : mensualité × 12.
- * Sinon : calcul actuariel à partir de montant, taux et durée.
+ * Sinon : calcul actuariel mensuel à partir de montant, taux et durée.
+ * Formule mensuelle : M = P × [r_m(1+r_m)^n_m] / [(1+r_m)^n_m - 1]
+ * où r_m = taux annuel / 12, n_m = durée en mois.
  */
 export function getAnnuiteEmprunt(emprunt: AMEmprunt): number {
   const mensualite = Number(emprunt?.mensualite || 0);
   if (mensualite > 0) return mensualite * 12;
 
-  // Calcul actuariel si données disponibles
+  // Calcul actuariel mensuel si données disponibles
   const montant = Number(emprunt?.montantEmprunte || 0);
-  const taux = Number(emprunt?.tauxAnnuel || 0) / 100;
-  const duree = Number(emprunt?.dureeAns || 0);
+  const tauxAnnuel = Number(emprunt?.tauxAnnuel || 0) / 100;
+  const dureeAns = Number(emprunt?.dureeAns || 0);
 
-  if (montant <= 0 || duree <= 0) return 0;
-  if (taux <= 0) return montant / duree; // Taux 0% : linéaire
+  if (montant <= 0 || dureeAns <= 0) return 0;
+  if (tauxAnnuel <= 0) return montant / dureeAns; // Taux 0% : linéaire
 
-  // Formule actuarielle : A = P × [r(1+r)^n] / [(1+r)^n - 1]
-  const factor = Math.pow(1 + taux, duree);
-  return montant * (taux * factor) / (factor - 1);
+  // Pas mensuel : r_m = taux annuel / 12, n = durée en mois
+  const tauxMensuel = tauxAnnuel / 12;
+  const nbMois = dureeAns * 12;
+  const factor = Math.pow(1 + tauxMensuel, nbMois);
+  const mensualiteCalc = montant * (tauxMensuel * factor) / (factor - 1);
+  return mensualiteCalc * 12;
 }
 
 /** Service de la dette annuel pour une liste d'emprunts */
@@ -387,38 +392,47 @@ export function computeAmortSchedule(emprunt: AMEmprunt): AmortRow[] {
 
   if (montant <= 0 || duree <= 0) return [];
 
-  let annuite: number;
+  // Calcul de la mensualité (pas mensuel pour précision bancaire)
+  let mensu: number;
   if (mensualite > 0) {
-    annuite = mensualite * 12;
+    mensu = mensualite;
   } else if (taux > 0) {
-    // Formule actuarielle : A = P × [r(1+r)^n] / [(1+r)^n - 1]
-    const factor = Math.pow(1 + taux, duree);
-    annuite = montant * (taux * factor) / (factor - 1);
+    // Formule actuarielle mensuelle : M = P × [r_m(1+r_m)^n_m] / [(1+r_m)^n_m - 1]
+    const tauxMensuel = taux / 12;
+    const nbMois = duree * 12;
+    const factor = Math.pow(1 + tauxMensuel, nbMois);
+    mensu = montant * (tauxMensuel * factor) / (factor - 1);
   } else {
     // Taux 0% : amortissement linéaire
-    annuite = montant / duree;
+    mensu = montant / (duree * 12);
   }
 
   const assuranceAnnuelle = assuranceMensuelle * 12;
   const rows: AmortRow[] = [];
   let capital = montant;
+  const tauxMensuel = taux / 12;
 
   for (let y = 1; y <= duree && capital > 0.01; y++) {
-    const interets = capital * taux;
-    const capitalAmorti = Math.min(capital, annuite - interets);
-    const capitalFin = Math.max(0, capital - capitalAmorti);
-    const annuiteEffective = Math.min(annuite, capital + interets);
+    let interetsAn = 0;
+    let capitalAmortiAn = 0;
+    for (let m = 0; m < 12 && capital > 0.01; m++) {
+      const interetsMois = capital * tauxMensuel;
+      const capitalMois = Math.min(capital, mensu - interetsMois);
+      interetsAn += interetsMois;
+      capitalAmortiAn += capitalMois;
+      capital = Math.max(0, capital - capitalMois);
+    }
+    const annuiteEffective = interetsAn + capitalAmortiAn;
     rows.push({
       year: y,
-      capitalDebut: capital,
+      capitalDebut: capital + capitalAmortiAn,
       annuite: annuiteEffective,
-      interets,
-      capitalAmorti,
-      capitalFin,
+      interets: interetsAn,
+      capitalAmorti: capitalAmortiAn,
+      capitalFin: capital,
       assurance: assuranceAnnuelle,
       totalAnnuel: annuiteEffective + assuranceAnnuelle,
     });
-    capital = capitalFin;
   }
   return rows;
 }
@@ -526,8 +540,11 @@ export function computeStressTests(
         if (tauxStresse <= 0) {
           debtServiceAjuste += montant / duree;
         } else {
-          const factor = Math.pow(1 + tauxStresse, duree);
-          debtServiceAjuste += montant * (tauxStresse * factor) / (factor - 1);
+          // Formule mensuelle cohérente avec getAnnuiteEmprunt
+          const tauxMensuelStresse = tauxStresse / 12;
+          const nbMois = duree * 12;
+          const factor = Math.pow(1 + tauxMensuelStresse, nbMois);
+          debtServiceAjuste += (montant * (tauxMensuelStresse * factor) / (factor - 1)) * 12;
         }
       }
     }
