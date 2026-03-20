@@ -42,52 +42,9 @@ export default function GLDashboard() {
   const baux = toArray(rawBaux);
   const bailleurs = toArray(rawBailleurs);
   const paiements = toArray(rawPaiements);
+  const isLoading = l1 || l2 || l3;
   const hasError = e1 || e2 || e3;
   const errorDetail = [err1, err2, err3].filter(Boolean).map((e: any) => e?.message).join(" | ");
-
-  if (l1 || l2 || l3) {
-    return (
-      <div className="space-y-8">
-        <PageHeader title="Gestion Locative" description="Chargement des données..." />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => <SkeletonKpi key={i} />)}
-        </div>
-        <div className="grid gap-6 lg:grid-cols-2">
-          <SkeletonCard />
-          <SkeletonCard />
-        </div>
-        <SkeletonTable rows={5} columns={6} />
-      </div>
-    );
-  }
-
-  if (hasError) {
-    return (
-      <div className="space-y-8">
-        <PageHeader title="Gestion Locative" description="Suivi des baux commerciaux" />
-        <GlassCard>
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <AlertTriangle className="mb-4 h-12 w-12 text-amber-500" />
-            <h3 className="mb-2 text-lg font-semibold">Erreur de chargement</h3>
-            <p className="mb-2 text-sm text-muted-foreground">
-              Impossible de charger les données. Vérifiez votre connexion et réessayez.
-            </p>
-            {errorDetail && (
-              <p className="mb-4 max-w-md rounded bg-muted/50 px-3 py-2 text-xs font-mono text-muted-foreground break-all">
-                {errorDetail}
-              </p>
-            )}
-            <button
-              onClick={() => window.location.reload()}
-              className="rounded-lg gradient-primary px-4 py-2 text-sm font-medium text-white"
-            >
-              Réessayer
-            </button>
-          </div>
-        </GlassCard>
-      </div>
-    );
-  }
 
   const bauxActifs = baux.filter((b: any) => !b.archived);
   const totalLoyerHT = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.loyerHTActu || b.loyerBaseHT || 0), 0);
@@ -161,6 +118,51 @@ export default function GLDashboard() {
     const idx = b.indiceReference || "Non défini";
     indicesCount[idx] = (indicesCount[idx] || 0) + 1;
   });
+
+  // Early returns AFTER all hooks (React rules of hooks)
+  if (isLoading) {
+    return (
+      <div className="space-y-8">
+        <PageHeader title="Gestion Locative" description="Chargement des données..." />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => <SkeletonKpi key={i} />)}
+        </div>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+        <SkeletonTable rows={5} columns={6} />
+      </div>
+    );
+  }
+
+  if (hasError) {
+    return (
+      <div className="space-y-8">
+        <PageHeader title="Gestion Locative" description="Suivi des baux commerciaux" />
+        <GlassCard>
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <AlertTriangle className="mb-4 h-12 w-12 text-amber-500" />
+            <h3 className="mb-2 text-lg font-semibold">Erreur de chargement</h3>
+            <p className="mb-2 text-sm text-muted-foreground">
+              Impossible de charger les données. Vérifiez votre connexion et réessayez.
+            </p>
+            {errorDetail && (
+              <p className="mb-4 max-w-md rounded bg-muted/50 px-3 py-2 text-xs font-mono text-muted-foreground break-all">
+                {errorDetail}
+              </p>
+            )}
+            <button
+              onClick={() => window.location.reload()}
+              className="rounded-lg gradient-primary px-4 py-2 text-sm font-medium text-white"
+            >
+              Réessayer
+            </button>
+          </div>
+        </GlassCard>
+      </div>
+    );
+  }
 
   return (
     <AnimatePresence>

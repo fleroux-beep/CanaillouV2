@@ -70,9 +70,12 @@ export default function ArbitragesPage() {
     const charges = getChargesAnnuelles(a);
     const noi = loyerAnnuel - charges;
 
-    const sciEmprunts = empruntsActifs.filter((e: any) => e.sciId === a.sciId);
-    const crd = getTotalCRD(sciEmprunts);
-    const serviceDette = getServiceDette(sciEmprunts);
+    // Use actif-level emprunts if available, otherwise prorate SCI emprunts by actif count
+    const actifEmprunts = empruntsActifs.filter((e: any) => e.actifId === a.id);
+    const sciEmprunts = empruntsActifs.filter((e: any) => e.sciId === a.sciId && !e.actifId);
+    const nbActifsInSci = actifsActifs.filter((x: any) => x.sciId === a.sciId).length || 1;
+    const crd = getTotalCRD(actifEmprunts) + getTotalCRD(sciEmprunts) / nbActifsInSci;
+    const serviceDette = getServiceDette(actifEmprunts) + getServiceDette(sciEmprunts) / nbActifsInSci;
 
     const rendementBrut = getRendementBrut(loyerAnnuel, valeurEstimee);
     const rendementNet = getRendementNet(loyerAnnuel, charges, valeurEstimee);
@@ -264,7 +267,20 @@ export default function ArbitragesPage() {
                   {riskReturnData.map((d: any, i: number) => (
                     <Cell key={i} fill={d.color} />
                   ))}
-                  <LabelList dataKey="name" position="top" style={{ fontSize: 10, fill: "hsl(var(--foreground))" }} />
+                  <LabelList
+                    dataKey="name"
+                    position="top"
+                    offset={10}
+                    content={({ x, y, value, index }: any) => {
+                      const offsetY = (index % 2 === 0) ? -14 : -28;
+                      const offsetX = (index % 3 === 0) ? 10 : (index % 3 === 1) ? -10 : 0;
+                      return (
+                        <text x={(x || 0) + offsetX} y={(y || 0) + offsetY} textAnchor="middle" fontSize={10} fill="hsl(var(--foreground))">
+                          {String(value).length > 15 ? String(value).substring(0, 15) + "…" : value}
+                        </text>
+                      );
+                    }}
+                  />
                 </Scatter>
               </ScatterChart>
             </ResponsiveContainer>

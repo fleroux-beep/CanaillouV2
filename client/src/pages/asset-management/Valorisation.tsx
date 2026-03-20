@@ -371,7 +371,21 @@ export default function ValorisationPage() {
                   {scatterData.map((d: any, i: number) => (
                     <Cell key={i} fill={d.y >= d.x ? "#10b981" : "#ef4444"} />
                   ))}
-                  <LabelList dataKey="name" position="top" style={{ fontSize: 10, fill: "hsl(var(--foreground))" }} />
+                  <LabelList
+                    dataKey="name"
+                    position="top"
+                    offset={10}
+                    style={{ fontSize: 10, fill: "hsl(var(--foreground))" }}
+                    content={({ x, y, value, index }: any) => {
+                      const offsetY = (index % 2 === 0) ? -14 : -28;
+                      const offsetX = (index % 3 === 0) ? 10 : (index % 3 === 1) ? -10 : 0;
+                      return (
+                        <text x={(x || 0) + offsetX} y={(y || 0) + offsetY} textAnchor="middle" fontSize={10} fill="hsl(var(--foreground))">
+                          {String(value).length > 15 ? String(value).substring(0, 15) + "…" : value}
+                        </text>
+                      );
+                    }}
+                  />
                 </Scatter>
               </ScatterChart>
             </ResponsiveContainer>

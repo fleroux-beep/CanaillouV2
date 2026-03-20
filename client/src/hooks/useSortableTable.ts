@@ -42,7 +42,8 @@ export function useSortableTable() {
 // ── SortHeader component ────────────────────────────────────────────────
 
 interface SortHeaderProps {
-  children: React.ReactNode;
+  children?: React.ReactNode;
+  label?: React.ReactNode;
   sortKey: string;
   currentSortKey: string | null;
   sortDir: "asc" | "desc";
@@ -53,6 +54,7 @@ interface SortHeaderProps {
 
 export function SortHeader({
   children,
+  label,
   sortKey,
   currentSortKey,
   sortDir,
@@ -60,6 +62,7 @@ export function SortHeader({
   align,
   className,
 }: SortHeaderProps) {
+  const content = children ?? label;
   const isActive = currentSortKey === sortKey;
 
   const icon = isActive
@@ -88,6 +91,6 @@ export function SortHeader({
       tabIndex: 0,
       role: "button",
     },
-    React.createElement("span", { className: "inline-flex items-center gap-1.5" }, children, icon)
+    React.createElement("span", { className: "inline-flex items-center gap-1.5" }, content, icon)
   );
 }

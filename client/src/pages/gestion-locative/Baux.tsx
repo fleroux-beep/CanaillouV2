@@ -11,7 +11,7 @@ import { formatCurrency } from "../../lib/utils";
 import { Plus, Pencil, Trash2, MapPin } from "lucide-react";
 import { motion } from "framer-motion";
 
-interface Bail { id: string; nom: string; locataireId?: string; bailleurId?: string; typeBail?: string; adresse?: string; ville?: string; codePostal?: string; dateSignature?: string; dateEffet?: string; loyerBaseHT?: string; loyerHTActu?: string; indiceReference?: string; trimestreRef?: string; charges?: string; depotGarantie?: string; taxeFonciere?: string; surface?: string; capacite?: number; statut?: string; archived?: boolean; notes?: string; }
+interface Bail { id: string; nom: string; locataireId?: string; bailleurId?: string; typeBail?: string; adresse?: string; ville?: string; codePostal?: string; dateSignature?: string; dateEffet?: string; loyerBaseHT?: string; loyerHTActu?: string; indiceReference?: string; trimestreRef?: string; valeurIndiceBase?: string; charges?: string; depotGarantie?: string; taxeFonciere?: string; surface?: string; capacite?: number; statut?: string; archived?: boolean; notes?: string; taxe?: string; tvaTaux?: string; }
 interface Bailleur { id: string; nom: string; }
 
 const empty: Partial<Bail> = { nom: "" };
@@ -32,6 +32,20 @@ export default function BauxGLPage() {
     { key: "ville", label: "Ville", sortable: true, render: (r) => r.ville ? <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3 text-muted-foreground" />{r.ville}</span> : "—" },
     { key: "bailleurId", label: "Bailleur", sortable: true, render: (r) => r.bailleurId ? bailleurMap[r.bailleurId] || "—" : "—", exportValue: (r) => r.bailleurId ? bailleurMap[r.bailleurId] || "" : "" },
     { key: "loyerBaseHT", label: "Loyer HT", align: "right", sortable: true, render: (r) => (r.loyerHTActu || r.loyerBaseHT) ? formatCurrency(r.loyerHTActu || r.loyerBaseHT) : "—" },
+    { key: "loyerTTC", label: "Loyer TTC", align: "right", sortable: true, render: (r) => {
+      const ht = Number(r.loyerHTActu || r.loyerBaseHT || 0);
+      if (ht <= 0) return "—";
+      if (r.taxe === "TVA" && r.tvaTaux) {
+        return formatCurrency(ht * (1 + Number(r.tvaTaux) / 100));
+      }
+      if (r.taxe === "CRL") return <span>{formatCurrency(ht)} <span className="text-xs text-muted-foreground">(CRL)</span></span>;
+      return formatCurrency(ht);
+    }},
+    { key: "taxe", label: "Regime fiscal", render: (r) => {
+      if (r.taxe === "TVA") return <Badge variant="primary">TVA {r.tvaTaux || 20}%</Badge>;
+      if (r.taxe === "CRL") return <Badge variant="warning">CRL</Badge>;
+      return "—";
+    }},
     { key: "surface", label: "Surface", align: "right", render: (r) => r.surface ? `${r.surface} m²` : "—" },
     { key: "capacite", label: "Berceaux", align: "right", sortable: true },
     { key: "indiceReference", label: "Indice", render: (r) => r.indiceReference ? <Badge variant="primary">{r.indiceReference}</Badge> : "—" },
@@ -82,12 +96,21 @@ export default function BauxGLPage() {
           <FormField label="Dépôt garantie" name="depotGarantie" value={form.depotGarantie} onChange={onChange} type="number" suffix="EUR" />
           <FormField label="Taxe foncière" name="taxeFonciere" value={form.taxeFonciere} onChange={onChange} type="number" suffix="EUR" />
         </FormGrid>
+        <FormGrid cols={2}>
+          <FormField label="Regime fiscal" name="taxe" value={form.taxe} onChange={onChange} options={[
+            { value: "TVA", label: "TVA" }, { value: "CRL", label: "CRL (Contribution sur les Revenus Locatifs)" },
+          ]} />
+          {form.taxe === "TVA" && (
+            <FormField label="Taux TVA" name="tvaTaux" value={form.tvaTaux} onChange={onChange} type="number" suffix="%" />
+          )}
+        </FormGrid>
         <h3 className="mt-5 mb-3 text-sm font-semibold text-muted-foreground uppercase">Indexation</h3>
-        <FormGrid cols={3}>
+        <FormGrid cols={4}>
           <FormField label="Indice référence" name="indiceReference" value={form.indiceReference} onChange={onChange} options={[
             { value: "ILC", label: "ILC" }, { value: "IRL", label: "IRL" }, { value: "ILAT", label: "ILAT" }, { value: "ICC", label: "ICC" },
           ]} />
           <FormField label="Trimestre ref." name="trimestreRef" value={form.trimestreRef} onChange={onChange} placeholder="Ex: T1 2024" />
+          <FormField label="Valeur indice base" name="valeurIndiceBase" value={form.valeurIndiceBase} onChange={onChange} type="number" placeholder="Ex: 132.63" />
           <FormField label="Date effet" name="dateEffet" value={form.dateEffet} onChange={onChange} type="date" />
         </FormGrid>
         <FormField label="Notes" name="notes" value={form.notes} onChange={onChange} rows={3} className="mt-4" />

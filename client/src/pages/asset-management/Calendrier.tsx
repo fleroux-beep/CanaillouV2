@@ -75,6 +75,17 @@ export default function CalendrierAMPage() {
     queryKey: ["/api/am/baux"],
     queryFn: () => apiRequest("/api/am/baux"),
   });
+  const { data: lots = [] } = useQuery<{ id: string; designation?: string; actifId?: string }[]>({
+    queryKey: ["/api/am/lots"],
+    queryFn: () => apiRequest("/api/am/lots"),
+  });
+  const { data: actifs = [] } = useQuery<{ id: string; nom?: string }[]>({
+    queryKey: ["/api/am/actifs"],
+    queryFn: () => apiRequest("/api/am/actifs"),
+  });
+
+  const lotMap = Object.fromEntries(lots.map((l) => [l.id, l]));
+  const actifMap = Object.fromEntries(actifs.map((a) => [a.id, a.nom || ""]));
   const { data: travaux = [] } = useQuery<Travaux[]>({
     queryKey: ["/api/am/travaux"],
     queryFn: () => apiRequest("/api/am/travaux"),
@@ -97,10 +108,14 @@ export default function CalendrierAMPage() {
 
   for (const b of baux) {
     if (b.dateFin) {
+      const lot = b.lotId ? lotMap[b.lotId] : null;
+      const lotLabel = lot?.designation || (b.lotId ? `Lot #${b.lotId.substring(0, 8)}` : "N/A");
+      const actifLabel = lot?.actifId ? actifMap[lot.actifId] : "";
+      const fullLabel = actifLabel ? `${lotLabel} (${actifLabel})` : lotLabel;
       events.push({
         id: `bail-${b.id}`,
         date: b.dateFin,
-        title: `Fin de bail: lot ${b.lotId || "N/A"}`,
+        title: `Fin de bail: ${fullLabel}`,
         type: "bail",
       });
     }

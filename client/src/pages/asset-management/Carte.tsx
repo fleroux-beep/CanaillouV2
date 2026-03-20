@@ -154,7 +154,7 @@ export default function CartePage() {
     const map = L.map(mapRef.current, {
       scrollWheelZoom: true,
       zoomControl: true,
-    }).setView([46.603354, 1.888334], 6);
+    }).setView([48.8566, 2.3522], 10);
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
@@ -241,7 +241,7 @@ export default function CartePage() {
           </h3>
           <div
             ref={mapRef}
-            className="h-[400px] w-full rounded-lg overflow-hidden border"
+            className="h-[550px] w-full rounded-lg overflow-hidden border"
             style={{ zIndex: 0 }}
           />
           {geoActifs.length === 0 && (

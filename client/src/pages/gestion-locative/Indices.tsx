@@ -1,19 +1,101 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCrud } from "../../hooks/useCrud";
 import { DataTable, type Column } from "../../components/ui/data-table";
 import { FormDialog } from "../../components/ui/form-dialog";
 import { ConfirmDialog } from "../../components/ui/confirm-dialog";
 import { FormField, FormGrid } from "../../components/ui/form-field";
 import { PageHeader } from "../../components/ui/page-header";
+import { Section } from "../../components/ui/section";
+import { GlassCard } from "../../components/ui/glass-card";
 import { Badge } from "../../components/ui/badge";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { formatCurrency } from "../../lib/utils";
+import { apiRequest } from "../../lib/queryClient";
+import { Plus, Pencil, Trash2, Calculator, RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface Indice { id: string; type: string; trimestre: string; valeur: string; }
+interface BailGL { id: string; nom: string; indiceReference?: string; trimestreRef?: string; valeurIndiceBase?: string; loyerBaseHT?: string; loyerHTActu?: string; forceManual?: boolean; archived?: boolean; }
 const empty: Partial<Indice> = { type: "", trimestre: "", valeur: "" };
 
 export default function IndicesPage() {
   const { data, create, update, remove, creating, updating, deleting } = useCrud<Indice>("/api/gl/indices", "Indice");
+  const { data: baux = [] } = useQuery<BailGL[]>({ queryKey: ["/api/gl/baux"], queryFn: () => apiRequest("/api/gl/baux") });
+  const queryClient = useQueryClient();
+
+  const updateBail = useMutation({
+    mutationFn: (payload: { id: string; loyerHTActu: string }) =>
+      apiRequest(`/api/gl/baux/${payload.id}`, { method: "PUT", body: JSON.stringify(payload) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/gl/baux"] }),
+  });
+
+  // Build index lookup: type -> latest value + all values by trimestre
+  const indexLookup = useMemo(() => {
+    const lookup: Record<string, { latest: number; latestTrimestre: string; byTrimestre: Record<string, number> }> = {};
+    for (const idx of data) {
+      if (!lookup[idx.type]) lookup[idx.type] = { latest: 0, latestTrimestre: "", byTrimestre: {} };
+      lookup[idx.type].byTrimestre[idx.trimestre] = Number(idx.valeur);
+    }
+    // Determine latest by sorting trimestre strings
+    for (const [type, info] of Object.entries(lookup)) {
+      const sorted = Object.entries(info.byTrimestre).sort(([a], [b]) => b.localeCompare(a));
+      if (sorted.length > 0) {
+        info.latest = sorted[0][1];
+        info.latestTrimestre = sorted[0][0];
+      }
+    }
+    return lookup;
+  }, [data]);
+
+  // Calculate indexation simulation for each bail
+  const indexationSimulation = useMemo(() => {
+    const bauxActifs = baux.filter((b) => !b.archived);
+    return bauxActifs
+      .filter((b) => b.indiceReference && b.valeurIndiceBase && b.loyerBaseHT && !b.forceManual)
+      .map((b) => {
+        const idx = indexLookup[b.indiceReference!];
+        const baseValue = Number(b.valeurIndiceBase);
+        const loyerBase = Number(b.loyerBaseHT);
+        const currentLoyer = Number(b.loyerHTActu || b.loyerBaseHT || 0);
+
+        if (!idx || baseValue <= 0 || loyerBase <= 0) return null;
+
+        const newLoyer = loyerBase * (idx.latest / baseValue);
+        const variation = ((idx.latest / baseValue) - 1) * 100;
+        const needsUpdate = Math.abs(newLoyer - currentLoyer) > 0.01;
+
+        return {
+          id: b.id,
+          nom: b.nom,
+          indice: b.indiceReference!,
+          trimestreRef: b.trimestreRef || "—",
+          valeurBase: baseValue,
+          valeurActuelle: idx.latest,
+          trimestreActuel: idx.latestTrimestre,
+          loyerBase,
+          currentLoyer,
+          newLoyer,
+          variation,
+          needsUpdate,
+        };
+      })
+      .filter(Boolean) as Array<{
+        id: string; nom: string; indice: string; trimestreRef: string;
+        valeurBase: number; valeurActuelle: number; trimestreActuel: string;
+        loyerBase: number; currentLoyer: number; newLoyer: number; variation: number; needsUpdate: boolean;
+      }>;
+  }, [baux, indexLookup]);
+
+  const applyIndexation = async (bailId: string, newLoyer: number) => {
+    await updateBail.mutateAsync({ id: bailId, loyerHTActu: newLoyer.toFixed(2) });
+  };
+
+  const applyAllIndexations = async () => {
+    const toUpdate = indexationSimulation.filter((s) => s.needsUpdate);
+    for (const s of toUpdate) {
+      await updateBail.mutateAsync({ id: s.id, loyerHTActu: s.newLoyer.toFixed(2) });
+    }
+  };
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Indice | null>(null);
   const [form, setForm] = useState<Partial<Indice>>(empty);
@@ -53,6 +135,82 @@ export default function IndicesPage() {
         </FormGrid>
       </FormDialog>
       <ConfirmDialog open={!!deleteId} onClose={() => setDeleteId(null)} onConfirm={async () => { if (deleteId) { await remove(deleteId); setDeleteId(null); } }} loading={deleting} />
+
+      {/* Indexation automatique */}
+      {indexationSimulation.length > 0 && (
+        <Section title="Indexation automatique" description="Simulation de révision des loyers basée sur les derniers indices connus">
+          <GlassCard>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Calculator className="h-5 w-5 text-primary" />
+                <span className="font-semibold">{indexationSimulation.filter((s) => s.needsUpdate).length} bail(s) à mettre à jour</span>
+              </div>
+              {indexationSimulation.some((s) => s.needsUpdate) && (
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={applyAllIndexations}
+                  disabled={updateBail.isPending}
+                  className="flex items-center gap-2 rounded-lg gradient-primary px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-orange-500/25 disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-4 w-4 ${updateBail.isPending ? "animate-spin" : ""}`} />
+                  Appliquer toutes
+                </motion.button>
+              )}
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-muted-foreground">
+                    <th className="pb-2 font-medium">Bail</th>
+                    <th className="pb-2 font-medium">Indice</th>
+                    <th className="pb-2 font-medium">Trim. réf.</th>
+                    <th className="pb-2 font-medium text-right">Base</th>
+                    <th className="pb-2 font-medium text-right">Actuel ({indexationSimulation[0]?.trimestreActuel})</th>
+                    <th className="pb-2 font-medium text-right">Loyer actuel</th>
+                    <th className="pb-2 font-medium text-right">Nouveau loyer</th>
+                    <th className="pb-2 font-medium text-right">Variation</th>
+                    <th className="pb-2 font-medium text-right"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {indexationSimulation.map((s) => (
+                    <tr key={s.id} className="border-b border-border/50 last:border-0">
+                      <td className="py-3 font-medium">{s.nom}</td>
+                      <td className="py-3"><Badge variant="primary">{s.indice}</Badge></td>
+                      <td className="py-3 text-muted-foreground">{s.trimestreRef}</td>
+                      <td className="py-3 text-right font-mono">{s.valeurBase.toFixed(2)}</td>
+                      <td className="py-3 text-right font-mono">{s.valeurActuelle.toFixed(2)}</td>
+                      <td className="py-3 text-right font-mono">{formatCurrency(s.currentLoyer)}</td>
+                      <td className="py-3 text-right font-mono font-semibold">{formatCurrency(s.newLoyer)}</td>
+                      <td className="py-3 text-right">
+                        <Badge variant={s.variation >= 0 ? "success" : "danger"}>
+                          {s.variation >= 0 ? "+" : ""}{s.variation.toFixed(2)}%
+                        </Badge>
+                      </td>
+                      <td className="py-3 text-right">
+                        {s.needsUpdate && (
+                          <button
+                            onClick={() => applyIndexation(s.id, s.newLoyer)}
+                            disabled={updateBail.isPending}
+                            className="rounded-lg px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 disabled:opacity-50"
+                          >
+                            Appliquer
+                          </button>
+                        )}
+                        {!s.needsUpdate && (
+                          <span className="text-xs text-muted-foreground">À jour</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </GlassCard>
+        </Section>
+      )}
     </div>
   );
 }

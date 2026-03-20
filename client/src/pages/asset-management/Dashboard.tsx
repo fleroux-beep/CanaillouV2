@@ -60,6 +60,54 @@ export default function AMDashboard() {
   const hasError = e1 || e2 || e3 || e4 || e5;
   const errorDetail = [err1, err2, err3, err4, err5].filter(Boolean).map((e: any) => e?.message).join(" | ");
 
+  // All hooks MUST be called before any conditional return (React rules of hooks)
+  const actifsActifs = useMemo(() => actifs.filter((a: any) => !a.archived), [actifs]);
+  const empruntsActifs = useMemo(() => emprunts.filter((e: any) => !e.archived), [emprunts]);
+
+  const { valorisation, loyerAnnuel, charges, totalAcquisition } = useMemo(() => {
+    let v = 0, l = 0, c = 0, t = 0;
+    for (const a of actifsActifs) {
+      v += getValeurEstimee(a, baux, lots);
+      l += getLoyerAnnuelActif(a, baux, lots);
+      c += getChargesAnnuelles(a);
+      t += getPrixAcquisition(a);
+    }
+    return { valorisation: v, loyerAnnuel: l, charges: c, totalAcquisition: t };
+  }, [actifsActifs, baux, lots]);
+
+  const noi = loyerAnnuel - charges;
+  const crd = useMemo(() => getTotalCRD(empruntsActifs), [empruntsActifs]);
+  const serviceDette = useMemo(() => getServiceDette(empruntsActifs), [empruntsActifs]);
+  const cashFlowNet = noi - serviceDette;
+  const fondsPropreNets = valorisation - crd;
+  const rendementBrut = getRendementBrut(loyerAnnuel, valorisation);
+  const rendementNet = getRendementNet(loyerAnnuel, charges, valorisation);
+  const ltv = getLTV(crd, valorisation);
+  const dscr = getDSCR(noi, serviceDette);
+
+  const { lotsLoues, lotsTotal, tauxOccupation } = useMemo(() => {
+    const loues = lots.filter((l: any) => l.statut?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === "loue" && !l.archived).length;
+    const total = lots.filter((l: any) => !l.archived).length;
+    return { lotsLoues: loues, lotsTotal: total, tauxOccupation: total > 0 ? (loues / total) * 100 : 0 };
+  }, [lots]);
+
+  const equityMultiple = totalAcquisition > 0 ? fondsPropreNets / totalAcquisition : 0;
+  const distributionYield = fondsPropreNets > 0 ? (cashFlowNet / fondsPropreNets) * 100 : 0;
+
+  const dcfResult = useMemo(
+    () => noi > 0 ? computeDCF(noi, 2.5, 6, 5.5, 10, totalAcquisition) : null,
+    [noi, totalAcquisition]
+  );
+
+  const stressResults = useMemo(
+    () => loyerAnnuel > 0 ? computeStressTests(loyerAnnuel, charges, serviceDette, valorisation, crd, empruntsActifs) : [],
+    [loyerAnnuel, charges, serviceDette, valorisation, crd, empruntsActifs]
+  );
+  const worstCaseScenario = stressResults.length > 0 ? stressResults[stressResults.length - 1] : null;
+
+  const sciKpis = useMemo(() => scis.map((sci: any) => computeSciKpis(sci, actifs, baux, lots, emprunts)), [scis, actifs, baux, lots, emprunts]);
+
+  // Early returns AFTER all hooks
   if (isLoading) {
     return (
       <div className="space-y-8">
@@ -104,57 +152,6 @@ export default function AMDashboard() {
       </div>
     );
   }
-
-  // Portfolio KPIs — memoized to avoid unnecessary recalculations
-  const actifsActifs = useMemo(() => actifs.filter((a: any) => !a.archived), [actifs]);
-  const empruntsActifs = useMemo(() => emprunts.filter((e: any) => !e.archived), [emprunts]);
-
-  const { valorisation, loyerAnnuel, charges, totalAcquisition } = useMemo(() => {
-    let v = 0, l = 0, c = 0, t = 0;
-    for (const a of actifsActifs) {
-      v += getValeurEstimee(a, baux, lots);
-      l += getLoyerAnnuelActif(a, baux, lots);
-      c += getChargesAnnuelles(a);
-      t += getPrixAcquisition(a);
-    }
-    return { valorisation: v, loyerAnnuel: l, charges: c, totalAcquisition: t };
-  }, [actifsActifs, baux, lots]);
-
-  const noi = loyerAnnuel - charges;
-  const crd = useMemo(() => getTotalCRD(empruntsActifs), [empruntsActifs]);
-  const serviceDette = useMemo(() => getServiceDette(empruntsActifs), [empruntsActifs]);
-  const cashFlowNet = noi - serviceDette;
-  const fondsPropreNets = valorisation - crd;
-  const rendementBrut = getRendementBrut(loyerAnnuel, valorisation);
-  const rendementNet = getRendementNet(loyerAnnuel, charges, valorisation);
-  const ltv = getLTV(crd, valorisation);
-  const dscr = getDSCR(noi, serviceDette);
-
-  const { lotsLoues, lotsTotal, tauxOccupation } = useMemo(() => {
-    const loues = lots.filter((l: any) => l.statut?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === "loue" && !l.archived).length;
-    const total = lots.filter((l: any) => !l.archived).length;
-    return { lotsLoues: loues, lotsTotal: total, tauxOccupation: total > 0 ? (loues / total) * 100 : 0 };
-  }, [lots]);
-
-  // SCPI institutional metrics
-  const equityMultiple = totalAcquisition > 0 ? fondsPropreNets / totalAcquisition : 0;
-  const distributionYield = fondsPropreNets > 0 ? (cashFlowNet / fondsPropreNets) * 100 : 0;
-
-  // DCF valuation (10 years, 2.5% growth, 6% discount, 5.5% exit cap)
-  const dcfResult = useMemo(
-    () => noi > 0 ? computeDCF(noi, 2.5, 6, 5.5, 10, totalAcquisition) : null,
-    [noi, totalAcquisition]
-  );
-
-  // Stress test summary
-  const stressResults = useMemo(
-    () => loyerAnnuel > 0 ? computeStressTests(loyerAnnuel, charges, serviceDette, valorisation, crd, empruntsActifs) : [],
-    [loyerAnnuel, charges, serviceDette, valorisation, crd, empruntsActifs]
-  );
-  const worstCaseScenario = stressResults.length > 0 ? stressResults[stressResults.length - 1] : null;
-
-  // Chart data
-  const sciKpis = useMemo(() => scis.map((sci: any) => computeSciKpis(sci, actifs, baux, lots, emprunts)), [scis, actifs, baux, lots, emprunts]);
   const sciChartData = sciKpis.map((k: any) => ({
     name: k.sci.nom,
     valorisation: k.valorisation,
@@ -184,7 +181,7 @@ export default function AMDashboard() {
         />
 
         {/* Hero KPIs */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <KpiCard
             label="Valorisation" value={valorisation}
             formatFn={formatCurrency} icon={TrendingUp}
@@ -196,14 +193,20 @@ export default function AMDashboard() {
             variant="success" gradient delay={1}
           />
           <KpiCard
+            label="NOI" value={noi}
+            formatFn={formatCurrency} icon={Activity}
+            variant={noi >= 0 ? "success" : "danger"} gradient delay={2}
+            subtitle={`Charges: ${formatCurrency(charges)}`}
+          />
+          <KpiCard
             label="Dette (CRD)" value={crd}
             formatFn={formatCurrency} icon={PiggyBank}
-            variant="warning" gradient delay={2}
+            variant="warning" gradient delay={3}
           />
           <KpiCard
             label="Fonds propres nets" value={fondsPropreNets}
             formatFn={formatCurrency} icon={Wallet}
-            variant="primary" gradient delay={3}
+            variant="primary" gradient delay={4}
           />
         </div>
 

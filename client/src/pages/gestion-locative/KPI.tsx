@@ -82,6 +82,48 @@ export default function GLKPIPage() {
   // Coût total par berceau (loyer + charges annualisées + taxe foncière)
   const coutTotalBerceau = totalCapacite > 0 ? (totalLoyerHT + totalChargesAn + totalTaxeFonciere) / totalCapacite : 0;
 
+  // WALT — Weighted Average Lease Term (years remaining, weighted by rent)
+  const walt = useMemo(() => {
+    const now = new Date();
+    let weightedSum = 0;
+    let totalWeight = 0;
+    for (const b of bauxActifs) {
+      const loyer = Number((b as any).loyerHTActu || (b as any).loyerBaseHT || 0);
+      const dateFin = (b as any).dateFin;
+      if (loyer > 0 && dateFin) {
+        const fin = new Date(dateFin);
+        const yearsLeft = Math.max(0, (fin.getTime() - now.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+        weightedSum += yearsLeft * loyer;
+        totalWeight += loyer;
+      }
+    }
+    return totalWeight > 0 ? weightedSum / totalWeight : 0;
+  }, [bauxActifs]);
+
+  // Lease expiry profile (number of leases expiring by year)
+  const expiryProfile = useMemo(() => {
+    const now = new Date();
+    const profile: Record<string, { count: number; loyer: number }> = {};
+    for (const b of bauxActifs) {
+      const dateFin = (b as any).dateFin;
+      if (dateFin) {
+        const year = new Date(dateFin).getFullYear();
+        if (year >= now.getFullYear()) {
+          const key = String(year);
+          if (!profile[key]) profile[key] = { count: 0, loyer: 0 };
+          profile[key].count++;
+          profile[key].loyer += Number((b as any).loyerHTActu || (b as any).loyerBaseHT || 0);
+        }
+      }
+    }
+    return Object.entries(profile)
+      .sort(([a], [b]) => Number(a) - Number(b))
+      .map(([year, data]) => ({ year, count: data.count, loyer: data.loyer }));
+  }, [bauxActifs]);
+
+  // Baux sans date de fin
+  const bauxSansEcheance = bauxActifs.filter((b: any) => !b.dateFin).length;
+
   return (
     <AnimatePresence>
       <motion.div
@@ -166,21 +208,23 @@ export default function GLKPIPage() {
           />
         </div>
 
-        {/* Other KPIs */}
+        {/* Lease management KPIs */}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <KpiCard
-            label="Charges / m²"
-            value={chargesMoyennesM2}
-            formatFn={(n) => n > 0 ? `${formatCurrency(n)}/m²` : "N/A"}
-            icon={PiggyBank}
+            label="WALT"
+            value={walt}
+            formatFn={(n) => n > 0 ? `${n.toFixed(1)} ans` : "N/A"}
+            icon={TrendingUp}
+            variant={walt > 5 ? "success" : walt > 2 ? "warning" : "danger"}
             delay={8}
+            subtitle="Duree moyenne ponderee"
           />
           <KpiCard
-            label="Taxe foncière totale"
-            value={totalTaxeFonciere}
-            formatFn={formatCurrency}
-            icon={Calculator}
+            label="Baux actifs"
+            value={bauxActifs.length}
+            icon={Building2}
             delay={9}
+            subtitle={bauxSansEcheance > 0 ? `${bauxSansEcheance} sans echeance` : undefined}
           />
           <KpiCard
             label="Dépôts de garantie"
@@ -197,6 +241,58 @@ export default function GLKPIPage() {
             delay={11}
           />
         </div>
+
+        {/* Other KPIs */}
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard
+            label="Charges / m²"
+            value={chargesMoyennesM2}
+            formatFn={(n) => n > 0 ? `${formatCurrency(n)}/m²` : "N/A"}
+            icon={PiggyBank}
+            delay={12}
+          />
+          <KpiCard
+            label="Taxe foncière totale"
+            value={totalTaxeFonciere}
+            formatFn={formatCurrency}
+            icon={Calculator}
+            delay={13}
+          />
+          <KpiCard
+            label="Charges / berceau"
+            value={chargesParBerceau}
+            formatFn={(n) => n > 0 ? `${formatCurrency(n)}/berc.` : "N/A"}
+            icon={PiggyBank}
+            delay={14}
+          />
+          <KpiCard
+            label="Surface / berceau"
+            value={surfaceParBerceau}
+            formatFn={(n) => n > 0 ? `${formatNumber(n)} m²/berc.` : "N/A"}
+            icon={Building2}
+            delay={15}
+          />
+        </div>
+
+        {/* Lease expiry profile */}
+        {expiryProfile.length > 0 && (
+          <GlassCard delay={7}>
+            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Profil d'echeance des baux
+            </h3>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={expiryProfile} barGap={4}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="year" tick={{ fontSize: 11 }} />
+                <YAxis yAxisId="left" tick={{ fontSize: 11 }} />
+                <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
+                <Tooltip {...chartTooltipStyle} formatter={(v: number, name: string) => name === "Loyer a risque" ? formatCurrency(v) : v} />
+                <Bar yAxisId="left" dataKey="count" name="Baux expirant" fill="#f59e0b" radius={[4, 4, 0, 0]} animationDuration={800} />
+                <Bar yAxisId="right" dataKey="loyer" name="Loyer a risque" fill="#ef4444" radius={[4, 4, 0, 0]} animationDuration={800} />
+              </BarChart>
+            </ResponsiveContainer>
+          </GlassCard>
+        )}
 
         {/* Charts */}
         <div className="grid gap-6 lg:grid-cols-2">

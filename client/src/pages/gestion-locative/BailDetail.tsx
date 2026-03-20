@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "../../lib/queryClient";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatCurrency } from "../../lib/utils";
@@ -7,6 +8,9 @@ import { GlassCard } from "../../components/ui/glass-card";
 import { PageHeader } from "../../components/ui/page-header";
 import { Section } from "../../components/ui/section";
 import { Badge } from "../../components/ui/badge";
+import { FormDialog } from "../../components/ui/form-dialog";
+import { FormField, FormGrid } from "../../components/ui/form-field";
+import { ConfirmDialog } from "../../components/ui/confirm-dialog";
 import { useLocation, useParams } from "wouter";
 import {
   ArrowLeft,
@@ -16,7 +20,35 @@ import {
   PiggyBank,
   Calculator,
   Building2,
+  Plus,
+  Pencil,
+  Trash2,
+  FilePenLine,
+  RefreshCw,
 } from "lucide-react";
+
+interface Avenant {
+  id: string;
+  bailId: string;
+  dateEffet: string;
+  dateSignature?: string;
+  champsModifies: string;
+  titre?: string;
+  notes?: string;
+  createdAt?: string;
+}
+
+interface Renouvellement {
+  id: string;
+  bailId: string;
+  dateEffet: string;
+  dateSignature?: string;
+  nouvelleDateFin: string;
+  champsModifies: string;
+  titre?: string;
+  notes?: string;
+  createdAt?: string;
+}
 
 export default function BailGLDetailPage() {
   const params = useParams<{ id: string }>();
@@ -41,6 +73,84 @@ export default function BailGLDetailPage() {
     queryKey: ["/api/gl/bailleurs"],
     queryFn: () => apiRequest("/api/gl/bailleurs"),
   });
+
+  // Avenants & Renouvellements
+  const { data: avenants = [] } = useQuery<Avenant[]>({
+    queryKey: ["/api/gl/avenants"],
+    queryFn: () => apiRequest("/api/gl/avenants"),
+  });
+  const { data: renouvellements = [] } = useQuery<Renouvellement[]>({
+    queryKey: ["/api/gl/renouvellements"],
+    queryFn: () => apiRequest("/api/gl/renouvellements"),
+  });
+
+  const queryClient = useQueryClient();
+
+  const bailAvenants = avenants.filter((a) => a.bailId === params.id).sort((a, b) => b.dateEffet.localeCompare(a.dateEffet));
+  const bailRenouvellements = renouvellements.filter((r) => r.bailId === params.id).sort((a, b) => b.dateEffet.localeCompare(a.dateEffet));
+
+  // Avenant CRUD
+  const createAvenant = useMutation({
+    mutationFn: (data: Partial<Avenant>) => apiRequest("/api/gl/avenants", { method: "POST", body: JSON.stringify(data) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/gl/avenants"] }),
+  });
+  const updateAvenant = useMutation({
+    mutationFn: (data: Partial<Avenant> & { id: string }) => apiRequest(`/api/gl/avenants/${data.id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/gl/avenants"] }),
+  });
+  const deleteAvenant = useMutation({
+    mutationFn: (id: string) => apiRequest(`/api/gl/avenants/${id}`, { method: "DELETE" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/gl/avenants"] }),
+  });
+
+  // Renouvellement CRUD
+  const createRenouvellement = useMutation({
+    mutationFn: (data: Partial<Renouvellement>) => apiRequest("/api/gl/renouvellements", { method: "POST", body: JSON.stringify(data) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/gl/renouvellements"] }),
+  });
+  const updateRenouvellement = useMutation({
+    mutationFn: (data: Partial<Renouvellement> & { id: string }) => apiRequest(`/api/gl/renouvellements/${data.id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/gl/renouvellements"] }),
+  });
+  const deleteRenouvellement = useMutation({
+    mutationFn: (id: string) => apiRequest(`/api/gl/renouvellements/${id}`, { method: "DELETE" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/gl/renouvellements"] }),
+  });
+
+  // Dialog state for avenants
+  const [avenantDialogOpen, setAvenantDialogOpen] = useState(false);
+  const [editingAvenant, setEditingAvenant] = useState<Avenant | null>(null);
+  const [avenantForm, setAvenantForm] = useState<Partial<Avenant>>({ bailId: params.id, dateEffet: "", champsModifies: "", titre: "", notes: "", dateSignature: "" });
+  const [deleteAvenantId, setDeleteAvenantId] = useState<string | null>(null);
+
+  // Dialog state for renouvellements
+  const [renouvelDialogOpen, setRenouvelDialogOpen] = useState(false);
+  const [editingRenouvel, setEditingRenouvel] = useState<Renouvellement | null>(null);
+  const [renouvelForm, setRenouvelForm] = useState<Partial<Renouvellement>>({ bailId: params.id, dateEffet: "", nouvelleDateFin: "", champsModifies: "", titre: "", notes: "", dateSignature: "" });
+  const [deleteRenouvelId, setDeleteRenouvelId] = useState<string | null>(null);
+
+  const onAvenantChange = (name: string, value: string) => setAvenantForm((f) => ({ ...f, [name]: value }));
+  const onRenouvelChange = (name: string, value: string) => setRenouvelForm((f) => ({ ...f, [name]: value }));
+
+  const handleAvenantSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingAvenant) {
+      await updateAvenant.mutateAsync({ ...avenantForm, id: editingAvenant.id } as any);
+    } else {
+      await createAvenant.mutateAsync({ ...avenantForm, bailId: params.id });
+    }
+    setAvenantDialogOpen(false);
+  };
+
+  const handleRenouvelSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingRenouvel) {
+      await updateRenouvellement.mutateAsync({ ...renouvelForm, id: editingRenouvel.id } as any);
+    } else {
+      await createRenouvellement.mutateAsync({ ...renouvelForm, bailId: params.id });
+    }
+    setRenouvelDialogOpen(false);
+  };
 
   if (!bail) {
     return (
@@ -479,14 +589,189 @@ export default function BailGLDetailPage() {
           </GlassCard>
         </Section>
 
+        {/* Avenants */}
+        <Section title="Avenants" delay={6}>
+          <GlassCard hover={false}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <FilePenLine className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold text-muted-foreground">{bailAvenants.length} avenant(s)</span>
+              </div>
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  setEditingAvenant(null);
+                  setAvenantForm({ bailId: params.id, dateEffet: "", champsModifies: "", titre: "", notes: "", dateSignature: "" });
+                  setAvenantDialogOpen(true);
+                }}
+                className="flex items-center gap-2 rounded-lg gradient-primary px-3 py-1.5 text-xs font-semibold text-white shadow-lg shadow-orange-500/25"
+              >
+                <Plus className="h-3.5 w-3.5" /> Nouvel avenant
+              </motion.button>
+            </div>
+
+            {bailAvenants.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Aucun avenant enregistré pour ce bail.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-muted-foreground">
+                      <th className="pb-3 font-medium">Titre</th>
+                      <th className="pb-3 font-medium">Date effet</th>
+                      <th className="pb-3 font-medium">Date signature</th>
+                      <th className="pb-3 font-medium">Champs modifiés</th>
+                      <th className="pb-3 font-medium">Notes</th>
+                      <th className="pb-3 font-medium text-right"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bailAvenants.map((a) => (
+                      <tr key={a.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
+                        <td className="py-3 font-medium">{a.titre || "—"}</td>
+                        <td className="py-3">{a.dateEffet}</td>
+                        <td className="py-3">{a.dateSignature || "—"}</td>
+                        <td className="py-3 max-w-[200px] truncate">{a.champsModifies}</td>
+                        <td className="py-3 max-w-[150px] truncate text-muted-foreground">{a.notes || "—"}</td>
+                        <td className="py-3 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button onClick={() => { setEditingAvenant(a); setAvenantForm(a); setAvenantDialogOpen(true); }} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button>
+                            <button onClick={() => setDeleteAvenantId(a.id)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"><Trash2 className="h-3.5 w-3.5" /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </GlassCard>
+        </Section>
+
+        {/* Renouvellements */}
+        <Section title="Renouvellements" delay={7}>
+          <GlassCard hover={false}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <RefreshCw className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold text-muted-foreground">{bailRenouvellements.length} renouvellement(s)</span>
+              </div>
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  setEditingRenouvel(null);
+                  setRenouvelForm({ bailId: params.id, dateEffet: "", nouvelleDateFin: "", champsModifies: "", titre: "", notes: "", dateSignature: "" });
+                  setRenouvelDialogOpen(true);
+                }}
+                className="flex items-center gap-2 rounded-lg gradient-primary px-3 py-1.5 text-xs font-semibold text-white shadow-lg shadow-orange-500/25"
+              >
+                <Plus className="h-3.5 w-3.5" /> Nouveau renouvellement
+              </motion.button>
+            </div>
+
+            {bailRenouvellements.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Aucun renouvellement enregistré pour ce bail.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-muted-foreground">
+                      <th className="pb-3 font-medium">Titre</th>
+                      <th className="pb-3 font-medium">Date effet</th>
+                      <th className="pb-3 font-medium">Nouvelle date fin</th>
+                      <th className="pb-3 font-medium">Date signature</th>
+                      <th className="pb-3 font-medium">Champs modifiés</th>
+                      <th className="pb-3 font-medium">Notes</th>
+                      <th className="pb-3 font-medium text-right"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bailRenouvellements.map((r) => (
+                      <tr key={r.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
+                        <td className="py-3 font-medium">{r.titre || "—"}</td>
+                        <td className="py-3">{r.dateEffet}</td>
+                        <td className="py-3 font-medium">{r.nouvelleDateFin}</td>
+                        <td className="py-3">{r.dateSignature || "—"}</td>
+                        <td className="py-3 max-w-[200px] truncate">{r.champsModifies}</td>
+                        <td className="py-3 max-w-[150px] truncate text-muted-foreground">{r.notes || "—"}</td>
+                        <td className="py-3 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button onClick={() => { setEditingRenouvel(r); setRenouvelForm(r); setRenouvelDialogOpen(true); }} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button>
+                            <button onClick={() => setDeleteRenouvelId(r.id)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"><Trash2 className="h-3.5 w-3.5" /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </GlassCard>
+        </Section>
+
         {/* Notes */}
         {bail.notes && (
-          <Section title="Notes" delay={6}>
+          <Section title="Notes" delay={8}>
             <GlassCard hover={false}>
               <p className="whitespace-pre-wrap text-sm">{bail.notes}</p>
             </GlassCard>
           </Section>
         )}
+
+        {/* Avenant Dialog */}
+        <FormDialog
+          open={avenantDialogOpen}
+          onClose={() => setAvenantDialogOpen(false)}
+          title={editingAvenant ? "Modifier l'avenant" : "Nouvel avenant"}
+          onSubmit={handleAvenantSubmit}
+          loading={createAvenant.isPending || updateAvenant.isPending}
+        >
+          <FormGrid cols={2}>
+            <FormField label="Titre" name="titre" value={avenantForm.titre} onChange={onAvenantChange} placeholder="Ex: Avenant n°1 - Révision loyer" />
+            <FormField label="Date d'effet" name="dateEffet" value={avenantForm.dateEffet} onChange={onAvenantChange} type="date" required />
+          </FormGrid>
+          <FormGrid cols={2}>
+            <FormField label="Date de signature" name="dateSignature" value={avenantForm.dateSignature} onChange={onAvenantChange} type="date" />
+            <FormField label="Champs modifiés" name="champsModifies" value={avenantForm.champsModifies} onChange={onAvenantChange} required placeholder="Ex: Loyer HT, charges, surface" />
+          </FormGrid>
+          <FormField label="Notes / Détails" name="notes" value={avenantForm.notes} onChange={onAvenantChange} rows={3} className="mt-4" placeholder="Détails de l'avenant : modifications apportées, motifs, conditions..." />
+        </FormDialog>
+
+        {/* Renouvellement Dialog */}
+        <FormDialog
+          open={renouvelDialogOpen}
+          onClose={() => setRenouvelDialogOpen(false)}
+          title={editingRenouvel ? "Modifier le renouvellement" : "Nouveau renouvellement"}
+          onSubmit={handleRenouvelSubmit}
+          loading={createRenouvellement.isPending || updateRenouvellement.isPending}
+        >
+          <FormGrid cols={2}>
+            <FormField label="Titre" name="titre" value={renouvelForm.titre} onChange={onRenouvelChange} placeholder="Ex: Renouvellement 2025-2028" />
+            <FormField label="Date d'effet" name="dateEffet" value={renouvelForm.dateEffet} onChange={onRenouvelChange} type="date" required />
+          </FormGrid>
+          <FormGrid cols={2}>
+            <FormField label="Nouvelle date de fin" name="nouvelleDateFin" value={renouvelForm.nouvelleDateFin} onChange={onRenouvelChange} type="date" required />
+            <FormField label="Date de signature" name="dateSignature" value={renouvelForm.dateSignature} onChange={onRenouvelChange} type="date" />
+          </FormGrid>
+          <FormField label="Champs modifiés" name="champsModifies" value={renouvelForm.champsModifies} onChange={onRenouvelChange} required placeholder="Ex: Date fin, loyer HT, conditions" className="mt-4" />
+          <FormField label="Notes / Détails" name="notes" value={renouvelForm.notes} onChange={onRenouvelChange} rows={3} className="mt-4" placeholder="Détails du renouvellement : nouvelles conditions, motifs..." />
+        </FormDialog>
+
+        {/* Delete confirmations */}
+        <ConfirmDialog
+          open={!!deleteAvenantId}
+          onClose={() => setDeleteAvenantId(null)}
+          onConfirm={async () => { if (deleteAvenantId) { await deleteAvenant.mutateAsync(deleteAvenantId); setDeleteAvenantId(null); } }}
+          loading={deleteAvenant.isPending}
+        />
+        <ConfirmDialog
+          open={!!deleteRenouvelId}
+          onClose={() => setDeleteRenouvelId(null)}
+          onConfirm={async () => { if (deleteRenouvelId) { await deleteRenouvellement.mutateAsync(deleteRenouvelId); setDeleteRenouvelId(null); } }}
+          loading={deleteRenouvellement.isPending}
+        />
       </motion.div>
     </AnimatePresence>
   );

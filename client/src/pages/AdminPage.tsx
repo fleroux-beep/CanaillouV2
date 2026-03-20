@@ -302,7 +302,7 @@ export default function AdminPage() {
         open={showCreate}
         onClose={() => setShowCreate(false)}
         title="Ajouter un utilisateur"
-        description="L'utilisateur recevra ses identifiants et pourra se connecter immediatement."
+        description="Le compte sera cree et immediatement actif. Communiquez les identifiants manuellement."
         onSubmit={(e) => {
           e.preventDefault();
           createMutation.mutate(form);

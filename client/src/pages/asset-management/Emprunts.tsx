@@ -14,8 +14,8 @@ import { GlassCard } from "../../components/ui/glass-card";
 import { Section } from "../../components/ui/section";
 import { Badge } from "../../components/ui/badge";
 import { formatCurrency, formatPercent } from "../../lib/utils";
-import { Plus, Pencil, Trash2, TrendingDown, Calculator, RefreshCw, Landmark, Percent } from "lucide-react";
-import { getAnnuiteEmprunt, type AMEmprunt } from "../../lib/am-calculations";
+import { Plus, Pencil, Trash2, TrendingDown, Calculator, RefreshCw, Landmark, Percent, TableIcon } from "lucide-react";
+import { getAnnuiteEmprunt, computeAmortSchedule, type AMEmprunt, type AmortRow } from "../../lib/am-calculations";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area } from "recharts";
 
 interface Emprunt {
@@ -122,8 +122,13 @@ function CoutCreditTab() {
     queryKey: ["/api/am/scis"],
     queryFn: () => apiRequest("/api/am/scis"),
   });
+  const { data: actifsList = [] } = useQuery<Actif[]>({
+    queryKey: ["/api/am/actifs"],
+    queryFn: () => apiRequest("/api/am/actifs"),
+  });
 
   const sciMap = Object.fromEntries(scis.map((s) => [s.id, s.nom]));
+  const actifMap = Object.fromEntries(actifsList.map((a) => [a.id, a.nom]));
   const activeEmprunts = emprunts.filter((e) => !e.archived);
 
   // Calcul du cout total pour chaque emprunt
@@ -142,9 +147,14 @@ function CoutCreditTab() {
         ? (Math.pow(totalRembourse / montant, 12 / duree) - 1) * 100
         : 0;
 
+      const label = emp.sciId && sciMap[emp.sciId]
+        ? `${sciMap[emp.sciId]}${emp.actifId && actifMap[emp.actifId] ? " / " + actifMap[emp.actifId] : ""}`
+        : emp.banque || "—";
+
       return {
         id: emp.id,
         banque: emp.banque || "—",
+        label,
         sci: emp.sciId ? sciMap[emp.sciId] || "—" : "—",
         montant,
         taux: emp.tauxAnnuel ? parseFloat(emp.tauxAnnuel) : 0,
@@ -165,7 +175,7 @@ function CoutCreditTab() {
   const totalMontant = coutData.reduce((s, c) => s + c.montant, 0);
 
   const chartData = coutData.map((c) => ({
-    name: c.banque,
+    name: c.label,
     Interets: Math.round(c.coutInterets),
     Assurance: Math.round(c.coutAssurance),
     Capital: Math.round(c.montant),
@@ -475,6 +485,151 @@ function RachatCreditTab() {
   );
 }
 
+/* ═══════════ Onglet Amortissement par emprunt ═══════════ */
+function AmortissementTab() {
+  const { data: emprunts = [] } = useQuery<Emprunt[]>({
+    queryKey: ["/api/am/emprunts"],
+    queryFn: () => apiRequest("/api/am/emprunts"),
+  });
+  const { data: scis = [] } = useQuery<SCI[]>({
+    queryKey: ["/api/am/scis"],
+    queryFn: () => apiRequest("/api/am/scis"),
+  });
+  const { data: actifsList = [] } = useQuery<Actif[]>({
+    queryKey: ["/api/am/actifs"],
+    queryFn: () => apiRequest("/api/am/actifs"),
+  });
+
+  const sciMap = Object.fromEntries(scis.map((s) => [s.id, s.nom]));
+  const actifMap = Object.fromEntries(actifsList.map((a) => [a.id, a.nom]));
+  const activeEmprunts = emprunts.filter((e) => !e.archived);
+  const [selectedId, setSelectedId] = useState<string>("");
+
+  const selectedEmprunt = activeEmprunts.find((e) => e.id === selectedId);
+  const schedule: AmortRow[] = useMemo(() => {
+    if (!selectedEmprunt) return [];
+    return computeAmortSchedule(selectedEmprunt as unknown as AMEmprunt);
+  }, [selectedEmprunt]);
+
+  const empruntLabel = (emp: Emprunt) => {
+    const sci = emp.sciId ? sciMap[emp.sciId] : "";
+    const actif = emp.actifId ? actifMap[emp.actifId] : "";
+    const parts = [sci, actif, emp.banque].filter(Boolean);
+    return parts.length > 0 ? parts.join(" / ") : `Emprunt #${emp.id.substring(0, 8)}`;
+  };
+
+  const totalInterets = schedule.reduce((s, r) => s + r.interets, 0);
+  const totalAssurance = schedule.reduce((s, r) => s + r.assurance, 0);
+  const totalCout = totalInterets + totalAssurance;
+
+  return (
+    <AnimatePresence>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
+        <GlassCard>
+          <div className="space-y-4">
+            <label className="text-sm font-medium text-foreground mb-1.5 block">Selectionnez un emprunt</label>
+            <select
+              value={selectedId}
+              onChange={(e) => setSelectedId(e.target.value)}
+              className="w-full max-w-md rounded-lg border border-border bg-background px-3 py-2 text-sm"
+            >
+              <option value="">Choisir un emprunt...</option>
+              {activeEmprunts.map((e) => (
+                <option key={e.id} value={e.id}>{empruntLabel(e)}</option>
+              ))}
+            </select>
+          </div>
+        </GlassCard>
+
+        {selectedEmprunt && schedule.length > 0 && (
+          <>
+            <div className="grid gap-4 sm:grid-cols-4">
+              <KpiCard label="Capital emprunte" value={parseFloat(selectedEmprunt.montantEmprunte || "0")} formatFn={formatCurrency} icon={Landmark} variant="primary" gradient delay={0} />
+              <KpiCard label="Total interets" value={totalInterets} formatFn={formatCurrency} icon={TrendingDown} variant="danger" gradient delay={1} />
+              <KpiCard label="Total assurance" value={totalAssurance} formatFn={formatCurrency} icon={Calculator} variant="warning" gradient delay={2} />
+              <KpiCard label="Cout total credit" value={totalCout} formatFn={formatCurrency} icon={Percent} variant="danger" gradient delay={3} />
+            </div>
+
+            <Section title={`Tableau d'amortissement — ${empruntLabel(selectedEmprunt)}`} delay={1}>
+              <div className="overflow-x-auto rounded-xl border bg-card shadow-sm">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/30">
+                      <th className="px-4 py-3 text-left font-semibold">Annee</th>
+                      <th className="px-4 py-3 text-right font-semibold">CRD debut</th>
+                      <th className="px-4 py-3 text-right font-semibold">Capital rembourse</th>
+                      <th className="px-4 py-3 text-right font-semibold">Interets</th>
+                      <th className="px-4 py-3 text-right font-semibold">Assurance</th>
+                      <th className="px-4 py-3 text-right font-semibold">Annuite</th>
+                      <th className="px-4 py-3 text-right font-semibold">Total annuel</th>
+                      <th className="px-4 py-3 text-right font-semibold">CRD fin</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {schedule.map((row) => (
+                      <tr key={row.year} className="border-t hover:bg-muted/20">
+                        <td className="px-4 py-3 font-medium">N+{row.year}</td>
+                        <td className="px-4 py-3 text-right">{formatCurrency(row.capitalDebut)}</td>
+                        <td className="px-4 py-3 text-right text-blue-600">{formatCurrency(row.capitalAmorti)}</td>
+                        <td className="px-4 py-3 text-right text-red-600">{formatCurrency(row.interets)}</td>
+                        <td className="px-4 py-3 text-right text-amber-600">{formatCurrency(row.assurance)}</td>
+                        <td className="px-4 py-3 text-right">{formatCurrency(row.annuite)}</td>
+                        <td className="px-4 py-3 text-right font-semibold">{formatCurrency(row.totalAnnuel)}</td>
+                        <td className="px-4 py-3 text-right">{formatCurrency(row.capitalFin)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 bg-muted/20 font-semibold">
+                      <td className="px-4 py-3">Total</td>
+                      <td className="px-4 py-3"></td>
+                      <td className="px-4 py-3 text-right text-blue-600">{formatCurrency(parseFloat(selectedEmprunt.montantEmprunte || "0"))}</td>
+                      <td className="px-4 py-3 text-right text-red-600">{formatCurrency(totalInterets)}</td>
+                      <td className="px-4 py-3 text-right text-amber-600">{formatCurrency(totalAssurance)}</td>
+                      <td className="px-4 py-3"></td>
+                      <td className="px-4 py-3 text-right">{formatCurrency(parseFloat(selectedEmprunt.montantEmprunte || "0") + totalInterets + totalAssurance)}</td>
+                      <td className="px-4 py-3"></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </Section>
+
+            {/* Amortization chart */}
+            <Section title="Evolution du capital et des interets" delay={2}>
+              <GlassCard>
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={schedule.map((r) => ({ annee: `N+${r.year}`, "Capital rembourse": Math.round(r.capitalAmorti), "Interets": Math.round(r.interets), "CRD": Math.round(r.capitalFin) }))}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                      <XAxis dataKey="annee" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                      <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                      <Legend />
+                      <Area type="monotone" dataKey="CRD" name="Capital restant" fill="#3b82f6" fillOpacity={0.3} stroke="#3b82f6" />
+                      <Area type="monotone" dataKey="Capital rembourse" name="Capital rembourse" fill="#10b981" fillOpacity={0.2} stroke="#10b981" />
+                      <Area type="monotone" dataKey="Interets" name="Interets" fill="#ef4444" fillOpacity={0.2} stroke="#ef4444" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </GlassCard>
+            </Section>
+          </>
+        )}
+
+        {!selectedEmprunt && (
+          <GlassCard>
+            <div className="py-12 text-center text-muted-foreground">
+              <TableIcon className="mx-auto h-12 w-12 mb-4 opacity-30" />
+              <p>Selectionnez un emprunt pour voir son tableau d'amortissement</p>
+            </div>
+          </GlassCard>
+        )}
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
 /* ═══════════ Page principale avec onglets ═══════════ */
 export default function EmpruntsPage() {
   const [activeTab, setActiveTab] = useState("emprunts");
@@ -486,11 +641,15 @@ export default function EmpruntsPage() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="emprunts">Emprunts</TabsTrigger>
+          <TabsTrigger value="amortissement">Amortissement</TabsTrigger>
           <TabsTrigger value="cout-credit">Cout du credit</TabsTrigger>
           <TabsTrigger value="rachat-credit">Rachat de credit</TabsTrigger>
         </TabsList>
         <TabsContent value="emprunts">
           <EmpruntsTab />
+        </TabsContent>
+        <TabsContent value="amortissement">
+          <AmortissementTab />
         </TabsContent>
         <TabsContent value="cout-credit">
           <CoutCreditTab />

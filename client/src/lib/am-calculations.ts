@@ -369,10 +369,12 @@ export interface AmortRow {
   interets: number;
   capitalAmorti: number;
   capitalFin: number;
+  assurance: number;
+  totalAnnuel: number;
 }
 
 /**
- * Génère un tableau d'amortissement.
+ * Génère un tableau d'amortissement avec assurance.
  * Si mensualité connue : utilise la mensualité × 12.
  * Sinon : calcule l'annuité constante (formule actuarielle standard).
  */
@@ -381,6 +383,7 @@ export function computeAmortSchedule(emprunt: AMEmprunt): AmortRow[] {
   const taux = Number(emprunt?.tauxAnnuel || 0) / 100;
   const duree = Number(emprunt?.dureeAns || 0);
   const mensualite = Number(emprunt?.mensualite || 0);
+  const assuranceMensuelle = Number(emprunt?.assuranceMensuelle || 0);
 
   if (montant <= 0 || duree <= 0) return [];
 
@@ -396,6 +399,7 @@ export function computeAmortSchedule(emprunt: AMEmprunt): AmortRow[] {
     annuite = montant / duree;
   }
 
+  const assuranceAnnuelle = assuranceMensuelle * 12;
   const rows: AmortRow[] = [];
   let capital = montant;
 
@@ -403,13 +407,16 @@ export function computeAmortSchedule(emprunt: AMEmprunt): AmortRow[] {
     const interets = capital * taux;
     const capitalAmorti = Math.min(capital, annuite - interets);
     const capitalFin = Math.max(0, capital - capitalAmorti);
+    const annuiteEffective = Math.min(annuite, capital + interets);
     rows.push({
       year: y,
       capitalDebut: capital,
-      annuite: Math.min(annuite, capital + interets),
+      annuite: annuiteEffective,
       interets,
       capitalAmorti,
       capitalFin,
+      assurance: assuranceAnnuelle,
+      totalAnnuel: annuiteEffective + assuranceAnnuelle,
     });
     capital = capitalFin;
   }
