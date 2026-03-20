@@ -1,7 +1,9 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageSquare, X, Send, Bot, User, Loader2, Wrench, Minimize2, Maximize2 } from "lucide-react";
 import { cn } from "../../lib/utils";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface Message {
   id: string;
@@ -285,9 +287,9 @@ export function ChatPanel() {
                   )}>
                     {/* Tool usage indicators */}
                     {msg.toolsUsed && msg.toolsUsed.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mb-1">
+                      <div className="flex flex-wrap gap-1.5 mb-2">
                         {msg.toolsUsed.map((t, i) => (
-                          <span key={i} className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+                          <span key={i} className="inline-flex items-center gap-1.5 rounded-lg bg-orange-50 dark:bg-orange-950/30 border border-orange-200/50 dark:border-orange-800/30 px-2.5 py-1 text-[10px] font-medium text-orange-700 dark:text-orange-300">
                             <Wrench className="h-2.5 w-2.5" />
                             {TOOL_LABELS[t] || t}
                           </span>
@@ -296,23 +298,27 @@ export function ChatPanel() {
                     )}
 
                     <div className={cn(
-                      "rounded-xl px-3.5 py-2.5 text-sm leading-relaxed",
+                      "rounded-2xl text-sm leading-relaxed",
                       msg.role === "user"
-                        ? "bg-primary text-primary-foreground ml-auto"
-                        : "bg-muted/60"
+                        ? "bg-primary text-primary-foreground ml-auto px-4 py-2.5"
+                        : "px-1 py-1"
                     )}>
                       {msg.role === "assistant" ? (
-                        <div className="prose prose-sm dark:prose-invert max-w-none [&_p]:mb-2 [&_p:last-child]:mb-0 [&_table]:text-xs [&_th]:px-2 [&_td]:px-2 [&_strong]:text-foreground whitespace-pre-wrap">
-                          <MarkdownLite text={msg.content} />
+                        <div className="chat-markdown">
+                          <ChatMarkdown content={msg.content} />
                         </div>
                       ) : (
                         msg.content
                       )}
                       {msg.role === "assistant" && !msg.content && loading && (
-                        <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                          <span className="text-xs">Analyse en cours...</span>
-                        </span>
+                        <div className="flex items-center gap-2 px-3 py-2">
+                          <div className="flex gap-1">
+                            <span className="h-2 w-2 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+                            <span className="h-2 w-2 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+                            <span className="h-2 w-2 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+                          </div>
+                          <span className="text-xs text-muted-foreground">Analyse en cours...</span>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -322,12 +328,12 @@ export function ChatPanel() {
               {/* Active tool indicators */}
               {loading && activeTools.length > 0 && (
                 <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="flex items-center gap-2 text-xs text-muted-foreground"
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center gap-2.5 rounded-xl bg-orange-50 dark:bg-orange-950/20 border border-orange-200/40 dark:border-orange-800/20 px-3 py-2"
                 >
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  <span>Consultation : {TOOL_LABELS[activeTools[activeTools.length - 1]] || activeTools[activeTools.length - 1]}</span>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-orange-500" />
+                  <span className="text-xs font-medium text-orange-700 dark:text-orange-300">{TOOL_LABELS[activeTools[activeTools.length - 1]] || activeTools[activeTools.length - 1]}...</span>
                 </motion.div>
               )}
 
@@ -374,21 +380,63 @@ export function ChatPanel() {
   );
 }
 
-/** Lightweight markdown: bold, tables, and line breaks */
-function MarkdownLite({ text }: { text: string }) {
-  if (!text) return null;
-
-  // Process bold
-  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+/** Full markdown rendering for chat responses */
+const ChatMarkdown = memo(function ChatMarkdown({ content }: { content: string }) {
+  if (!content) return null;
 
   return (
-    <>
-      {parts.map((part, i) => {
-        if (part.startsWith("**") && part.endsWith("**")) {
-          return <strong key={i}>{part.slice(2, -2)}</strong>;
-        }
-        return <span key={i}>{part}</span>;
-      })}
-    </>
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        // Headings
+        h1: ({ children }) => <h3 className="text-base font-bold text-foreground mt-4 mb-2 first:mt-0">{children}</h3>,
+        h2: ({ children }) => <h4 className="text-sm font-bold text-foreground mt-3 mb-1.5 first:mt-0">{children}</h4>,
+        h3: ({ children }) => <h5 className="text-sm font-semibold text-foreground mt-2.5 mb-1 first:mt-0">{children}</h5>,
+        // Paragraphs
+        p: ({ children }) => <p className="mb-2 last:mb-0 text-[13px] leading-relaxed text-foreground/90">{children}</p>,
+        // Bold & italic
+        strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
+        em: ({ children }) => <em className="italic text-foreground/80">{children}</em>,
+        // Lists
+        ul: ({ children }) => <ul className="mb-2 last:mb-0 space-y-0.5 pl-4 text-[13px]">{children}</ul>,
+        ol: ({ children }) => <ol className="mb-2 last:mb-0 space-y-0.5 pl-4 text-[13px] list-decimal">{children}</ol>,
+        li: ({ children }) => <li className="leading-relaxed text-foreground/90 list-disc marker:text-orange-400">{children}</li>,
+        // Tables
+        table: ({ children }) => (
+          <div className="my-2 overflow-x-auto rounded-lg border border-border/60 shadow-sm">
+            <table className="w-full text-[12px]">{children}</table>
+          </div>
+        ),
+        thead: ({ children }) => <thead className="bg-muted/60">{children}</thead>,
+        th: ({ children }) => <th className="px-3 py-2 text-left font-semibold text-foreground/80 text-[11px] uppercase tracking-wider">{children}</th>,
+        td: ({ children }) => <td className="px-3 py-1.5 border-t border-border/40 text-foreground/80">{children}</td>,
+        tr: ({ children }) => <tr className="hover:bg-muted/30 transition-colors">{children}</tr>,
+        // Code
+        code: ({ className, children }) => {
+          const isBlock = className?.includes("language-");
+          if (isBlock) {
+            return (
+              <div className="my-2 rounded-lg bg-muted/80 border border-border/40 overflow-x-auto">
+                <code className="block px-3 py-2.5 text-[12px] leading-relaxed font-mono text-foreground/90">{children}</code>
+              </div>
+            );
+          }
+          return <code className="rounded-md bg-muted/80 px-1.5 py-0.5 text-[12px] font-mono text-orange-600 dark:text-orange-400">{children}</code>;
+        },
+        pre: ({ children }) => <>{children}</>,
+        // Blockquotes
+        blockquote: ({ children }) => (
+          <blockquote className="my-2 border-l-2 border-orange-400 pl-3 text-[13px] text-foreground/70 italic">{children}</blockquote>
+        ),
+        // Horizontal rule
+        hr: () => <hr className="my-3 border-border/40" />,
+        // Links
+        a: ({ href, children }) => (
+          <a href={href} target="_blank" rel="noopener noreferrer" className="text-orange-600 dark:text-orange-400 underline decoration-orange-400/40 hover:decoration-orange-400 transition-colors">{children}</a>
+        ),
+      }}
+    >
+      {content}
+    </ReactMarkdown>
   );
-}
+});
