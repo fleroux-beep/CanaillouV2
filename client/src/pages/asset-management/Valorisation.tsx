@@ -181,7 +181,7 @@ export default function ValorisationPage() {
   // Plus-value pie chart
   const pvByActif = actifData
     .filter((a: any) => Math.abs(a.plusValue) > 0)
-    .sort((a, b) => b.plusValue - a.plusValue)
+    .sort((a: any, b: any) => b.plusValue - a.plusValue)
     .map((a: any) => ({
       name: a.nom,
       value: Math.abs(a.plusValue),

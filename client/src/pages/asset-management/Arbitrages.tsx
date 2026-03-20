@@ -39,6 +39,8 @@ const chartTooltipStyle = {
   },
 };
 
+const COLORS = ["#3b82f6", "#8b5cf6", "#06b6d4", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#6366f1"];
+
 function computeScore(rendement: number, ltv: number, dscr: number): { checks: number; label: string; color: string; bg: string; icon: any } {
   let checks = 0;
   if (rendement > 5) checks++;

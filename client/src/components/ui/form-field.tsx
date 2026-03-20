@@ -3,7 +3,7 @@ import { cn } from "../../lib/utils";
 
 interface FormFieldProps {
   label: string;
-  name: string;
+  name?: string;
   value?: string | number | undefined;
   defaultValue?: string | number | undefined;
   onChange?: (name: string, value: string) => void;
@@ -15,6 +15,7 @@ interface FormFieldProps {
   rows?: number;
   prefix?: string;
   suffix?: string;
+  children?: React.ReactNode;
 }
 
 export function FormField({
@@ -31,14 +32,24 @@ export function FormField({
   rows,
   prefix,
   suffix,
+  children,
 }: FormFieldProps) {
   const id = useId();
   const baseClass =
     "w-full rounded-xl border border-border/60 bg-background px-3.5 py-2.5 text-sm outline-none transition-all placeholder:text-muted-foreground/50 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:shadow-sm";
 
+  if (children) {
+    return (
+      <div className={className}>
+        <label htmlFor={id} className="mb-2 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</label>
+        {children}
+      </div>
+    );
+  }
+
   const isControlled = onChange !== undefined && value !== undefined;
   const valueProps = isControlled
-    ? { value: value ?? "", onChange: (e: any) => onChange(name, e.target.value) }
+    ? { value: value ?? "", onChange: (e: any) => onChange(name!, e.target.value) }
     : { defaultValue: defaultValue ?? value ?? "" };
 
   if (options) {
