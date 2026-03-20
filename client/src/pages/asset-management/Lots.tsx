@@ -76,6 +76,7 @@ export default function LotsPage() {
           <FormField label="Type" name="type" value={form.type} onChange={onChange} options={[
             { value: "commercial", label: "Commercial" }, { value: "bureau", label: "Bureau" },
             { value: "habitation", label: "Habitation" }, { value: "parking", label: "Parking" }, { value: "cave", label: "Cave" },
+            { value: "creche", label: "Crèche" },
           ]} />
           <FormField label="Étage" name="etage" value={form.etage} onChange={onChange} />
           <FormField label="Surface" name="surface" value={form.surface} onChange={onChange} type="number" suffix="m²" />

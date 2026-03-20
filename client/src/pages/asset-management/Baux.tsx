@@ -133,6 +133,7 @@ export default function BauxAMPage() {
             { value: "habitation", label: "Habitation" },
             { value: "commercial", label: "Commercial" },
             { value: "professionnel", label: "Professionnel" },
+            { value: "creche", label: "Crèche" },
           ]} />
           <FormField label="Date début" name="dateDebut" value={form.dateDebut} onChange={onChange} type="date" />
           <FormField label="Date fin" name="dateFin" value={form.dateFin} onChange={onChange} type="date" />
