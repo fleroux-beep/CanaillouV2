@@ -376,22 +376,27 @@ const toolDefinitions = [
 
 // ─── Tool executor ──────────────────────────────────────────
 async function executeTool(name: string, input: Record<string, unknown>): Promise<unknown> {
-  switch (name) {
-    case "get_portfolio_summary": return fetchPortfolioSummary();
-    case "get_actifs_details": return fetchActifsDetails();
-    case "get_emprunts_details": return fetchEmpruntsDetails();
-    case "get_baux_gl": return fetchBauxGL();
-    case "get_indices": return fetchIndices();
-    case "get_sci_detail": return fetchSCIDetail(input.sci_id as string);
-    case "get_paiements_gl": return fetchPaiementsGL();
-    case "search_entities": return searchEntities(input.query as string);
-    case "update_actif": return updateActif(input.id as string, (input.fields || {}) as Record<string, unknown>);
-    case "update_lot": return updateLot(input.id as string, (input.fields || {}) as Record<string, unknown>);
-    case "update_emprunt": return updateEmprunt(input.id as string, (input.fields || {}) as Record<string, unknown>);
-    case "update_sci": return updateSCI(input.id as string, (input.fields || {}) as Record<string, unknown>);
-    case "update_bail_am": return updateBailAM(input.id as string, (input.fields || {}) as Record<string, unknown>);
-    case "update_bail_gl": return updateBailGL(input.id as string, (input.fields || {}) as Record<string, unknown>);
-    default: return { error: `Outil inconnu : ${name}` };
+  try {
+    switch (name) {
+      case "get_portfolio_summary": return await fetchPortfolioSummary();
+      case "get_actifs_details": return await fetchActifsDetails();
+      case "get_emprunts_details": return await fetchEmpruntsDetails();
+      case "get_baux_gl": return await fetchBauxGL();
+      case "get_indices": return await fetchIndices();
+      case "get_sci_detail": return await fetchSCIDetail(input.sci_id as string);
+      case "get_paiements_gl": return await fetchPaiementsGL();
+      case "search_entities": return await searchEntities(input.query as string);
+      case "update_actif": return await updateActif(input.id as string, (input.fields || {}) as Record<string, unknown>);
+      case "update_lot": return await updateLot(input.id as string, (input.fields || {}) as Record<string, unknown>);
+      case "update_emprunt": return await updateEmprunt(input.id as string, (input.fields || {}) as Record<string, unknown>);
+      case "update_sci": return await updateSCI(input.id as string, (input.fields || {}) as Record<string, unknown>);
+      case "update_bail_am": return await updateBailAM(input.id as string, (input.fields || {}) as Record<string, unknown>);
+      case "update_bail_gl": return await updateBailGL(input.id as string, (input.fields || {}) as Record<string, unknown>);
+      default: return { error: `Outil inconnu : ${name}` };
+    }
+  } catch (err: any) {
+    logger.error("Tool execution error", { tool: name, error: err.message });
+    return { error: `Erreur lors de l'exécution de ${name}: ${err.message}` };
   }
 }
 
@@ -530,8 +535,8 @@ export function registerChatRoutes(app: Express) {
           fullResponse = textBlocks.map((b: any) => b.text).join("\n");
         }
 
-        // Safety: max 5 tool rounds
-        if (claudeMessages.length > messages.length * 2 + 10) {
+        // Safety: max 10 tool rounds (modifications need search + update + confirm)
+        if (claudeMessages.length > messages.length * 2 + 20) {
           continueLoop = false;
           fullResponse = fullResponse || "J'ai atteint la limite de requêtes pour cette question. Pourriez-vous reformuler ?";
         }
