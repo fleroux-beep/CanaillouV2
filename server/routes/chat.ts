@@ -231,6 +231,7 @@ export function registerChatRoutes(app: Express) {
       return res.status(400).json({ error: "Messages requis" });
     }
 
+    let keepalive: ReturnType<typeof setInterval> | undefined;
     try {
       // Set up SSE for streaming
       res.setHeader("Content-Type", "text/event-stream");
@@ -245,7 +246,7 @@ export function registerChatRoutes(app: Express) {
       }));
 
       // Send SSE keepalive every 15s to prevent proxy/load-balancer timeouts
-      const keepalive = setInterval(() => {
+      keepalive = setInterval(() => {
         res.write(": keepalive\n\n");
       }, 15_000);
 

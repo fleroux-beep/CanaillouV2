@@ -1,9 +1,8 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, Fragment } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiRequest } from "../../lib/queryClient";
 import { useCrud } from "../../hooks/useCrud";
-import { DataTable, type Column } from "../../components/ui/data-table";
 import { FormDialog } from "../../components/ui/form-dialog";
 import { ConfirmDialog } from "../../components/ui/confirm-dialog";
 import { FormField, FormGrid } from "../../components/ui/form-field";
@@ -14,7 +13,7 @@ import { GlassCard } from "../../components/ui/glass-card";
 import { Section } from "../../components/ui/section";
 import { Badge } from "../../components/ui/badge";
 import { formatCurrency, formatPercent } from "../../lib/utils";
-import { Plus, Pencil, Trash2, TrendingDown, Calculator, RefreshCw, Landmark, Percent, TableIcon } from "lucide-react";
+import { Plus, Pencil, Trash2, TrendingDown, Calculator, RefreshCw, Landmark, Percent, TableIcon, Search, Download, ChevronDown, ChevronRight, Inbox } from "lucide-react";
 import { getAnnuiteEmprunt, computeAmortSchedule, type AMEmprunt, type AmortRow } from "../../lib/am-calculations";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area } from "recharts";
 
@@ -30,41 +29,100 @@ interface Actif { id: string; nom: string; }
 
 const empty: Partial<Emprunt> = {};
 
-/* ═══════════ Onglet Emprunts (CRUD existant) ═══════════ */
+/* ═══════════ Onglet Emprunts (CRUD avec groupement SCI/Actif) ═══════════ */
 function EmpruntsTab() {
   const { data, create, update, remove, creating, updating, deleting } = useCrud<Emprunt>("/api/am/emprunts", "Emprunt");
   const { data: scis } = useCrud<SCI>("/api/am/scis", "SCI");
-  const { data: actifs } = useCrud<Actif>("/api/am/actifs", "Actif");
+  const { data: actifsList } = useCrud<Actif>("/api/am/actifs", "Actif");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Emprunt | null>(null);
   const [form, setForm] = useState<Partial<Emprunt>>(empty);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [collapsedSCIs, setCollapsedSCIs] = useState<Set<string>>(new Set());
 
   const sciMap = Object.fromEntries(scis.map((s) => [s.id, s.nom]));
+  const actifMap = Object.fromEntries(actifsList.map((a) => [a.id, a.nom]));
 
-  const columns: Column<Emprunt>[] = [
-    { key: "banque", label: "Banque", sortable: true, render: (r) => <span className="font-medium">{r.banque || "—"}</span> },
-    { key: "sciId", label: "SCI", sortable: true, render: (r) => r.sciId ? <Badge variant="primary">{sciMap[r.sciId] || "—"}</Badge> : "—", exportValue: (r) => r.sciId ? sciMap[r.sciId] || "" : "" },
-    { key: "montantEmprunte", label: "Montant", align: "right", sortable: true, render: (r) => r.montantEmprunte ? formatCurrency(r.montantEmprunte) : "—" },
-    { key: "capitalRestantDu", label: "CRD", align: "right", sortable: true, render: (r) => r.capitalRestantDu ? formatCurrency(r.capitalRestantDu) : "—" },
-    { key: "tauxAnnuel", label: "Taux", align: "right", sortable: true, render: (r) => r.tauxAnnuel ? formatPercent(r.tauxAnnuel) : "—" },
-    { key: "annuite", label: "Annuité", align: "right", sortable: true, render: (r) => {
-      const annuite = getAnnuiteEmprunt(r as unknown as AMEmprunt);
-      return annuite > 0 ? formatCurrency(annuite) : "—";
-    }, exportValue: (r) => {
-      const annuite = getAnnuiteEmprunt(r as unknown as AMEmprunt);
-      return annuite > 0 ? annuite.toFixed(2) : "";
-    }},
-    { key: "tauxAssurance", label: "Taux assur.", align: "right", sortable: true, render: (r) => r.tauxAssurance ? formatPercent(r.tauxAssurance) : "—" },
-    { key: "ira", label: "IRA", align: "right", sortable: true, render: (r) => r.ira ? formatCurrency(r.ira) : "—" },
-    { key: "dateFin", label: "Échéance", sortable: true },
-    { key: "actions", label: "", align: "right", render: (r) => (
-      <div className="flex items-center justify-end gap-1">
-        <button onClick={(e) => { e.stopPropagation(); setEditing(r); setForm(r); setDialogOpen(true); }} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button>
-        <button onClick={(e) => { e.stopPropagation(); setDeleteId(r.id); }} className="rounded-lg p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"><Trash2 className="h-3.5 w-3.5" /></button>
-      </div>
-    )},
-  ];
+  // Filter, sort by SCI then Actif, group
+  const grouped = useMemo(() => {
+    let items = data.filter((e) => !e.archived);
+    if (search) {
+      const q = search.toLowerCase();
+      items = items.filter((e) =>
+        (e.banque || "").toLowerCase().includes(q) ||
+        (e.sciId && (sciMap[e.sciId] || "").toLowerCase().includes(q)) ||
+        (e.actifId && (actifMap[e.actifId] || "").toLowerCase().includes(q))
+      );
+    }
+    // Sort by SCI name, then actif name, then banque
+    items.sort((a, b) => {
+      const sciA = a.sciId ? (sciMap[a.sciId] || "") : "zzz";
+      const sciB = b.sciId ? (sciMap[b.sciId] || "") : "zzz";
+      if (sciA !== sciB) return sciA.localeCompare(sciB, "fr");
+      const actifA = a.actifId ? (actifMap[a.actifId] || "") : "zzz";
+      const actifB = b.actifId ? (actifMap[b.actifId] || "") : "zzz";
+      if (actifA !== actifB) return actifA.localeCompare(actifB, "fr");
+      return (a.banque || "").localeCompare(b.banque || "", "fr");
+    });
+    // Group by SCI
+    const groups: { sciId: string; sciName: string; emprunts: Emprunt[]; totalCRD: number; totalMontant: number }[] = [];
+    for (const emp of items) {
+      const sciId = emp.sciId || "__none__";
+      let group = groups.find((g) => g.sciId === sciId);
+      if (!group) {
+        group = { sciId, sciName: emp.sciId ? (sciMap[emp.sciId] || "SCI inconnue") : "Sans SCI", emprunts: [], totalCRD: 0, totalMontant: 0 };
+        groups.push(group);
+      }
+      group.emprunts.push(emp);
+      group.totalCRD += parseFloat(emp.capitalRestantDu || emp.montantEmprunte || "0");
+      group.totalMontant += parseFloat(emp.montantEmprunte || "0");
+    }
+    return groups;
+  }, [data, search, sciMap, actifMap]);
+
+  const totalCount = grouped.reduce((s, g) => s + g.emprunts.length, 0);
+
+  const toggleSCI = (sciId: string) => {
+    setCollapsedSCIs((prev) => {
+      const next = new Set(prev);
+      if (next.has(sciId)) next.delete(sciId);
+      else next.add(sciId);
+      return next;
+    });
+  };
+
+  const exportCSV = () => {
+    const headers = ["SCI", "Actif", "Banque", "Montant", "CRD", "Taux", "Annuité", "Taux assur.", "IRA", "Échéance"];
+    const rows = grouped.flatMap((g) =>
+      g.emprunts.map((e) => {
+        const annuite = getAnnuiteEmprunt(e as unknown as AMEmprunt);
+        return [
+          g.sciName,
+          e.actifId ? (actifMap[e.actifId] || "") : "",
+          e.banque || "",
+          e.montantEmprunte || "",
+          e.capitalRestantDu || "",
+          e.tauxAnnuel || "",
+          annuite > 0 ? annuite.toFixed(2) : "",
+          e.tauxAssurance || "",
+          e.ira || "",
+          e.dateFin || "",
+        ].map((v) => {
+          const s = String(v);
+          return s.includes(",") || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
+        });
+      })
+    );
+    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "emprunts.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const onChange = (name: string, value: string) => setForm((f) => ({ ...f, [name]: value }));
   const handleSubmit = async (e: React.FormEvent) => {
@@ -81,12 +139,116 @@ function EmpruntsTab() {
           <Plus className="h-4 w-4" /> Nouvel emprunt
         </motion.button>
       </div>
-      <DataTable data={data.filter((e) => !e.archived)} columns={columns} searchKeys={["banque"]} searchPlaceholder="Rechercher..." emptyMessage="Aucun emprunt" exportFileName="emprunts" />
+
+      {/* Toolbar */}
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/60" />
+          <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Rechercher..."
+            className="w-full rounded-xl border border-border/60 bg-card py-2.5 pl-10 pr-4 text-sm outline-none transition-all placeholder:text-muted-foreground/50 focus:border-primary focus:ring-2 focus:ring-primary/15" />
+        </div>
+        <div className="flex-1" />
+        <button onClick={exportCSV} className="inline-flex items-center gap-2 rounded-xl border border-border/60 bg-card px-4 py-2.5 text-sm font-medium text-muted-foreground transition-all hover:bg-accent hover:text-foreground">
+          <Download className="h-4 w-4" /> Exporter
+        </button>
+      </div>
+
+      {/* Grouped table */}
+      <div className="overflow-x-auto rounded-xl border border-border/60 bg-card shadow-sm">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border/60 bg-muted/40">
+              <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground w-8"></th>
+              <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Banque</th>
+              <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Actif</th>
+              <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Montant</th>
+              <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">CRD</th>
+              <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Taux</th>
+              <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Annuité</th>
+              <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Taux assur.</th>
+              <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">IRA</th>
+              <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Échéance</th>
+              <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border/40">
+            {totalCount === 0 ? (
+              <tr>
+                <td colSpan={11} className="px-4 py-16 text-center">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted"><Inbox className="h-6 w-6 text-muted-foreground/50" /></div>
+                    <p className="font-medium text-muted-foreground">Aucun emprunt</p>
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              grouped.map((group) => {
+                const isCollapsed = collapsedSCIs.has(group.sciId);
+                return (
+                  <AnimatePresence key={group.sciId} initial={false}>
+                    {/* SCI group header */}
+                    <motion.tr
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="bg-muted/60 cursor-pointer hover:bg-muted/80 transition-colors"
+                      onClick={() => toggleSCI(group.sciId)}
+                    >
+                      <td className="px-4 py-2.5" colSpan={3}>
+                        <div className="flex items-center gap-2">
+                          {isCollapsed ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                          <Badge variant="primary">{group.sciName}</Badge>
+                          <span className="text-xs text-muted-foreground">({group.emprunts.length} emprunt{group.emprunts.length > 1 ? "s" : ""})</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground">{formatCurrency(group.totalMontant)}</td>
+                      <td className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground">{formatCurrency(group.totalCRD)}</td>
+                      <td colSpan={6}></td>
+                    </motion.tr>
+                    {/* Emprunt rows */}
+                    {!isCollapsed && group.emprunts.map((emp, i) => {
+                      const annuite = getAnnuiteEmprunt(emp as unknown as AMEmprunt);
+                      return (
+                        <motion.tr
+                          key={emp.id}
+                          initial={{ opacity: 0, x: -8 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: i * 0.02 }}
+                          className="hover:bg-primary/[0.03] transition-colors"
+                        >
+                          <td className="px-4 py-3.5"></td>
+                          <td className="px-4 py-3.5 font-medium">{emp.banque || "—"}</td>
+                          <td className="px-4 py-3.5">{emp.actifId ? <span className="text-muted-foreground">{actifMap[emp.actifId] || "—"}</span> : "—"}</td>
+                          <td className="px-4 py-3.5 text-right">{emp.montantEmprunte ? formatCurrency(emp.montantEmprunte) : "—"}</td>
+                          <td className="px-4 py-3.5 text-right">{emp.capitalRestantDu ? formatCurrency(emp.capitalRestantDu) : "—"}</td>
+                          <td className="px-4 py-3.5 text-right">{emp.tauxAnnuel ? formatPercent(emp.tauxAnnuel) : "—"}</td>
+                          <td className="px-4 py-3.5 text-right">{annuite > 0 ? formatCurrency(annuite) : "—"}</td>
+                          <td className="px-4 py-3.5 text-right">{emp.tauxAssurance ? formatPercent(emp.tauxAssurance) : "—"}</td>
+                          <td className="px-4 py-3.5 text-right">{emp.ira ? formatCurrency(emp.ira) : "—"}</td>
+                          <td className="px-4 py-3.5">{emp.dateFin || "—"}</td>
+                          <td className="px-4 py-3.5 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <button onClick={(e) => { e.stopPropagation(); setEditing(emp); setForm(emp); setDialogOpen(true); }} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button>
+                              <button onClick={(e) => { e.stopPropagation(); setDeleteId(emp.id); }} className="rounded-lg p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"><Trash2 className="h-3.5 w-3.5" /></button>
+                            </div>
+                          </td>
+                        </motion.tr>
+                      );
+                    })}
+                  </AnimatePresence>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="text-xs font-medium text-muted-foreground">{totalCount} {totalCount > 1 ? "résultats" : "résultat"}</div>
+
       <FormDialog open={dialogOpen} onClose={() => setDialogOpen(false)} title={editing ? "Modifier l'emprunt" : "Nouvel emprunt"} onSubmit={handleSubmit} loading={creating || updating} size="lg">
         <FormGrid>
           <FormField label="Banque" name="banque" value={form.banque} onChange={onChange} />
           <FormField label="SCI" name="sciId" value={form.sciId} onChange={onChange} options={scis.map((s) => ({ value: s.id, label: s.nom }))} />
-          <FormField label="Actif" name="actifId" value={form.actifId} onChange={onChange} options={actifs.map((a) => ({ value: a.id, label: a.nom }))} />
+          <FormField label="Actif" name="actifId" value={form.actifId} onChange={onChange} options={actifsList.map((a) => ({ value: a.id, label: a.nom }))} />
           <FormField label="Type amortissement" name="typeAmortissement" value={form.typeAmortissement} onChange={onChange} options={[
             { value: "constant", label: "Constant" }, { value: "in-fine", label: "In fine" }, { value: "progressif", label: "Progressif" },
           ]} />
@@ -237,7 +399,7 @@ function CoutCreditTab() {
               <thead>
                 <tr className="border-b bg-muted/30">
                   <th className="px-4 py-3 text-left font-semibold">Banque</th>
-                  <th className="px-4 py-3 text-left font-semibold">SCI</th>
+                  <th className="px-4 py-3 text-left font-semibold">Actif</th>
                   <th className="px-4 py-3 text-right font-semibold">Montant</th>
                   <th className="px-4 py-3 text-right font-semibold">Taux</th>
                   <th className="px-4 py-3 text-right font-semibold">Durée</th>
@@ -248,19 +410,56 @@ function CoutCreditTab() {
                 </tr>
               </thead>
               <tbody>
-                {coutData.map((c) => (
-                  <tr key={c.id} className="border-t hover:bg-muted/20">
-                    <td className="px-4 py-3 font-medium">{c.banque}</td>
-                    <td className="px-4 py-3">{c.sci}</td>
-                    <td className="px-4 py-3 text-right">{formatCurrency(c.montant)}</td>
-                    <td className="px-4 py-3 text-right">{formatPercent(c.taux, 2)}</td>
-                    <td className="px-4 py-3 text-right">{c.duree > 0 ? `${Math.round(c.duree / 12)} ans` : "—"}</td>
-                    <td className="px-4 py-3 text-right text-red-600">{formatCurrency(c.coutInterets)}</td>
-                    <td className="px-4 py-3 text-right text-amber-600">{formatCurrency(c.coutAssurance)}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-red-600">{formatCurrency(c.coutTotal)}</td>
-                    <td className="px-4 py-3 text-right">{formatPercent(c.taeg, 2)}</td>
-                  </tr>
-                ))}
+                {(() => {
+                  // Group coutData by SCI
+                  const sciGroups: { sciId: string; sciName: string; items: typeof coutData }[] = [];
+                  const sorted = [...coutData].sort((a, b) => a.sci.localeCompare(b.sci, "fr"));
+                  for (const c of sorted) {
+                    const emp = activeEmprunts.find((e) => e.id === c.id);
+                    const sciId = emp?.sciId || "__none__";
+                    let group = sciGroups.find((g) => g.sciId === sciId);
+                    if (!group) { group = { sciId, sciName: c.sci, items: [] }; sciGroups.push(group); }
+                    group.items.push(c);
+                  }
+                  return sciGroups.map((group) => {
+                    const groupMontant = group.items.reduce((s, c) => s + c.montant, 0);
+                    const groupInterets = group.items.reduce((s, c) => s + c.coutInterets, 0);
+                    const groupAssurance = group.items.reduce((s, c) => s + c.coutAssurance, 0);
+                    const groupCout = group.items.reduce((s, c) => s + c.coutTotal, 0);
+                    return (
+                      <Fragment key={group.sciId}>
+                        <tr className="bg-muted/50">
+                          <td className="px-4 py-2" colSpan={2}>
+                            <Badge variant="primary">{group.sciName}</Badge>
+                            <span className="ml-2 text-xs text-muted-foreground">({group.items.length})</span>
+                          </td>
+                          <td className="px-4 py-2 text-right text-xs font-semibold text-muted-foreground">{formatCurrency(groupMontant)}</td>
+                          <td colSpan={2}></td>
+                          <td className="px-4 py-2 text-right text-xs font-semibold text-red-500/70">{formatCurrency(groupInterets)}</td>
+                          <td className="px-4 py-2 text-right text-xs font-semibold text-amber-500/70">{formatCurrency(groupAssurance)}</td>
+                          <td className="px-4 py-2 text-right text-xs font-semibold text-red-500/70">{formatCurrency(groupCout)}</td>
+                          <td></td>
+                        </tr>
+                        {group.items.map((c) => {
+                          const emp = activeEmprunts.find((e) => e.id === c.id);
+                          return (
+                            <tr key={c.id} className="border-t hover:bg-muted/20">
+                              <td className="px-4 py-3 pl-8 font-medium">{c.banque}</td>
+                              <td className="px-4 py-3 text-muted-foreground">{emp?.actifId ? (actifMap[emp.actifId] || "—") : "—"}</td>
+                              <td className="px-4 py-3 text-right">{formatCurrency(c.montant)}</td>
+                              <td className="px-4 py-3 text-right">{formatPercent(c.taux, 2)}</td>
+                              <td className="px-4 py-3 text-right">{c.duree > 0 ? `${Math.round(c.duree / 12)} ans` : "—"}</td>
+                              <td className="px-4 py-3 text-right text-red-600">{formatCurrency(c.coutInterets)}</td>
+                              <td className="px-4 py-3 text-right text-amber-600">{formatCurrency(c.coutAssurance)}</td>
+                              <td className="px-4 py-3 text-right font-semibold text-red-600">{formatCurrency(c.coutTotal)}</td>
+                              <td className="px-4 py-3 text-right">{formatPercent(c.taeg, 2)}</td>
+                            </tr>
+                          );
+                        })}
+                      </Fragment>
+                    );
+                  });
+                })()}
               </tbody>
               <tfoot>
                 <tr className="border-t-2 bg-muted/20 font-semibold">
@@ -287,7 +486,17 @@ function RachatCreditTab() {
     queryKey: ["/api/am/emprunts"],
     queryFn: () => apiRequest("/api/am/emprunts"),
   });
+  const { data: scis = [] } = useQuery<SCI[]>({
+    queryKey: ["/api/am/scis"],
+    queryFn: () => apiRequest("/api/am/scis"),
+  });
+  const { data: actifsList = [] } = useQuery<Actif[]>({
+    queryKey: ["/api/am/actifs"],
+    queryFn: () => apiRequest("/api/am/actifs"),
+  });
 
+  const sciMap = Object.fromEntries(scis.map((s) => [s.id, s.nom]));
+  const actifMap = Object.fromEntries(actifsList.map((a) => [a.id, a.nom]));
   const activeEmprunts = emprunts.filter((e) => !e.archived);
 
   // Simulateur
@@ -378,11 +587,25 @@ function RachatCreditTab() {
                     className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
                   >
                     <option value="">Selectionnez un emprunt</option>
-                    {activeEmprunts.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.banque || "Emprunt"} — {e.capitalRestantDu ? formatCurrency(e.capitalRestantDu) : e.montantEmprunte ? formatCurrency(e.montantEmprunte) : "N/A"}
-                      </option>
-                    ))}
+                    {(() => {
+                      const groups: { sciName: string; items: Emprunt[] }[] = [];
+                      for (const emp of activeEmprunts) {
+                        const sciName = emp.sciId ? (sciMap[emp.sciId] || "SCI inconnue") : "Sans SCI";
+                        let group = groups.find((g) => g.sciName === sciName);
+                        if (!group) { group = { sciName, items: [] }; groups.push(group); }
+                        group.items.push(emp);
+                      }
+                      groups.sort((a, b) => a.sciName.localeCompare(b.sciName, "fr"));
+                      return groups.map((g) => (
+                        <optgroup key={g.sciName} label={g.sciName}>
+                          {g.items.map((e) => (
+                            <option key={e.id} value={e.id}>
+                              {[e.actifId ? actifMap[e.actifId] : null, e.banque].filter(Boolean).join(" / ") || "Emprunt"} — {e.capitalRestantDu ? formatCurrency(e.capitalRestantDu) : e.montantEmprunte ? formatCurrency(e.montantEmprunte) : "N/A"}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ));
+                    })()}
                   </select>
                 </div>
                 <FormField label="Nouveau taux (%)" name="nouveauTaux" value={nouveauTaux} onChange={(_, v) => setNouveauTaux(v)} type="number" suffix="%" />
@@ -553,9 +776,25 @@ function AmortissementTab() {
               className="w-full max-w-md rounded-lg border border-border bg-background px-3 py-2 text-sm"
             >
               <option value="">Choisir un emprunt...</option>
-              {activeEmprunts.map((e) => (
-                <option key={e.id} value={e.id}>{empruntLabel(e)}</option>
-              ))}
+              {(() => {
+                const groups: { sciName: string; items: Emprunt[] }[] = [];
+                for (const emp of activeEmprunts) {
+                  const sciName = emp.sciId ? (sciMap[emp.sciId] || "SCI inconnue") : "Sans SCI";
+                  let group = groups.find((g) => g.sciName === sciName);
+                  if (!group) { group = { sciName, items: [] }; groups.push(group); }
+                  group.items.push(emp);
+                }
+                groups.sort((a, b) => a.sciName.localeCompare(b.sciName, "fr"));
+                return groups.map((g) => (
+                  <optgroup key={g.sciName} label={g.sciName}>
+                    {g.items.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {[e.actifId ? actifMap[e.actifId] : null, e.banque].filter(Boolean).join(" / ") || `Emprunt #${e.id.substring(0, 8)}`}
+                      </option>
+                    ))}
+                  </optgroup>
+                ));
+              })()}
             </select>
           </div>
         </GlassCard>
