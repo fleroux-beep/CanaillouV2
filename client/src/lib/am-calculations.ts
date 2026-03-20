@@ -245,10 +245,14 @@ export function getRendementBrut(loyerAnnuel: number, valeur: number): number {
   return (loyerAnnuel / valeur) * 100;
 }
 
-/** Rendement net = (loyer - charges) / valeur */
-export function getRendementNet(loyerAnnuel: number, charges: number, valeur: number): number {
-  if (valeur <= 0) return 0;
-  return ((loyerAnnuel - charges) / valeur) * 100;
+/**
+ * Rendement net = (loyer - charges) / prix d'acquisition.
+ * Utilise le prix d'acquisition (coût réel) et non la valorisation estimée,
+ * pour éviter la tautologie rendement = taux de capitalisation.
+ */
+export function getRendementNet(loyerAnnuel: number, charges: number, prixAcquisition: number): number {
+  if (prixAcquisition <= 0) return 0;
+  return ((loyerAnnuel - charges) / prixAcquisition) * 100;
 }
 
 /** LTV = dette / valeur */
@@ -369,6 +373,10 @@ export function computeDCF(
 
 export interface AmortRow {
   year: number;
+  /** Année calendaire réelle (ex: 2024), si dateDebut est fourni */
+  anneeReelle?: number;
+  /** True si c'est l'année en cours de remboursement */
+  isCurrent?: boolean;
   capitalDebut: number;
   annuite: number;
   interets: number;
@@ -388,7 +396,13 @@ export function computeAmortSchedule(emprunt: AMEmprunt): AmortRow[] {
   const taux = Number(emprunt?.tauxAnnuel || 0) / 100;
   const duree = Number(emprunt?.dureeAns || 0);
   const mensualite = Number(emprunt?.mensualite || 0);
-  const assuranceMensuelle = Number(emprunt?.assuranceMensuelle || 0);
+  const tauxAssurance = Number((emprunt as any)?.tauxAssurance || 0) / 100;
+  let assuranceMensuelle = Number((emprunt as any)?.assuranceMensuelle || 0);
+
+  // Si assurance mensuelle non saisie, calculer à partir du taux d'assurance
+  if (assuranceMensuelle === 0 && montant > 0 && tauxAssurance > 0) {
+    assuranceMensuelle = (montant * tauxAssurance) / 12;
+  }
 
   if (montant <= 0 || duree <= 0) return [];
 
@@ -412,6 +426,13 @@ export function computeAmortSchedule(emprunt: AMEmprunt): AmortRow[] {
   let capital = montant;
   const tauxMensuel = taux / 12;
 
+  // Déterminer l'année de début pour afficher les années réelles
+  const dateDebutStr = (emprunt as any)?.dateDebut;
+  const dateDebut = dateDebutStr ? new Date(dateDebutStr) : null;
+  const startYear = dateDebut && !isNaN(dateDebut.getTime()) ? dateDebut.getFullYear() : null;
+  const now = new Date();
+  const currentYear = now.getFullYear();
+
   for (let y = 1; y <= duree && capital > 0.01; y++) {
     let interetsAn = 0;
     let capitalAmortiAn = 0;
@@ -423,8 +444,11 @@ export function computeAmortSchedule(emprunt: AMEmprunt): AmortRow[] {
       capital = Math.max(0, capital - capitalMois);
     }
     const annuiteEffective = interetsAn + capitalAmortiAn;
+    const anneeReelle = startYear != null ? startYear + y - 1 : undefined;
     rows.push({
       year: y,
+      anneeReelle,
+      isCurrent: anneeReelle === currentYear,
       capitalDebut: capital + capitalAmortiAn,
       annuite: annuiteEffective,
       interets: interetsAn,
@@ -578,6 +602,7 @@ export interface ProjectionYear {
   charges: number;
   noi: number;
   serviceDette: number;
+  remboursementCapital: number;
   cashFlow: number;
   valorisation: number;
   rendementNet: number;
@@ -602,6 +627,8 @@ export function computeMultiYearProjection(
   let charges = chargesBase;
   let valo = valorisationBase;
   let dette = detteBase;
+  // Durée résiduelle estimée pour calculer la décroissance du service de dette
+  const dureeResiduelle = amortissementAnnuel > 0 ? Math.ceil(dette / amortissementAnnuel) : 0;
 
   for (let y = 0; y <= years; y++) {
     if (y > 0) {
@@ -610,19 +637,24 @@ export function computeMultiYearProjection(
       valo *= 1 + appreciationActif / 100;
       dette = Math.max(0, dette - amortissementAnnuel);
     }
+    // Service de la dette diminue proportionnellement au capital restant
+    const ratioDetteRestante = detteBase > 0 ? dette / detteBase : 0;
+    const serviceDette = dette > 0 ? serviceDetteBase * ratioDetteRestante : 0;
+    const remboursementCapital = dette > 0 ? Math.min(amortissementAnnuel, dette + amortissementAnnuel) : 0;
     const noi = loyers - charges;
-    const cf = noi - serviceDetteBase;
+    const cf = noi - serviceDette;
     result.push({
       year: y,
       label: y === 0 ? "Actuel" : `N+${y}`,
       loyers,
       charges,
       noi,
-      serviceDette: serviceDetteBase,
+      serviceDette,
+      remboursementCapital,
       cashFlow: cf,
       valorisation: valo,
       rendementNet: valo > 0 ? (noi / valo) * 100 : 0,
-      dscr: serviceDetteBase > 0 ? noi / serviceDetteBase : 0,
+      dscr: serviceDette > 0 ? noi / serviceDette : 0,
       ltv: valo > 0 ? (dette / valo) * 100 : 0,
     });
   }
@@ -663,11 +695,13 @@ export function computeSciKpis(
   let valorisation = 0;
   let loyerAnnuel = 0;
   let charges = 0;
+  let totalPrixAcq = 0;
 
   for (const a of sciActifs) {
     valorisation += getValeurEstimee(a, allBaux, allLots);
     loyerAnnuel += getLoyerAnnuelActif(a, allBaux, allLots);
     charges += getChargesAnnuelles(a);
+    totalPrixAcq += getPrixAcquisition(a);
   }
 
   const noi = loyerAnnuel - charges;
@@ -686,7 +720,7 @@ export function computeSciKpis(
     serviceDette,
     cashFlowNet,
     rendementBrut: getRendementBrut(loyerAnnuel, valorisation),
-    rendementNet: getRendementNet(loyerAnnuel, charges, valorisation),
+    rendementNet: getRendementNet(loyerAnnuel, charges, totalPrixAcq),
     ltv: getLTV(crd, valorisation),
     dscr: getDSCR(noi, serviceDette),
     fonds_propres: valorisation - crd,

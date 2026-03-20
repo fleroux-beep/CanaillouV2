@@ -268,7 +268,12 @@ export function registerChatRoutes(app: Express) {
         if (!response.ok) {
           const err = await response.text();
           logger.error("Claude API error", { status: response.status, body: err });
-          res.write(`data: ${JSON.stringify({ type: "error", error: `Erreur API Claude (${response.status})` })}\n\n`);
+          const userMessage = response.status === 401
+            ? "Clé API Anthropic invalide ou expirée. Vérifiez la variable ANTHROPIC_API_KEY dans vos variables d'environnement."
+            : response.status === 429
+            ? "Limite de requêtes API Anthropic atteinte. Réessayez dans quelques instants."
+            : `Erreur API Claude (${response.status})`;
+          res.write(`data: ${JSON.stringify({ type: "error", error: userMessage })}\n\n`);
           res.end();
           return;
         }

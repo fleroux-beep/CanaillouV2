@@ -67,7 +67,7 @@ export default function ValorisationPage() {
     const loyerAnnuel = getLoyerAnnuelActif(a, baux, lots);
     const charges = getChargesAnnuelles(a);
     const rendementBrut = getRendementBrut(loyerAnnuel, valeurEstimee);
-    const rendementNet = getRendementNet(loyerAnnuel, charges, valeurEstimee);
+    const rendementNet = getRendementNet(loyerAnnuel, charges, prixAcquisition);
     const surface = Number(a.surfaceCarrez || a.surface || 0);
     const prixM2 = surface > 0 ? prixAcquisition / surface : 0;
     const valeurM2 = surface > 0 ? valeurEstimee / surface : 0;

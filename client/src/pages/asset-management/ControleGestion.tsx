@@ -15,6 +15,7 @@ import {
   getChargesAnnuelles,
   getRendementNet,
   getValeurEstimee,
+  getPrixAcquisition,
   getTotalCRD,
   getServiceDette,
   computeMultiYearProjection,
@@ -127,8 +128,9 @@ export default function ControleGestionPage() {
       const loyerAnnuel = getLoyerAnnuelActif(a, baux, lots);
       const charges = getChargesAnnuelles(a);
       const valorisation = getValeurEstimee(a, baux, lots);
+      const prixAcq = getPrixAcquisition(a);
       const noi = loyerAnnuel - charges;
-      const rendementNet = getRendementNet(loyerAnnuel, charges, valorisation);
+      const rendementNet = getRendementNet(loyerAnnuel, charges, prixAcq);
 
       const taxeFonciere = Number(a.taxeFonciere || 0);
       const assurancePno = Number(a.assurancePno || 0);
@@ -657,6 +659,7 @@ export default function ControleGestionPage() {
                       <SortHeader label="Loyers" sortKey="loyers" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
                       <SortHeader label="Charges" sortKey="charges" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
                       <SortHeader label="NOI" sortKey="noi" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
+                      <SortHeader label="Service dette" sortKey="serviceDette" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
                       <SortHeader label="Cash-flow" sortKey="cashFlow" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
                       <SortHeader label="Valorisation" sortKey="valorisation" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
                       <SortHeader label="Rdt net" sortKey="rendementNet" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
@@ -677,6 +680,7 @@ export default function ControleGestionPage() {
                         <td className="px-4 py-3 text-right">{formatCurrency(p.loyers)}</td>
                         <td className="px-4 py-3 text-right">{formatCurrency(p.charges)}</td>
                         <td className={`px-4 py-3 text-right ${p.noi >= 0 ? "" : "text-red-500"}`}>{formatCurrency(p.noi)}</td>
+                        <td className="px-4 py-3 text-right text-purple-600">{formatCurrency(p.serviceDette)}</td>
                         <td className={`px-4 py-3 text-right font-medium ${p.cashFlow >= 0 ? "text-green-600" : "text-red-500"}`}>{formatCurrency(p.cashFlow)}</td>
                         <td className="px-4 py-3 text-right">{formatCurrency(p.valorisation)}</td>
                         <td className="px-4 py-3 text-right">{formatPercent(p.rendementNet)}</td>

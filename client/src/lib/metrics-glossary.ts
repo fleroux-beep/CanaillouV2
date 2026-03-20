@@ -61,8 +61,8 @@ const glossary: Record<string, MetricDef> = {
   },
   rendementNet: {
     label: "Rendement net",
-    description: "Ratio entre le NOI et la valeur du bien, tenant compte des charges d'exploitation.",
-    formula: "((Loyers − Charges) / Valorisation) × 100",
+    description: "Ratio entre le NOI et le prix d'acquisition total, tenant compte des charges d'exploitation. Mesure le rendement réel sur le capital investi.",
+    formula: "((Loyers − Charges) / Prix d'acquisition) × 100",
   },
   cashFlowNet: {
     label: "Cash-flow net",
@@ -126,7 +126,7 @@ const glossary: Record<string, MetricDef> = {
   },
   dscr: {
     label: "DSCR",
-    description: "Debt Service Coverage Ratio — Capacité à couvrir le service de la dette avec le NOI. > 1.2× est confortable.",
+    description: "Debt Service Coverage Ratio — Capacité à couvrir le service de la dette avec le NOI. Seuils : ≥ 1.4× confortable (vert), ≥ 1.2× acceptable (bleu), ≥ 1.0× tendu (orange), < 1.0× déficit — les revenus ne couvrent pas la dette (rouge). Le « Stress DSCR » simule un scénario de crise majeure (vacance 25%, taux +300bp, charges +20%).",
     formula: "NOI / Service de la dette",
   },
   tri: {
@@ -222,6 +222,11 @@ const glossary: Record<string, MetricDef> = {
   stressTest: {
     label: "Stress test",
     description: "Simulation de scénarios défavorables (vacance, hausse des taux, inflation des charges).",
+  },
+  stressDscr: {
+    label: "Stress DSCR",
+    description: "DSCR simulé en scénario de crise majeure : vacance locative 25%, hausse des taux de +300 points de base, inflation des charges de +20%. Indique si le portefeuille peut survivre à un choc sévère. Un Stress DSCR < 1.0× signifie que les revenus ne couvriraient plus le service de la dette en cas de crise.",
+    formula: "NOI ajusté (crise) / Service de la dette ajusté (crise)",
   },
   valeurTerminale: {
     label: "Valeur terminale",

@@ -135,12 +135,31 @@ function CoutCreditTab() {
   const coutData = useMemo(() => {
     return activeEmprunts.map((emp) => {
       const montant = emp.montantEmprunte ? parseFloat(emp.montantEmprunte) : 0;
-      const mens = emp.mensualite ? parseFloat(emp.mensualite) : 0;
-      const assurance = emp.assuranceMensuelle ? parseFloat(emp.assuranceMensuelle) : 0;
       const duree = emp.dureeMois || (emp.dureeAns ? emp.dureeAns * 12 : 0);
+      const tauxAnnuel = emp.tauxAnnuel ? parseFloat(emp.tauxAnnuel) / 100 : 0;
+      const tauxAssurance = emp.tauxAssurance ? parseFloat(emp.tauxAssurance) / 100 : 0;
+
+      // Mensualité : valeur saisie ou calcul actuariel à partir du taux
+      let mens = emp.mensualite ? parseFloat(emp.mensualite) : 0;
+      if (mens === 0 && montant > 0 && duree > 0) {
+        if (tauxAnnuel > 0) {
+          const rm = tauxAnnuel / 12;
+          const factor = Math.pow(1 + rm, duree);
+          mens = montant * (rm * factor) / (factor - 1);
+        } else {
+          mens = montant / duree;
+        }
+      }
+
+      // Assurance mensuelle : valeur saisie ou calcul à partir du taux d'assurance (sur capital initial / 12)
+      let assurance = emp.assuranceMensuelle ? parseFloat(emp.assuranceMensuelle) : 0;
+      if (assurance === 0 && montant > 0 && tauxAssurance > 0) {
+        assurance = (montant * tauxAssurance) / 12;
+      }
+
       const totalRembourse = (mens + assurance) * duree;
-      const coutInterets = totalRembourse - montant;
       const coutAssurance = assurance * duree;
+      const coutInterets = Math.max(0, (mens * duree) - montant);
       const coutTotal = coutInterets + coutAssurance;
       // TAEG approximation using annualized rate: (totalRembourse/montant)^(12/duree) - 1
       const taeg = montant > 0 && duree > 0
@@ -567,8 +586,11 @@ function AmortissementTab() {
                   </thead>
                   <tbody>
                     {schedule.map((row) => (
-                      <tr key={row.year} className="border-t hover:bg-muted/20">
-                        <td className="px-4 py-3 font-medium">N+{row.year}</td>
+                      <tr key={row.year} className={`border-t hover:bg-muted/20 ${row.isCurrent ? "bg-primary/5 ring-1 ring-primary/20" : ""}`}>
+                        <td className="px-4 py-3 font-medium">
+                          {row.anneeReelle ?? `N+${row.year}`}
+                          {row.isCurrent && <span className="ml-1.5 text-[10px] font-semibold text-primary">(en cours)</span>}
+                        </td>
                         <td className="px-4 py-3 text-right">{formatCurrency(row.capitalDebut)}</td>
                         <td className="px-4 py-3 text-right text-blue-600">{formatCurrency(row.capitalAmorti)}</td>
                         <td className="px-4 py-3 text-right text-red-600">{formatCurrency(row.interets)}</td>
@@ -600,7 +622,7 @@ function AmortissementTab() {
               <GlassCard>
                 <div className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={schedule.map((r) => ({ annee: `N+${r.year}`, "Capital rembourse": Math.round(r.capitalAmorti), "Interets": Math.round(r.interets), "CRD": Math.round(r.capitalFin) }))}>
+                    <AreaChart data={schedule.map((r) => ({ annee: r.anneeReelle ?? `N+${r.year}`, "Capital rembourse": Math.round(r.capitalAmorti), "Interets": Math.round(r.interets), "CRD": Math.round(r.capitalFin) }))}>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                       <XAxis dataKey="annee" tick={{ fontSize: 11 }} />
                       <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />

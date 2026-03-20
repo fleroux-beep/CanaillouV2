@@ -82,7 +82,7 @@ export default function AMDashboard() {
   const cashFlowNet = noi - serviceDette;
   const fondsPropreNets = valorisation - crd;
   const rendementBrut = getRendementBrut(loyerAnnuel, valorisation);
-  const rendementNet = getRendementNet(loyerAnnuel, charges, valorisation);
+  const rendementNet = getRendementNet(loyerAnnuel, charges, totalAcquisition);
   const ltv = getLTV(crd, valorisation);
   const dscr = getDSCR(noi, serviceDette);
 
@@ -307,7 +307,7 @@ export default function AMDashboard() {
               variant={worstCaseScenario && worstCaseScenario.dscr >= 1 ? "warning" : "danger"}
               delay={13}
               subtitle="Crise majeure"
-              metricKey="dscr"
+              metricKey="stressDscr"
               sparklineData={stressResults.map((s: any) => s.dscr)}
             />
           </div>
