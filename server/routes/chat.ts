@@ -244,26 +244,36 @@ export function registerChatRoutes(app: Express) {
         content: m.content,
       }));
 
+      // Send SSE keepalive every 15s to prevent proxy/load-balancer timeouts
+      const keepalive = setInterval(() => {
+        res.write(": keepalive\n\n");
+      }, 15_000);
+
       // Agentic loop: keep calling Claude until we get a final text response
       let continueLoop = true;
       let fullResponse = "";
 
       while (continueLoop) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 120_000); // 2 min timeout per API call
+
         const response = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
+          signal: controller.signal,
           headers: {
             "Content-Type": "application/json",
             "x-api-key": apiKey,
             "anthropic-version": "2023-06-01",
           },
           body: JSON.stringify({
-            model: "claude-opus-4-6",
+            model: "claude-sonnet-4-6-20250514",
             max_tokens: 4096,
             system: SYSTEM_PROMPT,
             tools: toolDefinitions,
             messages: claudeMessages,
           }),
         });
+        clearTimeout(timeout);
 
         if (!response.ok) {
           const err = await response.text();
@@ -324,15 +334,21 @@ export function registerChatRoutes(app: Express) {
         res.write(`data: ${JSON.stringify({ type: "text", text: chunk })}\n\n`);
       }
 
+      clearInterval(keepalive);
       res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
       res.end();
     } catch (error: any) {
+      clearInterval(keepalive);
+      const isTimeout = error.name === "AbortError";
+      const userMessage = isTimeout
+        ? "La requête a mis trop de temps. Essayez une question plus simple."
+        : error.message;
       logger.error("Chat error", { error: error.message });
       try {
-        res.write(`data: ${JSON.stringify({ type: "error", error: error.message })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: "error", error: userMessage })}\n\n`);
         res.end();
       } catch {
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: userMessage });
       }
     }
   });
