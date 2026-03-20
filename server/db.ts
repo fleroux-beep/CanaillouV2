@@ -6,10 +6,12 @@ if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL is required. Set it in your .env file.");
 }
 
+const isRailway = !!process.env.RAILWAY_ENVIRONMENT_NAME;
+
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === "production"
-    ? { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== "false" }
+    ? { rejectUnauthorized: isRailway ? false : process.env.DB_SSL_REJECT_UNAUTHORIZED !== "false" }
     : false,
 });
 
