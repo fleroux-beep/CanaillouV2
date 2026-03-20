@@ -8,10 +8,11 @@ import {
 import { apiRequest } from "../../lib/queryClient";
 import { formatCurrency, formatPercent } from "../../lib/utils";
 import {
-  computeSciKpis, computeDCF, computeStressTests,
+  computeSciKpis, computeDCF, computeStressTests, computeAmortSchedule,
   getValeurEstimee, getLoyerAnnuelActif, getChargesAnnuelles,
   getTotalCRD, getServiceDette, getRendementBrut, getRendementNet,
   getLTV, getDSCR, getPrixAcquisition,
+  type AMEmprunt,
 } from "../../lib/am-calculations";
 import { KpiCard } from "../../components/ui/kpi-card";
 import { InfoTooltip } from "../../components/ui/info-tooltip";
@@ -23,7 +24,7 @@ import { SkeletonKpi, SkeletonCard, SkeletonTable } from "../../components/ui/sk
 import {
   Building2, Landmark, Users, FileText, PiggyBank, TrendingUp,
   BarChart3, Shield, Wallet, CircleDollarSign, Activity,
-  Target, Gauge, AlertTriangle,
+  Target, Gauge, AlertTriangle, ArrowDownUp, Banknote, Percent,
 } from "lucide-react";
 
 const COLORS = ["#3b82f6", "#8b5cf6", "#06b6d4", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#6366f1"];
@@ -113,6 +114,25 @@ export default function AMDashboard() {
   const sparkLoyerByScis = useMemo(() => sciKpis.map((k: any) => k.loyerAnnuel).sort((a: number, b: number) => a - b), [sciKpis]);
   const sparkNoiByScis = useMemo(() => sciKpis.map((k: any) => k.noi).sort((a: number, b: number) => a - b), [sciKpis]);
   const sparkCrdByScis = useMemo(() => sciKpis.map((k: any) => k.crd).sort((a: number, b: number) => a - b), [sciKpis]);
+
+  // Décomposition dette année N : service dette, capital remboursé, intérêts
+  const detteAnneeN = useMemo(() => {
+    let serviceDetteN = 0;
+    let capitalRembourseN = 0;
+    let interetsN = 0;
+
+    for (const emp of empruntsActifs) {
+      const schedule = computeAmortSchedule(emp as unknown as AMEmprunt);
+      if (schedule.length === 0) continue;
+      // Trouver la ligne de l'année en cours, sinon prendre la première
+      const currentRow = schedule.find((r) => r.isCurrent) || schedule[0];
+      serviceDetteN += currentRow.annuite;
+      capitalRembourseN += currentRow.capitalAmorti;
+      interetsN += currentRow.interets;
+    }
+
+    return { serviceDetteN, capitalRembourseN, interetsN };
+  }, [empruntsActifs]);
 
   // Early returns AFTER all hooks
   if (isLoading) {
@@ -268,6 +288,44 @@ export default function AMDashboard() {
             />
           </GlassCard>
         </div>
+
+        {/* Décomposition dette année N */}
+        {detteAnneeN.serviceDetteN > 0 && (
+          <div className="grid gap-4 sm:grid-cols-3">
+            <KpiCard
+              label="Service dette (année N)"
+              value={detteAnneeN.serviceDetteN}
+              formatFn={formatCurrency}
+              icon={ArrowDownUp}
+              variant="warning"
+              delay={5}
+              metricKey="serviceDette"
+            />
+            <KpiCard
+              label="Capital remboursé (année N)"
+              value={detteAnneeN.capitalRembourseN}
+              formatFn={formatCurrency}
+              icon={Banknote}
+              variant="primary"
+              delay={5}
+              metricKey="amortissement"
+              subtitle={detteAnneeN.serviceDetteN > 0
+                ? `${((detteAnneeN.capitalRembourseN / detteAnneeN.serviceDetteN) * 100).toFixed(0)}% de l'annuité`
+                : undefined}
+            />
+            <KpiCard
+              label="Intérêts payés (année N)"
+              value={detteAnneeN.interetsN}
+              formatFn={formatCurrency}
+              icon={Percent}
+              variant="danger"
+              delay={5}
+              subtitle={detteAnneeN.serviceDetteN > 0
+                ? `${((detteAnneeN.interetsN / detteAnneeN.serviceDetteN) * 100).toFixed(0)}% de l'annuité`
+                : undefined}
+            />
+          </div>
+        )}
 
         {/* SCPI Institutional Metrics */}
         <GlassCard delay={5}>
