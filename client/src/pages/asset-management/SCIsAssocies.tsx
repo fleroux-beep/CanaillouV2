@@ -21,7 +21,7 @@ import {
 import SCIsPage from "./SCIs";
 import AssociesPage from "./Associes";
 import {
-  computeAssocieNAV,
+  computeAssocieNAV, computeSciKpis,
   getValeurEstimee, getLoyerAnnuelActif, getChargesAnnuelles,
   getTotalCRD, getServiceDette,
 } from "../../lib/am-calculations";
@@ -361,10 +361,16 @@ function InvestorReportingPage() {
   const totalNAV = valorisation - crd;
   const cashFlowDistribuable = noi - serviceDette;
 
+  // SCI KPIs for weighted NAV calculation
+  const sciKpis = useMemo(
+    () => scis.map((sci: any) => computeSciKpis(sci, actifs, baux, lots, emprunts)),
+    [scis, actifs, baux, lots, emprunts]
+  );
+
   // NAV per investor
   const navData = useMemo(
-    () => computeAssocieNAV(totalNAV, loyerAnnuel, associes, participations),
-    [totalNAV, loyerAnnuel, associes, participations]
+    () => computeAssocieNAV(totalNAV, loyerAnnuel, associes, participations, sciKpis),
+    [totalNAV, loyerAnnuel, associes, participations, sciKpis]
   );
 
   const totalApports = navData.reduce((s, n) => s + n.apport, 0);

@@ -477,29 +477,53 @@ export interface AssocieNAV {
 
 /**
  * Calcul de la NAV par associé basé sur les participations.
+ * Pondère chaque participation par la NAV et les loyers de la SCI correspondante.
  * @param totalNAV NAV totale du portefeuille (valorisation - dette)
  * @param totalLoyers Loyers annuels totaux (pour calcul rendement)
  * @param associes Liste des associés
  * @param participations Liste des participations (associeId, sciId, pourcentage, apport)
+ * @param sciKpisList KPIs par SCI (pour pondérer par NAV/loyers de chaque SCI)
  */
 export function computeAssocieNAV(
   totalNAV: number,
   totalLoyers: number,
   associes: AMAssocie[],
   participations: AMParticipation[],
+  sciKpisList?: SciKpis[],
 ): AssocieNAV[] {
   return associes.map((a) => {
     const parts = participations.filter((p) => p.associeId === a.id);
-    const totalPct = parts.reduce((s, p) => s + Number(p.pourcentage || 0), 0);
     const totalApport = parts.reduce((s, p) => s + Number(p.montantApport || 0), 0);
-    const navPart = totalNAV * (totalPct / 100);
+
+    let navPart = 0;
+    let loyersPart = 0;
+
+    if (sciKpisList && sciKpisList.length > 0) {
+      // Pondérer chaque participation par la NAV/loyers de sa SCI
+      for (const p of parts) {
+        const pct = Number(p.pourcentage || 0) / 100;
+        const sciKpi = sciKpisList.find((k) => k.sci.id === p.sciId);
+        if (sciKpi) {
+          const sciNAV = sciKpi.valorisation - sciKpi.crd;
+          navPart += sciNAV * pct;
+          loyersPart += sciKpi.loyerAnnuel * pct;
+        }
+      }
+    } else {
+      // Fallback si pas de sciKpis : ancien comportement (somme brute des %)
+      const totalPct = parts.reduce((s, p) => s + Number(p.pourcentage || 0), 0);
+      navPart = totalNAV * (totalPct / 100);
+      loyersPart = totalLoyers * (totalPct / 100);
+    }
+
     const plusValue = navPart - totalApport;
-    const rendement = totalApport > 0 ? ((totalLoyers * (totalPct / 100)) / totalApport) * 100 : 0;
+    const partPct = totalNAV > 0 ? (navPart / totalNAV) * 100 : 0;
+    const rendement = totalApport > 0 ? (loyersPart / totalApport) * 100 : 0;
 
     return {
       associeId: a.id,
       associeNom: `${a.nom || ""} ${a.prenom || ""}`.trim(),
-      partPct: totalPct,
+      partPct,
       apport: totalApport,
       navPart,
       plusValueLatente: plusValue,

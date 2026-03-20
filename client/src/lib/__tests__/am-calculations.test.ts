@@ -462,6 +462,30 @@ describe("computeAssocieNAV", () => {
     expect(result[0].navPart).toBe(0);
     expect(result[0].rendementAnnuelise).toBe(0);
   });
+
+  it("weights NAV by SCI when sciKpis are provided", () => {
+    const associes: AMAssocie[] = [{ id: "as1", nom: "Dupont", prenom: "Jean" }];
+    const participations: AMParticipation[] = [
+      { id: "p1", associeId: "as1", sciId: "s1", pourcentage: "50", montantApport: "50000" },
+      { id: "p2", associeId: "as1", sciId: "s2", pourcentage: "50", montantApport: "50000" },
+    ];
+    // SCI 1: NAV = 300000 - 100000 = 200000, loyers = 20000
+    // SCI 2: NAV = 200000 - 0 = 200000, loyers = 10000
+    const sciKpis = [
+      { sci: { id: "s1" }, actifs: [], valorisation: 300000, loyerAnnuel: 20000, charges: 0, noi: 20000, crd: 100000, serviceDette: 0, cashFlowNet: 0, rendementBrut: 0, rendementNet: 0, ltv: 0, dscr: 0, fonds_propres: 200000 },
+      { sci: { id: "s2" }, actifs: [], valorisation: 200000, loyerAnnuel: 10000, charges: 0, noi: 10000, crd: 0, serviceDette: 0, cashFlowNet: 0, rendementBrut: 0, rendementNet: 0, ltv: 0, dscr: 0, fonds_propres: 200000 },
+    ] as any;
+    const totalNAV = 400000; // 200000 + 200000
+    const result = computeAssocieNAV(totalNAV, 30000, associes, participations, sciKpis);
+    expect(result).toHaveLength(1);
+    // navPart = 200000*0.5 + 200000*0.5 = 200000
+    expect(result[0].navPart).toBe(200000);
+    // partPct = 200000 / 400000 * 100 = 50%
+    expect(result[0].partPct).toBe(50);
+    // loyersPart = 20000*0.5 + 10000*0.5 = 15000
+    // rendement = 15000 / 100000 * 100 = 15%
+    expect(result[0].rendementAnnuelise).toBe(15);
+  });
 });
 
 // ============================================================

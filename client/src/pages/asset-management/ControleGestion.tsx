@@ -184,8 +184,8 @@ export default function ControleGestionPage() {
   // NAV per associé
   const totalNAV = portfolioData.totalValorisation - portfolioData.totalCRD;
   const associeNAVs = useMemo(
-    () => computeAssocieNAV(totalNAV, portfolioData.totalLoyers, associes, participations),
-    [totalNAV, portfolioData.totalLoyers, associes, participations]
+    () => computeAssocieNAV(totalNAV, portfolioData.totalLoyers, associes, participations, sciKpis),
+    [totalNAV, portfolioData.totalLoyers, associes, participations, sciKpis]
   );
 
   // Multi-year projection
