@@ -8,6 +8,7 @@ import HomePage from "./pages/HomePage";
 import AMDashboard from "./pages/asset-management/Dashboard";
 import SCIsPage from "./pages/asset-management/SCIs";
 import ActifsPage from "./pages/asset-management/Actifs";
+import ActifDetailPage from "./pages/asset-management/ActifDetail";
 import LotsPage from "./pages/asset-management/Lots";
 import BauxAMPage from "./pages/asset-management/Baux";
 import EmpruntsPage from "./pages/asset-management/Emprunts";
@@ -68,6 +69,7 @@ export default function App() {
         <Route path="/asset-management" component={AMDashboard} />
         <Route path="/asset-management/dashboard" component={AMDashboard} />
         <Route path="/asset-management/scis" component={SCIsPage} />
+        <Route path="/asset-management/actifs/:id" component={ActifDetailPage} />
         <Route path="/asset-management/actifs" component={ActifsPage} />
         <Route path="/asset-management/lots" component={LotsPage} />
         <Route path="/asset-management/baux" component={BauxAMPage} />
