@@ -9,7 +9,7 @@ import {
   scis, actifs, emprunts, lots, bauxAM, associes, participations,
   bauxGL, bailleurs, paiementsGL, indices, locatairesGL,
 } from "@shared/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and, isNull } from "drizzle-orm";
 
 // ─── Types ──────────────────────────────────────────────────
 interface ChatMessage {
@@ -136,6 +136,118 @@ async function fetchPaiementsGL(): Promise<unknown> {
   }));
 }
 
+// ─── Update helpers ─────────────────────────────────────────
+
+// Allowed fields per entity (whitelist to prevent dangerous updates)
+const ACTIF_FIELDS = new Set([
+  "nom", "adresse", "ville", "codePostal", "type", "surface", "surfaceCarrez",
+  "anneeConstruction", "dpe", "prixAcquisition", "fraisNotaire", "fraisAgence",
+  "montantTravaux", "dateAcquisition", "chargesAnnuelles", "taxeFonciere",
+  "assurancePno", "tauxCapitalisation", "prixM2Marche", "syndic", "notes",
+  "chargesCopropriete", "valeurEstimeeSortie", "dateEstimation", "sourceEstimation",
+  "regimeJuridique", "referenceCadastrale", "lat", "lng", "erp", "pmi",
+]);
+const LOT_FIELDS = new Set([
+  "designation", "type", "etage", "surface", "surfaceCarrez", "dpe",
+  "loyerMensuel", "loyerAnnuel", "chargesLot", "statut", "notes",
+]);
+const EMPRUNT_FIELDS = new Set([
+  "banque", "montantEmprunte", "capitalRestantDu", "tauxAnnuel", "dureeAns",
+  "mensualite", "dateDebut", "dateFin", "notes", "type", "assurance",
+]);
+const SCI_FIELDS = new Set(["nom", "formeJuridique", "siege", "siren", "rcs", "capital", "notes"]);
+const BAIL_AM_FIELDS = new Set([
+  "typeBail", "dateDebut", "dateFin", "loyerMensuel", "loyerAnnuel",
+  "charges", "depotGarantie", "notes", "statut",
+]);
+const BAIL_GL_FIELDS = new Set([
+  "nom", "adresse", "ville", "codePostal", "surface", "surfaceExterieure",
+  "loyerBaseHT", "loyerHTActu", "charges", "depotGarantie", "taxeFonciere",
+  "typeBail", "dateDebut", "dateFin", "dateSignature", "dateEffet",
+  "statut", "indiceReference", "trimestreRef", "capacite", "notes",
+  "tvaTaux", "taxe", "garantieType", "garantieMontant",
+]);
+
+function filterFields(data: Record<string, unknown>, allowed: Set<string>): Record<string, unknown> {
+  const filtered: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (allowed.has(key) && value !== undefined) {
+      filtered[key] = value;
+    }
+  }
+  return filtered;
+}
+
+async function searchEntities(query: string): Promise<unknown> {
+  const q = `%${query.toLowerCase()}%`;
+  const actifResults = await db.select().from(actifs).where(
+    and(isNull(actifs.deletedAt), sql`lower(${actifs.nom}) like ${q} or lower(${actifs.ville}) like ${q} or lower(${actifs.adresse}) like ${q}`)
+  );
+  const sciResults = await db.select().from(scis).where(
+    sql`lower(${scis.nom}) like ${q}`
+  );
+  const lotResults = await db.select().from(lots).where(
+    and(isNull(lots.deletedAt), sql`lower(${lots.designation}) like ${q}`)
+  );
+  const empruntResults = await db.select().from(emprunts).where(
+    and(isNull(emprunts.deletedAt), sql`lower(${emprunts.banque}) like ${q}`)
+  );
+  return {
+    actifs: actifResults.map((a: any) => ({ id: a.id, nom: a.nom, ville: a.ville, adresse: a.adresse })),
+    scis: sciResults.map((s: any) => ({ id: s.id, nom: s.nom })),
+    lots: lotResults.map((l: any) => ({ id: l.id, designation: l.designation, actifId: l.actifId })),
+    emprunts: empruntResults.map((e: any) => ({ id: e.id, banque: e.banque, sciId: e.sciId })),
+  };
+}
+
+async function updateActif(id: string, data: Record<string, unknown>): Promise<unknown> {
+  const fields = filterFields(data, ACTIF_FIELDS);
+  if (Object.keys(fields).length === 0) return { error: "Aucun champ valide à modifier" };
+  const updated = await db.update(actifs).set({ ...fields, updatedAt: new Date() }).where(eq(actifs.id, id)).returning();
+  if (updated.length === 0) return { error: "Actif non trouvé" };
+  return { success: true, updated: { id: updated[0].id, nom: (updated[0] as any).nom, ...fields } };
+}
+
+async function updateLot(id: string, data: Record<string, unknown>): Promise<unknown> {
+  const fields = filterFields(data, LOT_FIELDS);
+  if (Object.keys(fields).length === 0) return { error: "Aucun champ valide à modifier" };
+  const updated = await db.update(lots).set({ ...fields, updatedAt: new Date() }).where(eq(lots.id, id)).returning();
+  if (updated.length === 0) return { error: "Lot non trouvé" };
+  return { success: true, updated: { id: updated[0].id, designation: (updated[0] as any).designation, ...fields } };
+}
+
+async function updateEmprunt(id: string, data: Record<string, unknown>): Promise<unknown> {
+  const fields = filterFields(data, EMPRUNT_FIELDS);
+  if (Object.keys(fields).length === 0) return { error: "Aucun champ valide à modifier" };
+  const updated = await db.update(emprunts).set({ ...fields, updatedAt: new Date() }).where(eq(emprunts.id, id)).returning();
+  if (updated.length === 0) return { error: "Emprunt non trouvé" };
+  return { success: true, updated: { id: updated[0].id, ...fields } };
+}
+
+async function updateSCI(id: string, data: Record<string, unknown>): Promise<unknown> {
+  const fields = filterFields(data, SCI_FIELDS);
+  if (Object.keys(fields).length === 0) return { error: "Aucun champ valide à modifier" };
+  const updated = await db.update(scis).set({ ...fields, updatedAt: new Date() }).where(eq(scis.id, id)).returning();
+  if (updated.length === 0) return { error: "SCI non trouvée" };
+  return { success: true, updated: { id: updated[0].id, nom: (updated[0] as any).nom, ...fields } };
+}
+
+async function updateBailAM(id: string, data: Record<string, unknown>): Promise<unknown> {
+  const fields = filterFields(data, BAIL_AM_FIELDS);
+  if (Object.keys(fields).length === 0) return { error: "Aucun champ valide à modifier" };
+  const updated = await db.update(bauxAM).set({ ...fields, updatedAt: new Date() }).where(eq(bauxAM.id, id)).returning();
+  if (updated.length === 0) return { error: "Bail non trouvé" };
+  return { success: true, updated: { id: updated[0].id, ...fields } };
+}
+
+async function updateBailGL(id: string, data: Record<string, unknown>): Promise<unknown> {
+  const fields = filterFields(data, BAIL_GL_FIELDS);
+  if (Object.keys(fields).length === 0) return { error: "Aucun champ valide à modifier" };
+  const updated = await db.update(bauxGL).set({ ...fields, updatedAt: new Date() }).where(eq(bauxGL.id, id)).returning();
+  if (updated.length === 0) return { error: "Bail GL non trouvé" };
+  return { success: true, updated: { id: updated[0].id, nom: (updated[0] as any).nom, ...fields } };
+}
+
 // ─── Tool definitions for Claude ────────────────────────────
 const toolDefinitions = [
   {
@@ -177,6 +289,89 @@ const toolDefinitions = [
     description: "Récupère les 50 derniers paiements enregistrés en gestion locative.",
     input_schema: { type: "object" as const, properties: {}, required: [] as string[] },
   },
+  // ─── Search tool ────────────────────────────
+  {
+    name: "search_entities",
+    description: "Recherche des entités (actifs, SCIs, lots, emprunts) par nom, ville, adresse, désignation ou banque. Utile pour trouver l'ID d'une entité avant de la modifier.",
+    input_schema: {
+      type: "object" as const,
+      properties: { query: { type: "string", description: "Texte de recherche (nom, ville, adresse...)" } },
+      required: ["query"],
+    },
+  },
+  // ─── Update tools ────────────────────────────
+  {
+    name: "update_actif",
+    description: "Modifie un actif immobilier. Champs modifiables : nom, adresse, ville, codePostal, type, surface, surfaceCarrez, anneeConstruction, dpe, prixAcquisition, fraisNotaire, fraisAgence, montantTravaux, dateAcquisition, chargesAnnuelles, taxeFonciere, assurancePno, tauxCapitalisation, prixM2Marche, syndic, notes, etc.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        id: { type: "string", description: "ID de l'actif à modifier" },
+        fields: { type: "object", description: "Objet contenant les champs à modifier et leurs nouvelles valeurs. Ex: {\"adresse\": \"12 rue de la Paix\", \"tauxCapitalisation\": \"5.5\"}" },
+      },
+      required: ["id", "fields"],
+    },
+  },
+  {
+    name: "update_lot",
+    description: "Modifie un lot. Champs modifiables : designation, type, etage, surface, surfaceCarrez, dpe, loyerMensuel, loyerAnnuel, chargesLot, statut, notes.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        id: { type: "string", description: "ID du lot à modifier" },
+        fields: { type: "object", description: "Objet contenant les champs à modifier et leurs nouvelles valeurs" },
+      },
+      required: ["id", "fields"],
+    },
+  },
+  {
+    name: "update_emprunt",
+    description: "Modifie un emprunt. Champs modifiables : banque, montantEmprunte, capitalRestantDu, tauxAnnuel, dureeAns, mensualite, dateDebut, dateFin, notes, type, assurance.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        id: { type: "string", description: "ID de l'emprunt à modifier" },
+        fields: { type: "object", description: "Objet contenant les champs à modifier et leurs nouvelles valeurs" },
+      },
+      required: ["id", "fields"],
+    },
+  },
+  {
+    name: "update_sci",
+    description: "Modifie une SCI. Champs modifiables : nom, formeJuridique, siege, siren, rcs, capital, notes.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        id: { type: "string", description: "ID de la SCI à modifier" },
+        fields: { type: "object", description: "Objet contenant les champs à modifier et leurs nouvelles valeurs" },
+      },
+      required: ["id", "fields"],
+    },
+  },
+  {
+    name: "update_bail_am",
+    description: "Modifie un bail en asset management. Champs modifiables : typeBail, dateDebut, dateFin, loyerMensuel, loyerAnnuel, charges, depotGarantie, notes, statut.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        id: { type: "string", description: "ID du bail AM à modifier" },
+        fields: { type: "object", description: "Objet contenant les champs à modifier et leurs nouvelles valeurs" },
+      },
+      required: ["id", "fields"],
+    },
+  },
+  {
+    name: "update_bail_gl",
+    description: "Modifie un bail en gestion locative. Champs modifiables : nom, adresse, ville, codePostal, surface, loyerBaseHT, loyerHTActu, charges, depotGarantie, taxeFonciere, typeBail, dateDebut, dateFin, statut, indiceReference, capacite, notes, etc.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        id: { type: "string", description: "ID du bail GL à modifier" },
+        fields: { type: "object", description: "Objet contenant les champs à modifier et leurs nouvelles valeurs" },
+      },
+      required: ["id", "fields"],
+    },
+  },
 ];
 
 // ─── Tool executor ──────────────────────────────────────────
@@ -189,6 +384,13 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
     case "get_indices": return fetchIndices();
     case "get_sci_detail": return fetchSCIDetail(input.sci_id as string);
     case "get_paiements_gl": return fetchPaiementsGL();
+    case "search_entities": return searchEntities(input.query as string);
+    case "update_actif": return updateActif(input.id as string, (input.fields || {}) as Record<string, unknown>);
+    case "update_lot": return updateLot(input.id as string, (input.fields || {}) as Record<string, unknown>);
+    case "update_emprunt": return updateEmprunt(input.id as string, (input.fields || {}) as Record<string, unknown>);
+    case "update_sci": return updateSCI(input.id as string, (input.fields || {}) as Record<string, unknown>);
+    case "update_bail_am": return updateBailAM(input.id as string, (input.fields || {}) as Record<string, unknown>);
+    case "update_bail_gl": return updateBailGL(input.id as string, (input.fields || {}) as Record<string, unknown>);
     default: return { error: `Outil inconnu : ${name}` };
   }
 }
@@ -197,7 +399,7 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
 const SYSTEM_PROMPT = `Tu es l'assistant IA de Canaillou V2, une plateforme de gestion immobilière.
 Tu es un expert en asset management immobilier, gestion locative, et finance immobilière.
 
-**Ton rôle** : Conseiller l'utilisateur sur son portefeuille immobilier en te basant UNIQUEMENT sur les données réelles de sa base de données. Tu as accès à des outils pour interroger les données.
+**Ton rôle** : Conseiller l'utilisateur sur son portefeuille immobilier et l'aider à gérer ses données. Tu te bases UNIQUEMENT sur les données réelles de sa base de données. Tu as accès à des outils pour interroger ET modifier les données.
 
 **Tes compétences** :
 - Analyse de portefeuille (rendement, risque, diversification)
@@ -207,6 +409,7 @@ Tu es un expert en asset management immobilier, gestion locative, et finance imm
 - Structuration de dette (refinancement, renégociation)
 - Fiscalité immobilière (TVA, CRL, amortissement)
 - Gestion locative (vacance, recouvrement, WALT)
+- **Modification des données** : tu peux modifier les actifs, lots, emprunts, SCIs, baux AM et baux GL
 
 **Règles** :
 - Utilise TOUJOURS les outils pour obtenir les données avant de répondre à une question sur le portefeuille
@@ -216,7 +419,13 @@ Tu es un expert en asset management immobilier, gestion locative, et finance imm
 - Utilise des tableaux markdown quand c'est pertinent
 - Mets en gras les chiffres clés et les recommandations
 - Quand on te pose une question d'analyse, commence par récupérer les données nécessaires, puis fais tes calculs
-- Réponds toujours en français`;
+- Réponds toujours en français
+
+**Règles pour les modifications** :
+- Quand l'utilisateur demande de modifier une donnée, utilise d'abord \`search_entities\` ou un outil de lecture pour trouver l'ID de l'entité à modifier
+- Confirme toujours à l'utilisateur ce que tu as modifié en résumant les changements effectués
+- Si la recherche retourne plusieurs résultats, demande à l'utilisateur de préciser lequel il souhaite modifier
+- Si une modification échoue, explique clairement l'erreur à l'utilisateur`;
 
 // ─── Route handler ──────────────────────────────────────────
 export function registerChatRoutes(app: Express) {

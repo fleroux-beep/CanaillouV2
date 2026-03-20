@@ -21,13 +21,20 @@ const TOOL_LABELS: Record<string, string> = {
   get_indices: "Consultation des indices",
   get_sci_detail: "Détail d'une SCI",
   get_paiements_gl: "Consultation des paiements",
+  search_entities: "Recherche en cours",
+  update_actif: "Modification d'un actif",
+  update_lot: "Modification d'un lot",
+  update_emprunt: "Modification d'un emprunt",
+  update_sci: "Modification d'une SCI",
+  update_bail_am: "Modification d'un bail AM",
+  update_bail_gl: "Modification d'un bail GL",
 };
 
 const SUGGESTIONS = [
   "Quel est l'état de mon portefeuille ?",
   "Quels baux expirent dans les 12 prochains mois ?",
   "Calcule le DSCR global de mon portefeuille",
-  "Quel actif a le meilleur rendement ?",
+  "Change le taux de capitalisation de [actif] à 5,5%",
 ];
 
 export function ChatPanel() {
