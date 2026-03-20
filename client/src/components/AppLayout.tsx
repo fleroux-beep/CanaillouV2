@@ -13,6 +13,7 @@ import {
   ArrowUpDown, FileBarChart, Menu, X, Settings,
 } from "lucide-react";
 import { cn } from "../lib/utils";
+import { ChatPanel } from "./ui/chat-panel";
 
 interface NavItem {
   label: string;
@@ -463,6 +464,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
         </div>
       </main>
     </div>
+      {/* AI Chat Panel */}
+      {(isAM || isGL) && <ChatPanel />}
     </TooltipPrimitive.Provider>
   );
 }

@@ -1,5 +1,7 @@
 import { motion } from "framer-motion";
 import { AnimatedCounter } from "./animated-counter";
+import { InfoTooltip } from "./info-tooltip";
+import { Sparkline } from "./sparkline";
 import { cn } from "../../lib/utils";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 
@@ -16,6 +18,10 @@ interface KpiCardProps {
   className?: string;
   gradient?: boolean;
   delay?: number;
+  /** Glossary key for info tooltip on hover */
+  metricKey?: string;
+  /** Data points for an inline sparkline */
+  sparklineData?: number[];
 }
 
 const variantStyles: Record<Variant, string> = {
@@ -50,6 +56,14 @@ const iconBgColors: Record<Variant, string> = {
   danger: "bg-red-500/8 dark:bg-red-400/10",
 };
 
+const sparklineColors: Record<Variant, string> = {
+  default: "text-primary",
+  primary: "text-orange-400",
+  success: "text-emerald-400",
+  warning: "text-amber-400",
+  danger: "text-red-400",
+};
+
 export function KpiCard({
   label,
   value,
@@ -61,11 +75,21 @@ export function KpiCard({
   className,
   gradient = false,
   delay = 0,
+  metricKey,
+  sparklineData,
 }: KpiCardProps) {
   const isGradient = gradient;
   const trendLabel = trend !== undefined
     ? `${trend > 0 ? "hausse" : trend < 0 ? "baisse" : "stable"} de ${Math.abs(trend).toFixed(1)}%`
     : undefined;
+
+  const labelContent = metricKey ? (
+    <InfoTooltip metricKey={metricKey}>
+      <span>{label}</span>
+    </InfoTooltip>
+  ) : (
+    label
+  );
 
   return (
     <motion.div
@@ -88,12 +112,23 @@ export function KpiCard({
       )}
 
       <div className="relative flex items-start justify-between">
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 min-w-0 flex-1">
           <p className={cn("text-xs font-semibold uppercase tracking-wider", isGradient ? "text-white/70" : "text-muted-foreground")}>
-            {label}
+            {labelContent}
           </p>
-          <div className={cn("text-2xl font-bold tracking-tight", !isGradient && "text-foreground")}>
-            <AnimatedCounter value={value} formatFn={formatFn} />
+          <div className="flex items-end gap-3">
+            <div className={cn("text-2xl font-bold tracking-tight", !isGradient && "text-foreground")}>
+              <AnimatedCounter value={value} formatFn={formatFn} />
+            </div>
+            {sparklineData && sparklineData.length >= 2 && (
+              <Sparkline
+                data={sparklineData}
+                color={isGradient ? "text-white/60" : sparklineColors[variant]}
+                width={64}
+                height={24}
+                filled={!isGradient}
+              />
+            )}
           </div>
           {subtitle && (
             <p className={cn("text-xs", isGradient ? "text-white/60" : "text-muted-foreground")}>
@@ -104,7 +139,7 @@ export function KpiCard({
 
         {Icon && (
           <div className={cn(
-            "flex h-10 w-10 items-center justify-center rounded-xl",
+            "flex h-10 w-10 items-center justify-center rounded-xl shrink-0",
             isGradient ? "bg-white/15" : iconBgColors[variant]
           )} aria-hidden="true">
             <Icon className={cn("h-5 w-5", isGradient ? "text-white" : iconColors[variant])} />

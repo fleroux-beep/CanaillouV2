@@ -13,6 +13,7 @@ import { registerAuthRoutes } from "./routes/auth";
 import { registerAMRoutes } from "./routes/am";
 import { registerGLRoutes } from "./routes/gl";
 import { registerImportRoutes } from "./routes/import";
+import { registerChatRoutes } from "./routes/chat";
 import { logger, requestLogger } from "./lib/logger";
 import { requireAdmin } from "./middleware/auth";
 
@@ -76,6 +77,7 @@ registerAuthRoutes(app);
 registerAMRoutes(app);
 registerGLRoutes(app);
 registerImportRoutes(app);
+registerChatRoutes(app);
 
 // Admin: import Excel SCI data (one-time migration)
 app.post("/api/admin/import-excel", requireAdmin, async (_req, res) => {

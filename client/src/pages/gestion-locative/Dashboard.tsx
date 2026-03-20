@@ -181,7 +181,7 @@ export default function GLDashboard() {
           <KpiCard
             label="Loyer HT annuel" value={totalLoyerHT}
             formatFn={formatCurrency} icon={BarChart3}
-            variant="primary" gradient delay={0}
+            variant="primary" gradient delay={0} metricKey="loyerHT"
           />
           <KpiCard
             label="Baux actifs" value={bauxActifs.length}

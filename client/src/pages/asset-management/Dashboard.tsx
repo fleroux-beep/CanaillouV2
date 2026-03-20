@@ -14,6 +14,7 @@ import {
   getLTV, getDSCR, getPrixAcquisition,
 } from "../../lib/am-calculations";
 import { KpiCard } from "../../components/ui/kpi-card";
+import { InfoTooltip } from "../../components/ui/info-tooltip";
 import { GlassCard } from "../../components/ui/glass-card";
 import { ProgressRing } from "../../components/ui/progress-ring";
 import { PageHeader } from "../../components/ui/page-header";
@@ -107,6 +108,12 @@ export default function AMDashboard() {
 
   const sciKpis = useMemo(() => scis.map((sci: any) => computeSciKpis(sci, actifs, baux, lots, emprunts)), [scis, actifs, baux, lots, emprunts]);
 
+  // Sparkline data: distribution across SCIs (sorted by valorisation)
+  const sparkValoByScis = useMemo(() => sciKpis.map((k: any) => k.valorisation).sort((a: number, b: number) => a - b), [sciKpis]);
+  const sparkLoyerByScis = useMemo(() => sciKpis.map((k: any) => k.loyerAnnuel).sort((a: number, b: number) => a - b), [sciKpis]);
+  const sparkNoiByScis = useMemo(() => sciKpis.map((k: any) => k.noi).sort((a: number, b: number) => a - b), [sciKpis]);
+  const sparkCrdByScis = useMemo(() => sciKpis.map((k: any) => k.crd).sort((a: number, b: number) => a - b), [sciKpis]);
+
   // Early returns AFTER all hooks
   if (isLoading) {
     return (
@@ -185,28 +192,32 @@ export default function AMDashboard() {
           <KpiCard
             label="Valorisation" value={valorisation}
             formatFn={formatCurrency} icon={TrendingUp}
-            variant="primary" gradient delay={0}
+            variant="primary" gradient delay={0} metricKey="valorisation"
+            sparklineData={sparkValoByScis}
           />
           <KpiCard
             label="Loyers annuels" value={loyerAnnuel}
             formatFn={formatCurrency} icon={CircleDollarSign}
-            variant="success" gradient delay={1}
+            variant="success" gradient delay={1} metricKey="loyerHT"
+            sparklineData={sparkLoyerByScis}
           />
           <KpiCard
             label="NOI" value={noi}
             formatFn={formatCurrency} icon={Activity}
-            variant={noi >= 0 ? "success" : "danger"} gradient delay={2}
+            variant={noi >= 0 ? "success" : "danger"} gradient delay={2} metricKey="noi"
             subtitle={`Charges: ${formatCurrency(charges)}`}
+            sparklineData={sparkNoiByScis}
           />
           <KpiCard
             label="Dette (CRD)" value={crd}
             formatFn={formatCurrency} icon={PiggyBank}
-            variant="warning" gradient delay={3}
+            variant="warning" gradient delay={3} metricKey="crd"
+            sparklineData={sparkCrdByScis}
           />
           <KpiCard
             label="Fonds propres nets" value={fondsPropreNets}
             formatFn={formatCurrency} icon={Wallet}
-            variant="primary" gradient delay={4}
+            variant="primary" gradient delay={4} metricKey="fondsPropres"
           />
         </div>
 
@@ -220,24 +231,24 @@ export default function AMDashboard() {
               <KpiCard
                 label="Rdt brut" value={rendementBrut}
                 formatFn={(n) => formatPercent(n)} icon={BarChart3}
-                variant="success" delay={5}
+                variant="success" delay={5} metricKey="rendementBrut"
               />
               <KpiCard
                 label="Rdt net" value={rendementNet}
                 formatFn={(n) => formatPercent(n)} icon={BarChart3}
-                variant="success" delay={6}
+                variant="success" delay={6} metricKey="rendementNet"
               />
               <KpiCard
                 label="Cash-flow/an" value={cashFlowNet}
                 formatFn={formatCurrency} icon={Activity}
-                variant={cashFlowNet >= 0 ? "success" : "danger"} delay={7}
+                variant={cashFlowNet >= 0 ? "success" : "danger"} delay={7} metricKey="cashFlowNet"
               />
               <KpiCard
                 label="DSCR" value={dscr}
                 formatFn={(n) => n > 0 ? n.toFixed(2) + "x" : "N/A"}
                 icon={Shield}
                 variant={dscr >= 1.2 ? "success" : dscr > 0 ? "danger" : "default"}
-                delay={8}
+                delay={8} metricKey="dscr"
               />
             </div>
           </GlassCard>
@@ -267,12 +278,13 @@ export default function AMDashboard() {
             <KpiCard
               label="TRI projeté" value={dcfResult?.irr || 0}
               formatFn={(n) => n > 0 ? formatPercent(n) : "N/A"}
-              icon={Target} variant="primary" delay={9}
+              icon={Target} variant="primary" delay={9} metricKey="tri"
             />
             <KpiCard
               label="Valeur DCF" value={dcfResult?.totalPV || 0}
               formatFn={formatCurrency}
-              icon={Gauge} variant="success" delay={10}
+              icon={Gauge} variant="success" delay={10} metricKey="dcf"
+              sparklineData={dcfResult?.projectedCashFlows}
               subtitle={dcfResult !== null && totalAcquisition > 0
                 ? `${((dcfResult.totalPV / totalAcquisition - 1) * 100).toFixed(1)}% vs acq.`
                 : undefined}
@@ -295,6 +307,8 @@ export default function AMDashboard() {
               variant={worstCaseScenario && worstCaseScenario.dscr >= 1 ? "warning" : "danger"}
               delay={13}
               subtitle="Crise majeure"
+              metricKey="dscr"
+              sparklineData={stressResults.map((s: any) => s.dscr)}
             />
           </div>
         </GlassCard>
@@ -404,14 +418,14 @@ export default function AMDashboard() {
                   <tr className="border-b bg-muted/30">
                     <th className="px-4 py-3 text-left font-semibold">SCI</th>
                     <th className="px-4 py-3 text-right font-semibold">Actifs</th>
-                    <th className="px-4 py-3 text-right font-semibold">Valorisation</th>
-                    <th className="px-4 py-3 text-right font-semibold">Loyers/an</th>
-                    <th className="px-4 py-3 text-right font-semibold">NOI</th>
-                    <th className="px-4 py-3 text-right font-semibold">CRD</th>
-                    <th className="px-4 py-3 text-right font-semibold">Cash-flow</th>
-                    <th className="px-4 py-3 text-right font-semibold">Rdt brut</th>
-                    <th className="px-4 py-3 text-right font-semibold">DSCR</th>
-                    <th className="px-4 py-3 text-right font-semibold">LTV</th>
+                    <th className="px-4 py-3 text-right font-semibold"><InfoTooltip metricKey="valorisation">Valorisation</InfoTooltip></th>
+                    <th className="px-4 py-3 text-right font-semibold"><InfoTooltip metricKey="loyerHT">Loyers/an</InfoTooltip></th>
+                    <th className="px-4 py-3 text-right font-semibold"><InfoTooltip metricKey="noi">NOI</InfoTooltip></th>
+                    <th className="px-4 py-3 text-right font-semibold"><InfoTooltip metricKey="crd">CRD</InfoTooltip></th>
+                    <th className="px-4 py-3 text-right font-semibold"><InfoTooltip metricKey="cashFlowNet">Cash-flow</InfoTooltip></th>
+                    <th className="px-4 py-3 text-right font-semibold"><InfoTooltip metricKey="rendementBrut">Rdt brut</InfoTooltip></th>
+                    <th className="px-4 py-3 text-right font-semibold"><InfoTooltip metricKey="dscr">DSCR</InfoTooltip></th>
+                    <th className="px-4 py-3 text-right font-semibold"><InfoTooltip metricKey="ltv">LTV</InfoTooltip></th>
                   </tr>
                 </thead>
                 <tbody>

@@ -11,6 +11,7 @@ import { Badge } from "../../components/ui/badge";
 import { FormDialog } from "../../components/ui/form-dialog";
 import { FormField, FormGrid } from "../../components/ui/form-field";
 import { ConfirmDialog } from "../../components/ui/confirm-dialog";
+import { InfoTooltip } from "../../components/ui/info-tooltip";
 import { useLocation, useParams } from "wouter";
 import {
   ArrowLeft,
@@ -357,7 +358,7 @@ export default function BailGLDetailPage() {
           </h3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <InfoRow
-              label="Indice de référence"
+              label={<InfoTooltip metricKey="indexation">Indice de référence</InfoTooltip>}
               value={
                 bail.indiceReference ? (
                   <Badge variant="primary">{bail.indiceReference}</Badge>
@@ -407,6 +408,7 @@ export default function BailGLDetailPage() {
             variant="primary"
             gradient
             delay={0}
+            metricKey="loyerHT"
           />
           <KpiCard
             label="Charges annuelles"
@@ -416,6 +418,7 @@ export default function BailGLDetailPage() {
             variant="warning"
             gradient
             delay={1}
+            metricKey="chargesAnnuelles"
           />
           <KpiCard
             label="Dépôt de garantie"
@@ -425,6 +428,7 @@ export default function BailGLDetailPage() {
             variant="success"
             gradient
             delay={2}
+            metricKey="depotGarantie"
           />
           <KpiCard
             label="Nb paiements"
@@ -781,7 +785,7 @@ function InfoRow({
   label,
   value,
 }: {
-  label: string;
+  label: React.ReactNode;
   value: React.ReactNode;
 }) {
   return (

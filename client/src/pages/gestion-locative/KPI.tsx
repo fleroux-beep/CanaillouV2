@@ -146,6 +146,7 @@ export default function GLKPIPage() {
             variant="primary"
             gradient
             delay={0}
+            metricKey="loyerHT"
           />
           <KpiCard
             label="Charges annuelles"
@@ -155,6 +156,7 @@ export default function GLKPIPage() {
             variant="warning"
             gradient
             delay={1}
+            metricKey="chargesAnnuelles"
           />
           <KpiCard
             label="Coût moyen / berceau"
@@ -218,6 +220,7 @@ export default function GLKPIPage() {
             variant={walt > 5 ? "success" : walt > 2 ? "warning" : "danger"}
             delay={8}
             subtitle="Duree moyenne ponderee"
+            metricKey="walt"
           />
           <KpiCard
             label="Baux actifs"
