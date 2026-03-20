@@ -601,7 +601,7 @@ export async function importExcelData(): Promise<{
       const hasBureau = destinations.some((d) => d.includes("bureau"));
       const hasLogement = destinations.some((d) => d.includes("logement"));
       let type = "mixte";
-      if (hasCreche && !hasLogement && !hasBureau) type = "commerce";
+      if (hasCreche && !hasLogement && !hasBureau) type = "creche";
       else if (hasLogement && !hasCreche && !hasBureau) type = "habitation";
       else if (hasBureau && !hasCreche && !hasLogement) type = "bureau";
 

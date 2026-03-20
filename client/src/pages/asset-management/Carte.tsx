@@ -35,6 +35,7 @@ const typeColors: Record<string, string> = {
   commercial: "from-rose-500 to-pink-600",
   bureau: "from-cyan-500 to-cyan-600",
   mixte: "from-amber-500 to-amber-600",
+  creche: "from-green-500 to-emerald-600",
 };
 
 const typeMarkerColors: Record<string, string> = {
@@ -42,6 +43,7 @@ const typeMarkerColors: Record<string, string> = {
   commercial: "#8b5cf6",
   bureau: "#06b6d4",
   mixte: "#f59e0b",
+  creche: "#10b981",
 };
 
 const typeVariant = (t?: string): "primary" | "warning" | "success" | "default" => {
@@ -49,6 +51,7 @@ const typeVariant = (t?: string): "primary" | "warning" | "success" | "default" 
   if (t === "commercial") return "success";
   if (t === "bureau") return "primary";
   if (t === "mixte") return "warning";
+  if (t === "creche") return "success";
   return "default";
 };
 

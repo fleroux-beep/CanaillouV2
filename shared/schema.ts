@@ -101,7 +101,7 @@ export const actifs = pgTable("am_actifs", {
   adresse: text("adresse"),
   ville: varchar("ville"),
   codePostal: varchar("code_postal"),
-  type: varchar("type"), // résidentiel, commercial, bureau, mixte
+  type: varchar("type"), // résidentiel, commercial, bureau, mixte, crèche
   lat: real("lat"),
   lng: real("lng"),
   surface: numeric("surface"),

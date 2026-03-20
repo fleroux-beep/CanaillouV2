@@ -111,6 +111,7 @@ export default function ActifsPage() {
           <FormField label="Type" name="type" value={form.type} onChange={onChange} options={[
             { value: "residentiel", label: "Residentiel" }, { value: "commercial", label: "Commercial" },
             { value: "bureau", label: "Bureau" }, { value: "mixte", label: "Mixte" },
+            { value: "creche", label: "Crèche" },
           ]} />
           <FormField label="Date acquisition" name="dateAcquisition" value={form.dateAcquisition} onChange={onChange} type="date" />
         </FormGrid>
