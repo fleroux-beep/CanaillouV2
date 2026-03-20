@@ -364,9 +364,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="flex items-center justify-between rounded-xl bg-white/[0.04] px-3 py-2.5"
+              className="space-y-2"
             >
-              <div className="flex items-center gap-2.5 min-w-0">
+              <div className="flex items-center gap-2.5 rounded-xl bg-white/[0.04] px-3 py-2.5">
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-orange-400 to-rose-500 text-xs font-bold text-white shadow-sm">
                   {(user?.firstName?.[0] || user?.email?.[0] || "U").toUpperCase()}
                 </div>
@@ -377,12 +377,36 @@ export function AppLayout({ children }: { children: ReactNode }) {
               </div>
               <button
                 onClick={logout}
-                className="shrink-0 rounded-lg p-1.5 text-white/20 hover:bg-white/5 hover:text-red-400 transition-all"
-                aria-label="Deconnexion"
+                className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-white/40 hover:bg-red-500/10 hover:text-red-400 transition-all"
               >
                 <LogOut className="h-4 w-4" aria-hidden="true" />
+                <span>Se déconnecter</span>
               </button>
             </motion.div>
+          )}
+
+          {!isExpanded && (
+            <TooltipPrimitive.Root>
+              <TooltipPrimitive.Trigger asChild>
+                <button
+                  onClick={logout}
+                  className="flex h-10 w-10 items-center justify-center rounded-xl text-white/30 hover:bg-red-500/10 hover:text-red-400 transition-all mx-auto"
+                  aria-label="Se déconnecter"
+                >
+                  <LogOut className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </TooltipPrimitive.Trigger>
+              <TooltipPrimitive.Portal>
+                <TooltipPrimitive.Content
+                  side="right"
+                  sideOffset={8}
+                  className="z-50 rounded-lg bg-zinc-800 px-3 py-2 text-xs font-medium text-white shadow-xl border border-white/10"
+                >
+                  Se déconnecter
+                  <TooltipPrimitive.Arrow className="fill-zinc-800" />
+                </TooltipPrimitive.Content>
+              </TooltipPrimitive.Portal>
+            </TooltipPrimitive.Root>
           )}
         </div>
       </>
