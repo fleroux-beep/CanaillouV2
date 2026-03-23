@@ -17,6 +17,7 @@ import { registerImportRoutes } from "./routes/import";
 import { registerChatRoutes } from "./routes/chat";
 import { logger, requestLogger } from "./lib/logger";
 import { requireAdmin } from "./middleware/auth";
+import { startAutoSync } from "./lib/auto-sync-marche";
 import helmet from "helmet";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -218,6 +219,9 @@ async function withRetry<T>(fn: () => Promise<T>, label: string, retries = 5, de
 
   app.listen(PORT, "0.0.0.0", () => {
     logger.info("server started", { port: PORT, env: process.env.NODE_ENV || "development" });
+
+    // Start automatic market data sync (DVF + ANIL + taux capi)
+    startAutoSync();
   });
 })();
 
