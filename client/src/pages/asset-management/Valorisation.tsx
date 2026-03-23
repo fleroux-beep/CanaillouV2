@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, PieChart, Pie, LineChart, Line,
-  ScatterChart, Scatter, ZAxis, Legend, LabelList,
+  ScatterChart, Scatter, ZAxis, Legend, LabelList, ReferenceLine,
 } from "recharts";
 import { apiRequest } from "../../lib/queryClient";
 import { formatCurrency, formatPercent, formatNumber } from "../../lib/utils";
@@ -355,61 +355,183 @@ export default function ValorisationPage() {
         )}
 
         {/* Scatter: Prix/m² acquisition vs Valeur/m² */}
-        {scatterData.length > 0 && (
+        {scatterData.length > 0 && (() => {
+          const allValues = scatterData.flatMap((d: any) => [d.x, d.y]);
+          const minVal = Math.floor(Math.min(...allValues) * 0.85 / 500) * 500;
+          const maxVal = Math.ceil(Math.max(...allValues) * 1.15 / 500) * 500;
+          const diagonalData = [{ x: minVal, y: minVal }, { x: maxVal, y: maxVal }];
+          // Anti-collision: compute label positions
+          const labelPositions: { x: number; y: number; anchor: string; name: string }[] = [];
+          const sorted = [...scatterData].sort((a: any, b: any) => a.x - b.x);
+          sorted.forEach((d: any, i: number) => {
+            let bestDy = -20;
+            let bestDx = 0;
+            let bestAnchor = "middle";
+            // Try multiple positions and pick the one farthest from existing labels
+            const candidates = [
+              { dx: 0, dy: -20, anchor: "middle" },
+              { dx: 12, dy: -8, anchor: "start" },
+              { dx: -12, dy: -8, anchor: "end" },
+              { dx: 0, dy: 22, anchor: "middle" },
+              { dx: 18, dy: 4, anchor: "start" },
+              { dx: -18, dy: 4, anchor: "end" },
+            ];
+            let bestMinDist = -1;
+            for (const c of candidates) {
+              const cx = (d.x || 0) + c.dx;
+              const cy = (d.y || 0) + c.dy;
+              let minDist = Infinity;
+              for (const prev of labelPositions) {
+                const dist = Math.hypot(cx - prev.x, cy - prev.y);
+                minDist = Math.min(minDist, dist);
+              }
+              if (minDist > bestMinDist) {
+                bestMinDist = minDist;
+                bestDx = c.dx;
+                bestDy = c.dy;
+                bestAnchor = c.anchor;
+              }
+            }
+            labelPositions.push({ x: (d.x || 0) + bestDx, y: (d.y || 0) + bestDy, anchor: bestAnchor, name: d.name });
+          });
+          const posMap = new Map(labelPositions.map((p) => [p.name, p]));
+
+          return (
           <GlassCard delay={10}>
-            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
               Prix/m² acquisition vs Valeur/m² estimée
             </h3>
-            <p className="mb-4 text-xs text-muted-foreground">
-              La taille des bulles représente la surface. Au-dessus de la diagonale = plus-value.
+            <p className="mb-5 text-xs text-muted-foreground">
+              Taille des bulles = surface. Au-dessus de la diagonale = plus-value latente.
             </p>
-            <ResponsiveContainer width="100%" height={320}>
-              <ScatterChart>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis type="number" dataKey="x" name="Prix/m² acq." tickFormatter={(v) => `${v.toFixed(0)}€`} tick={{ fontSize: 11 }} />
-                <YAxis type="number" dataKey="y" name="Valeur/m² est." tickFormatter={(v) => `${v.toFixed(0)}€`} tick={{ fontSize: 11 }} />
-                <ZAxis type="number" dataKey="z" range={[60, 400]} name="Surface" />
+            <ResponsiveContainer width="100%" height={420}>
+              <ScatterChart margin={{ top: 25, right: 30, bottom: 15, left: 10 }}>
+                <defs>
+                  <linearGradient id="plusValueZone" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#10b981" stopOpacity={0.07} />
+                    <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
+                  </linearGradient>
+                  <linearGradient id="moinsValueZone" x1="0" y1="1" x2="0" y2="0">
+                    <stop offset="0%" stopColor="#ef4444" stopOpacity={0.07} />
+                    <stop offset="100%" stopColor="#ef4444" stopOpacity={0.02} />
+                  </linearGradient>
+                  <filter id="bubbleShadow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feDropShadow dx="0" dy="1" stdDeviation="2" floodOpacity="0.15" />
+                  </filter>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+                <XAxis
+                  type="number" dataKey="x" name="Prix/m² acq."
+                  tickFormatter={(v) => `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)}k€`}
+                  tick={{ fontSize: 11 }}
+                  domain={[minVal, maxVal]}
+                  label={{ value: "Prix/m² acquisition", position: "insideBottom", offset: -5, fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                />
+                <YAxis
+                  type="number" dataKey="y" name="Valeur/m² est."
+                  tickFormatter={(v) => `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)}k€`}
+                  tick={{ fontSize: 11 }}
+                  domain={[minVal, maxVal]}
+                  label={{ value: "Valeur/m² estimée", angle: -90, position: "insideLeft", offset: 10, fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                />
+                <ZAxis type="number" dataKey="z" range={[80, 500]} name="Surface" />
+                {/* Diagonal y=x reference line */}
+                <ReferenceLine
+                  segment={diagonalData}
+                  stroke="hsl(var(--muted-foreground))"
+                  strokeDasharray="6 4"
+                  strokeWidth={1.5}
+                  opacity={0.5}
+                  label={{ value: "y = x", position: "insideTopRight", fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                />
                 <Tooltip
                   {...chartTooltipStyle}
-                  formatter={(v: number, name: string) => [
-                    name === "Surface" ? `${v.toFixed(0)} m²` : formatCurrency(v),
-                    name,
-                  ]}
+                  cursor={{ strokeDasharray: "3 3", stroke: "hsl(var(--muted-foreground))", strokeWidth: 1 }}
+                  content={({ active, payload }: any) => {
+                    if (!active || !payload?.[0]) return null;
+                    const d = payload[0].payload;
+                    const pv = d.y - d.x;
+                    const pvPct = d.x > 0 ? ((d.y - d.x) / d.x * 100) : 0;
+                    return (
+                      <div style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "0.75rem", padding: "12px 16px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)" }}>
+                        <p style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>{d.name}</p>
+                        <div style={{ display: "grid", gridTemplateColumns: "auto auto", gap: "4px 12px", fontSize: 12 }}>
+                          <span style={{ color: "hsl(var(--muted-foreground))" }}>Achat</span>
+                          <span style={{ fontWeight: 600 }}>{formatCurrency(d.x)}/m²</span>
+                          <span style={{ color: "hsl(var(--muted-foreground))" }}>Estimation</span>
+                          <span style={{ fontWeight: 600 }}>{formatCurrency(d.y)}/m²</span>
+                          <span style={{ color: "hsl(var(--muted-foreground))" }}>Surface</span>
+                          <span style={{ fontWeight: 600 }}>{d.z?.toFixed(0)} m²</span>
+                          <span style={{ color: "hsl(var(--muted-foreground))" }}>+/- value</span>
+                          <span style={{ fontWeight: 700, color: pv >= 0 ? "#10b981" : "#ef4444" }}>
+                            {pv >= 0 ? "+" : ""}{formatCurrency(pv)}/m² ({pvPct >= 0 ? "+" : ""}{pvPct.toFixed(1)}%)
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }}
                 />
-                <Scatter data={scatterData} fill="#3b82f6" animationDuration={800}>
+                <Scatter data={scatterData} animationDuration={800} style={{ filter: "url(#bubbleShadow)" }}>
                   {scatterData.map((d: any, i: number) => (
-                    <Cell key={i} fill={d.y >= d.x ? "#10b981" : "#ef4444"} />
+                    <Cell
+                      key={i}
+                      fill={d.y >= d.x ? "#10b981" : "#ef4444"}
+                      fillOpacity={0.75}
+                      stroke={d.y >= d.x ? "#059669" : "#dc2626"}
+                      strokeWidth={1.5}
+                    />
                   ))}
                   <LabelList
                     dataKey="name"
-                    position="top"
-                    offset={10}
-                    style={{ fontSize: 10, fill: "hsl(var(--foreground))" }}
-                    content={({ x, y, value, index }: any) => {
-                      const offsetY = (index % 2 === 0) ? -14 : -28;
-                      const offsetX = (index % 3 === 0) ? 10 : (index % 3 === 1) ? -10 : 0;
+                    content={({ x, y, value }: any) => {
+                      const pos = posMap.get(value as string);
+                      if (!pos) return null;
+                      // Convert data coords to pixel offset relative to the dot
+                      const label = String(value).length > 20 ? String(value).substring(0, 20) + "…" : value;
                       return (
-                        <text x={(x || 0) + offsetX} y={(y || 0) + offsetY} textAnchor="middle" fontSize={10} fill="hsl(var(--foreground))">
-                          {String(value).length > 15 ? String(value).substring(0, 15) + "…" : value}
-                        </text>
+                        <g>
+                          <line
+                            x1={x} y1={y}
+                            x2={x + (pos.anchor === "start" ? 10 : pos.anchor === "end" ? -10 : 0)}
+                            y2={y + (pos.y < (y || 0) ? -12 : 12)}
+                            stroke="hsl(var(--muted-foreground))"
+                            strokeWidth={0.5}
+                            opacity={0.4}
+                          />
+                          <text
+                            x={x + (pos.anchor === "start" ? 14 : pos.anchor === "end" ? -14 : 0)}
+                            y={y + (pos.y < (y || 0) ? -16 : 18)}
+                            textAnchor={pos.anchor as "start" | "middle" | "end"}
+                            fontSize={11}
+                            fontWeight={500}
+                            fill="hsl(var(--foreground))"
+                          >
+                            {label}
+                          </text>
+                        </g>
                       );
                     }}
                   />
                 </Scatter>
               </ScatterChart>
             </ResponsiveContainer>
-            <div className="mt-2 flex justify-center gap-6">
-              <div className="flex items-center gap-1.5 text-xs">
-                <div className="h-2.5 w-2.5 rounded-full" style={{ background: "#10b981" }} />
-                Plus-value (valeur/m² &gt; prix/m²)
+            <div className="mt-3 flex justify-center gap-8">
+              <div className="flex items-center gap-2 text-xs">
+                <div className="h-3 w-3 rounded-full border-2 border-emerald-600" style={{ background: "rgba(16,185,129,0.75)" }} />
+                <span className="text-muted-foreground">Plus-value latente</span>
               </div>
-              <div className="flex items-center gap-1.5 text-xs">
-                <div className="h-2.5 w-2.5 rounded-full" style={{ background: "#ef4444" }} />
-                Moins-value
+              <div className="flex items-center gap-2 text-xs">
+                <div className="h-3 w-3 rounded-full border-2 border-red-600" style={{ background: "rgba(239,68,68,0.75)" }} />
+                <span className="text-muted-foreground">Moins-value</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <div className="h-px w-6 border-t-2 border-dashed border-muted-foreground" />
+                <span className="text-muted-foreground">Diagonale (valeur = prix)</span>
               </div>
             </div>
           </GlassCard>
-        )}
+          );
+        })()}
 
         {/* DCF Section */}
         {totalNOI > 0 && (

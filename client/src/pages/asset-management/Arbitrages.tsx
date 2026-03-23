@@ -6,6 +6,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, ScatterChart, Scatter, ZAxis,
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, LabelList,
+  ReferenceArea, ReferenceLine,
 } from "recharts";
 import { apiRequest } from "../../lib/queryClient";
 import { formatCurrency, formatPercent } from "../../lib/utils";
@@ -245,55 +246,178 @@ export default function ArbitragesPage() {
         )}
 
         {/* Risk-Return matrix (scatter) */}
-        {riskReturnData.length > 0 && (
+        {riskReturnData.length > 0 && (() => {
+          const maxLtv = Math.max(...riskReturnData.map((d: any) => d.x), 80);
+          const maxRdt = Math.max(...riskReturnData.map((d: any) => d.y), 8);
+          const domainX = Math.ceil(maxLtv / 10) * 10 + 10;
+          const domainY = Math.ceil(maxRdt) + 2;
+          // Anti-collision labels
+          const lblPositions: { x: number; y: number; anchor: string; name: string }[] = [];
+          const sortedRR = [...riskReturnData].sort((a: any, b: any) => a.x - b.x);
+          sortedRR.forEach((d: any) => {
+            const candidates = [
+              { dx: 0, dy: -22, anchor: "middle" },
+              { dx: 16, dy: -6, anchor: "start" },
+              { dx: -16, dy: -6, anchor: "end" },
+              { dx: 0, dy: 24, anchor: "middle" },
+              { dx: 20, dy: 6, anchor: "start" },
+              { dx: -20, dy: 6, anchor: "end" },
+            ];
+            let bestMinDist = -1;
+            let bestC = candidates[0];
+            for (const c of candidates) {
+              const cx = (d.x || 0) + c.dx;
+              const cy = (d.y || 0) + c.dy;
+              let minDist = Infinity;
+              for (const prev of lblPositions) {
+                const dist = Math.hypot(cx - prev.x, cy - prev.y);
+                minDist = Math.min(minDist, dist);
+              }
+              if (minDist > bestMinDist) { bestMinDist = minDist; bestC = c; }
+            }
+            lblPositions.push({ x: (d.x || 0) + bestC.dx, y: (d.y || 0) + bestC.dy, anchor: bestC.anchor, name: d.name });
+          });
+          const posMap = new Map(lblPositions.map((p) => [p.name, p]));
+
+          return (
           <GlassCard delay={9}>
-            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
               Matrice Risque / Rendement
             </h3>
-            <p className="mb-4 text-xs text-muted-foreground">
+            <p className="mb-5 text-xs text-muted-foreground">
               Axe X = LTV (risque d'endettement) | Axe Y = Rendement brut | Taille = Valorisation
             </p>
-            <ResponsiveContainer width="100%" height={360}>
-              <ScatterChart>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis type="number" dataKey="x" name="LTV" tickFormatter={(v) => `${v.toFixed(0)}%`} tick={{ fontSize: 11 }} domain={[0, "auto"]} />
-                <YAxis type="number" dataKey="y" name="Rendement" tickFormatter={(v) => `${v.toFixed(1)}%`} tick={{ fontSize: 11 }} domain={[0, "auto"]} />
-                <ZAxis type="number" dataKey="z" range={[80, 500]} name="Valorisation" />
+            <ResponsiveContainer width="100%" height={460}>
+              <ScatterChart margin={{ top: 25, right: 30, bottom: 15, left: 10 }}>
+                <defs>
+                  <filter id="rrBubbleShadow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feDropShadow dx="0" dy="1" stdDeviation="2" floodOpacity="0.15" />
+                  </filter>
+                </defs>
+                {/* Quadrants colorés : haut-gauche = idéal (rendement élevé, risque faible) */}
+                <ReferenceArea x1={0} x2={50} y1={5} y2={domainY} fill="#10b981" fillOpacity={0.04} />
+                <ReferenceArea x1={50} x2={domainX} y1={5} y2={domainY} fill="#f59e0b" fillOpacity={0.04} />
+                <ReferenceArea x1={0} x2={50} y1={0} y2={5} fill="#f59e0b" fillOpacity={0.03} />
+                <ReferenceArea x1={50} x2={domainX} y1={0} y2={5} fill="#ef4444" fillOpacity={0.05} />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
+                {/* Lignes seuils */}
+                <ReferenceLine x={50} stroke="#f59e0b" strokeDasharray="6 4" strokeWidth={1} opacity={0.6} />
+                <ReferenceLine y={5} stroke="#f59e0b" strokeDasharray="6 4" strokeWidth={1} opacity={0.6} />
+                <XAxis
+                  type="number" dataKey="x" name="LTV"
+                  tickFormatter={(v) => `${v}%`}
+                  tick={{ fontSize: 11 }}
+                  domain={[0, domainX]}
+                  label={{ value: "LTV — Risque d'endettement →", position: "insideBottom", offset: -5, fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                />
+                <YAxis
+                  type="number" dataKey="y" name="Rendement"
+                  tickFormatter={(v) => `${v.toFixed(1)}%`}
+                  tick={{ fontSize: 11 }}
+                  domain={[0, domainY]}
+                  label={{ value: "← Rendement brut", angle: -90, position: "insideLeft", offset: 10, fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                />
+                <ZAxis type="number" dataKey="z" range={[100, 600]} name="Valorisation" />
                 <Tooltip
                   {...chartTooltipStyle}
-                  formatter={(v: number, name: string) => [
-                    name === "Valorisation" ? formatCurrency(v) : `${v.toFixed(2)}%`,
-                    name,
-                  ]}
+                  cursor={{ strokeDasharray: "3 3", stroke: "hsl(var(--muted-foreground))", strokeWidth: 1 }}
+                  content={({ active, payload }: any) => {
+                    if (!active || !payload?.[0]) return null;
+                    const d = payload[0].payload;
+                    return (
+                      <div style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "0.75rem", padding: "12px 16px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                          <div style={{ width: 10, height: 10, borderRadius: "50%", background: d.color, border: `2px solid ${d.color === "#10b981" ? "#059669" : d.color === "#f59e0b" ? "#d97706" : "#dc2626"}` }} />
+                          <span style={{ fontWeight: 700, fontSize: 13 }}>{d.name}</span>
+                          <span style={{
+                            fontSize: 10, fontWeight: 600, padding: "1px 8px", borderRadius: 9999,
+                            background: d.color === "#10b981" ? "rgba(16,185,129,0.12)" : d.color === "#f59e0b" ? "rgba(245,158,11,0.12)" : "rgba(239,68,68,0.12)",
+                            color: d.color,
+                          }}>{d.scoreLabel}</span>
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "auto auto", gap: "4px 14px", fontSize: 12 }}>
+                          <span style={{ color: "hsl(var(--muted-foreground))" }}>LTV</span>
+                          <span style={{ fontWeight: 600 }}>{d.x.toFixed(1)}%</span>
+                          <span style={{ color: "hsl(var(--muted-foreground))" }}>Rendement brut</span>
+                          <span style={{ fontWeight: 600 }}>{d.y.toFixed(2)}%</span>
+                          <span style={{ color: "hsl(var(--muted-foreground))" }}>Valorisation</span>
+                          <span style={{ fontWeight: 600 }}>{formatCurrency(d.z)}</span>
+                        </div>
+                      </div>
+                    );
+                  }}
                 />
-                <Scatter data={riskReturnData} animationDuration={800}>
+                <Scatter data={riskReturnData} animationDuration={800} style={{ filter: "url(#rrBubbleShadow)" }}>
                   {riskReturnData.map((d: any, i: number) => (
-                    <Cell key={i} fill={d.color} />
+                    <Cell
+                      key={i}
+                      fill={d.color}
+                      fillOpacity={0.7}
+                      stroke={d.color === "#10b981" ? "#059669" : d.color === "#f59e0b" ? "#d97706" : "#dc2626"}
+                      strokeWidth={1.5}
+                    />
                   ))}
                   <LabelList
                     dataKey="name"
-                    position="top"
-                    offset={10}
-                    content={({ x, y, value, index }: any) => {
-                      const offsetY = (index % 2 === 0) ? -14 : -28;
-                      const offsetX = (index % 3 === 0) ? 10 : (index % 3 === 1) ? -10 : 0;
+                    content={({ x, y, value }: any) => {
+                      const pos = posMap.get(value as string);
+                      if (!pos) return null;
+                      const label = String(value).length > 22 ? String(value).substring(0, 22) + "…" : value;
                       return (
-                        <text x={(x || 0) + offsetX} y={(y || 0) + offsetY} textAnchor="middle" fontSize={10} fill="hsl(var(--foreground))">
-                          {String(value).length > 15 ? String(value).substring(0, 15) + "…" : value}
-                        </text>
+                        <g>
+                          <line
+                            x1={x} y1={y}
+                            x2={x + (pos.anchor === "start" ? 12 : pos.anchor === "end" ? -12 : 0)}
+                            y2={y + (pos.y < (y || 0) ? -14 : 14)}
+                            stroke="hsl(var(--muted-foreground))"
+                            strokeWidth={0.5}
+                            opacity={0.35}
+                          />
+                          <text
+                            x={x + (pos.anchor === "start" ? 16 : pos.anchor === "end" ? -16 : 0)}
+                            y={y + (pos.y < (y || 0) ? -18 : 20)}
+                            textAnchor={pos.anchor as "start" | "middle" | "end"}
+                            fontSize={11}
+                            fontWeight={500}
+                            fill="hsl(var(--foreground))"
+                          >
+                            {label}
+                          </text>
+                        </g>
                       );
                     }}
                   />
                 </Scatter>
               </ScatterChart>
             </ResponsiveContainer>
-            <div className="mt-2 flex justify-center gap-6">
-              <div className="flex items-center gap-1.5 text-xs"><div className="h-2.5 w-2.5 rounded-full" style={{ background: "#10b981" }} /> Conserver</div>
-              <div className="flex items-center gap-1.5 text-xs"><div className="h-2.5 w-2.5 rounded-full" style={{ background: "#f59e0b" }} /> Surveiller</div>
-              <div className="flex items-center gap-1.5 text-xs"><div className="h-2.5 w-2.5 rounded-full" style={{ background: "#ef4444" }} /> Arbitrer</div>
+            {/* Quadrant annotations */}
+            <div className="mt-1 grid grid-cols-2 gap-x-4 gap-y-1 max-w-md mx-auto text-[10px] text-muted-foreground">
+              <div className="text-right">Rendement elevé + Risque faible</div>
+              <div className="text-left font-semibold text-emerald-600 dark:text-emerald-400">Zone ideale</div>
+              <div className="text-right">Rendement faible + Risque eleve</div>
+              <div className="text-left font-semibold text-red-600 dark:text-red-400">Zone a arbitrer</div>
+            </div>
+            <div className="mt-3 flex justify-center gap-8">
+              <div className="flex items-center gap-2 text-xs">
+                <div className="h-3 w-3 rounded-full border-2 border-emerald-600" style={{ background: "rgba(16,185,129,0.7)" }} />
+                <span className="text-muted-foreground">Conserver</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <div className="h-3 w-3 rounded-full border-2 border-amber-600" style={{ background: "rgba(245,158,11,0.7)" }} />
+                <span className="text-muted-foreground">Surveiller</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <div className="h-3 w-3 rounded-full border-2 border-red-600" style={{ background: "rgba(239,68,68,0.7)" }} />
+                <span className="text-muted-foreground">Arbitrer</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <div className="h-px w-6 border-t-2 border-dashed border-amber-500/60" />
+                <span className="text-muted-foreground">Seuils (LTV 50% / Rdt 5%)</span>
+              </div>
             </div>
           </GlassCard>
-        )}
+          );
+        })()}
 
         {/* Radar chart per actif */}
         {radarData.length > 0 && radarData.length <= 8 && (
