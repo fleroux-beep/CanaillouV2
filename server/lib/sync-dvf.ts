@@ -10,7 +10,7 @@ import { db } from "../db";
 import { refValeursVenales } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { logger } from "./logger";
-import { codePostalToInsee, inseeToCodePostal } from "./code-postal-insee";
+import { resolveAllInsee } from "./code-postal-insee";
 
 const DVF_BASE = "https://files.data.gouv.fr/geo-dvf/latest/csv";
 
@@ -106,7 +106,9 @@ function parseDvfCsv(csvText: string): ParsedMutation[] {
   return results;
 }
 
-export async function syncDVF(codesPostaux: string[]): Promise<{ synced: number; errors: string[] }> {
+export async function syncDVF(
+  actifPairs: { codePostal: string; ville: string }[],
+): Promise<{ synced: number; errors: string[] }> {
   let synced = 0;
   const errors: string[] = [];
   const now = new Date().toISOString().slice(0, 10);
@@ -114,16 +116,8 @@ export async function syncDVF(codesPostaux: string[]): Promise<{ synced: number;
   // Fetch years: current and previous (DVF data is typically 6-12 months behind)
   const years = [currentYear - 1, currentYear - 2];
 
-  // Build code_insee → code_postal mapping
-  const inseeToCP: Record<string, string> = {};
-  const allInsee: Set<string> = new Set();
-  for (const cp of codesPostaux) {
-    const inseeCodes = codePostalToInsee(cp);
-    for (const insee of inseeCodes) {
-      inseeToCP[insee] = cp;
-      allInsee.add(insee);
-    }
-  }
+  // Resolve correct INSEE codes using geo.api.gouv.fr + ville name
+  const { inseeToCP, allInsee } = await resolveAllInsee(actifPairs);
 
   for (const codeInsee of allInsee) {
     const cp = inseeToCP[codeInsee];

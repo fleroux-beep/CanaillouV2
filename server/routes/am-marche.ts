@@ -78,18 +78,23 @@ export function registerMarcheRoutes(app: Express) {
   // ============================================================
   app.post("/api/am/marche/sync-dvf", requireWriteAdmin, async (_req: any, res: any) => {
     try {
-      // Get distinct code_postal from actifs
-      const actifsRows = await db.select({ codePostal: actifs.codePostal, type: actifs.type })
+      // Get distinct (code_postal, ville) pairs from actifs
+      const actifsRows = await db.select({ codePostal: actifs.codePostal, ville: actifs.ville })
         .from(actifs)
         .where(and(eq(actifs.archived, false), isNull(actifs.deletedAt)));
 
-      const codesPostaux = [...new Set(actifsRows.map((a) => a.codePostal).filter(Boolean))] as string[];
-      if (codesPostaux.length === 0) {
+      // Deduplicate by code_postal (keep one ville per CP)
+      const pairMap = new Map<string, string>();
+      for (const a of actifsRows) {
+        if (a.codePostal && a.ville) pairMap.set(a.codePostal, a.ville);
+      }
+      if (pairMap.size === 0) {
         return res.json({ message: "Aucun actif avec un code postal renseigné. Ajoutez un code postal à vos actifs avant de synchroniser.", synced: 0, errors: [] });
       }
 
-      logger.info("sync-dvf: starting", { codesPostaux });
-      const result = await syncDVF(codesPostaux);
+      const actifPairs = [...pairMap.entries()].map(([codePostal, ville]) => ({ codePostal, ville }));
+      logger.info("sync-dvf: starting", { pairs: actifPairs });
+      const result = await syncDVF(actifPairs);
       res.json(result);
     } catch (error: any) {
       logger.error("sync-dvf error", { error: error.message, stack: error.stack });
@@ -102,17 +107,22 @@ export function registerMarcheRoutes(app: Express) {
   // ============================================================
   app.post("/api/am/marche/sync-anil", requireWriteAdmin, async (_req: any, res: any) => {
     try {
-      const actifsRows = await db.select({ codePostal: actifs.codePostal })
+      const actifsRows = await db.select({ codePostal: actifs.codePostal, ville: actifs.ville })
         .from(actifs)
         .where(and(eq(actifs.archived, false), isNull(actifs.deletedAt)));
 
-      const codesPostaux = [...new Set(actifsRows.map((a) => a.codePostal).filter(Boolean))] as string[];
-      if (codesPostaux.length === 0) {
+      // Deduplicate by code_postal (keep one ville per CP)
+      const pairMap = new Map<string, string>();
+      for (const a of actifsRows) {
+        if (a.codePostal && a.ville) pairMap.set(a.codePostal, a.ville);
+      }
+      if (pairMap.size === 0) {
         return res.json({ message: "Aucun actif avec un code postal renseigné. Ajoutez un code postal à vos actifs avant de synchroniser.", synced: 0, errors: [] });
       }
 
-      logger.info("sync-anil: starting", { codesPostaux });
-      const result = await syncANIL(codesPostaux);
+      const actifPairs = [...pairMap.entries()].map(([codePostal, ville]) => ({ codePostal, ville }));
+      logger.info("sync-anil: starting", { pairs: actifPairs });
+      const result = await syncANIL(actifPairs);
       res.json(result);
     } catch (error: any) {
       logger.error("sync-anil error", { error: error.message, stack: error.stack });

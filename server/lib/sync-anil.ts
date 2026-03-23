@@ -13,7 +13,7 @@ import { db } from "../db";
 import { refValeursLocatives } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { logger } from "./logger";
-import { codePostalToInsee, inseeToCodePostal } from "./code-postal-insee";
+import { resolveAllInsee, inseeToCodePostal } from "./code-postal-insee";
 
 // Resource IDs for "Carte des loyers 2025" on data.gouv.fr
 const ANIL_APPART_URL =
@@ -106,18 +106,16 @@ async function fetchCsv(url: string, label: string): Promise<string | null> {
   }
 }
 
-export async function syncANIL(codesPostaux: string[]): Promise<{ synced: number; errors: string[] }> {
+export async function syncANIL(
+  actifPairs: { codePostal: string; ville: string }[],
+): Promise<{ synced: number; errors: string[] }> {
   const errors: string[] = [];
   let synced = 0;
   const now = new Date().toISOString().slice(0, 10);
 
-  // Build a set of code_insee values that correspond to our code_postal list
-  const cpByInsee: Record<string, string> = {};
-  for (const cp of codesPostaux) {
-    for (const insee of codePostalToInsee(cp)) {
-      cpByInsee[insee] = cp;
-    }
-  }
+  // Resolve correct INSEE codes using geo.api.gouv.fr + ville name
+  const { inseeToCP } = await resolveAllInsee(actifPairs);
+  const cpByInsee = inseeToCP;
 
   // Fetch and process appartements
   const appart = await fetchAndSync("appartement", ANIL_APPART_URL, cpByInsee, now, errors);
