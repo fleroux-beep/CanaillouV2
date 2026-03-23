@@ -85,9 +85,10 @@ export function registerMarcheRoutes(app: Express) {
 
       const codesPostaux = [...new Set(actifsRows.map((a) => a.codePostal).filter(Boolean))] as string[];
       if (codesPostaux.length === 0) {
-        return res.json({ message: "Aucun actif avec code postal", synced: 0 });
+        return res.json({ message: "Aucun actif avec un code postal renseigné. Ajoutez un code postal à vos actifs avant de synchroniser.", synced: 0, errors: [] });
       }
 
+      logger.info("sync-dvf: starting", { codesPostaux });
       const result = await syncDVF(codesPostaux);
       res.json(result);
     } catch (error: any) {
@@ -107,9 +108,10 @@ export function registerMarcheRoutes(app: Express) {
 
       const codesPostaux = [...new Set(actifsRows.map((a) => a.codePostal).filter(Boolean))] as string[];
       if (codesPostaux.length === 0) {
-        return res.json({ message: "Aucun actif avec code postal", synced: 0 });
+        return res.json({ message: "Aucun actif avec un code postal renseigné. Ajoutez un code postal à vos actifs avant de synchroniser.", synced: 0, errors: [] });
       }
 
+      logger.info("sync-anil: starting", { codesPostaux });
       const result = await syncANIL(codesPostaux);
       res.json(result);
     } catch (error: any) {

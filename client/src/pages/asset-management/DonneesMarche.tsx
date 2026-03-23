@@ -187,11 +187,13 @@ function ValeursVenalesTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<RefValeurVenale | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [syncResult, setSyncResult] = useState<{ synced: number; errors: string[]; message?: string } | null>(null);
   const [form, setForm] = useState({ source: "manuel", codePostal: "", ville: "", typeBien: "appartement", prixM2Median: "", prixM2Bas: "", prixM2Haut: "", nbTransactions: "", periode: "", dateReleve: "", notes: "" });
 
   const syncDVF = useMutation({
-    mutationFn: () => apiRequest("/api/am/marche/sync-dvf", { method: "POST" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/am/marche/valeurs-venales"] }),
+    mutationFn: () => apiRequest<{ synced: number; errors: string[]; message?: string }>("/api/am/marche/sync-dvf", { method: "POST" }),
+    onSuccess: (result) => { setSyncResult(result); qc.invalidateQueries({ queryKey: ["/api/am/marche/valeurs-venales"] }); },
+    onError: (err: any) => { setSyncResult({ synced: 0, errors: [err.message] }); },
   });
 
   const createMut = useMutation({
@@ -243,8 +245,16 @@ function ValeursVenalesTab() {
           </button>
           <button onClick={openCreate} className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"><Plus className="h-3.5 w-3.5" />Ajouter</button>
         </div>
-        {syncDVF.isSuccess && <p className="text-xs text-emerald-500 mb-2">Synchronisation DVF terminée</p>}
-        {syncDVF.isError && <p className="text-xs text-destructive mb-2">Erreur sync DVF</p>}
+        {syncResult && (
+          <div className={`text-xs mb-2 p-2 rounded-lg ${syncResult.synced > 0 ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600"}`}>
+            {syncResult.synced > 0
+              ? `${syncResult.synced} référence(s) synchronisée(s) depuis DVF`
+              : syncResult.message || "Aucune donnée importée — vérifiez que vos actifs ont un code postal renseigné"}
+            {syncResult.errors.length > 0 && (
+              <span className="block mt-1 text-destructive">{syncResult.errors.slice(0, 3).join(" · ")}</span>
+            )}
+          </div>
+        )}
         <DataTable columns={columns} data={data} emptyMessage="Aucune valeur vénale. Lancez une sync DVF ou ajoutez manuellement." />
       </Section>
 
@@ -301,11 +311,13 @@ function ValeursLocativesTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<RefValeurLocative | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [syncResult, setSyncResult] = useState<{ synced: number; errors: string[]; message?: string } | null>(null);
   const [form, setForm] = useState({ source: "manuel", codePostal: "", ville: "", typeBien: "appartement", loyerM2MensuelMedian: "", loyerM2MensuelBas: "", loyerM2MensuelHaut: "", periode: "", dateReleve: "", notes: "" });
 
   const syncANIL = useMutation({
-    mutationFn: () => apiRequest("/api/am/marche/sync-anil", { method: "POST" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/am/marche/valeurs-locatives"] }),
+    mutationFn: () => apiRequest<{ synced: number; errors: string[]; message?: string }>("/api/am/marche/sync-anil", { method: "POST" }),
+    onSuccess: (result) => { setSyncResult(result); qc.invalidateQueries({ queryKey: ["/api/am/marche/valeurs-locatives"] }); },
+    onError: (err: any) => { setSyncResult({ synced: 0, errors: [err.message] }); },
   });
 
   const createMut = useMutation({
@@ -356,8 +368,16 @@ function ValeursLocativesTab() {
           </button>
           <button onClick={openCreate} className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"><Plus className="h-3.5 w-3.5" />Ajouter</button>
         </div>
-        {syncANIL.isSuccess && <p className="text-xs text-emerald-500 mb-2">Synchronisation ANIL terminée</p>}
-        {syncANIL.isError && <p className="text-xs text-destructive mb-2">Erreur sync ANIL</p>}
+        {syncResult && (
+          <div className={`text-xs mb-2 p-2 rounded-lg ${syncResult.synced > 0 ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600"}`}>
+            {syncResult.synced > 0
+              ? `${syncResult.synced} référence(s) synchronisée(s) depuis ANIL`
+              : syncResult.message || "Aucune donnée importée — vérifiez que vos actifs ont un code postal renseigné"}
+            {syncResult.errors.length > 0 && (
+              <span className="block mt-1 text-destructive">{syncResult.errors.slice(0, 3).join(" · ")}</span>
+            )}
+          </div>
+        )}
         <DataTable columns={columns} data={data} emptyMessage="Aucune valeur locative. Lancez une sync ANIL ou ajoutez manuellement." />
       </Section>
 
@@ -417,10 +437,12 @@ function TauxCapitalisationTab() {
   const [editing, setEditing] = useState<RefTauxCapi | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [form, setForm] = useState({ source: "manuel", codePostal: "", ville: "", typeBien: "appartement", tauxCapi: "", tauxCapiBas: "", tauxCapiHaut: "", fiabilite: "haute", periode: "", dateReleve: "", notes: "" });
+  const [computeResult, setComputeResult] = useState<{ computed: number; errors?: string[] } | null>(null);
 
   const computeMut = useMutation({
-    mutationFn: () => apiRequest("/api/am/marche/compute-taux-capi", { method: "POST" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/am/marche/taux-capitalisation"] }),
+    mutationFn: () => apiRequest<{ computed: number; errors?: string[] }>("/api/am/marche/compute-taux-capi", { method: "POST" }),
+    onSuccess: (result) => { setComputeResult(result); qc.invalidateQueries({ queryKey: ["/api/am/marche/taux-capitalisation"] }); },
+    onError: (err: any) => { setComputeResult({ computed: 0, errors: [err.message] }); },
   });
 
   const createMut = useMutation({
@@ -482,7 +504,13 @@ function TauxCapitalisationTab() {
           </button>
           <button onClick={openCreate} className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"><Plus className="h-3.5 w-3.5" />Ajouter</button>
         </div>
-        {computeMut.isSuccess && <p className="text-xs text-emerald-500 mb-2">Calcul terminé</p>}
+        {computeResult && (
+          <div className={`text-xs mb-2 p-2 rounded-lg ${computeResult.computed > 0 ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600"}`}>
+            {computeResult.computed > 0
+              ? `${computeResult.computed} taux calculé(s)`
+              : "Aucun taux calculé — synchronisez d'abord les valeurs vénales (DVF) et locatives (ANIL)"}
+          </div>
+        )}
         <DataTable columns={columns} data={data} emptyMessage="Aucun taux de capitalisation. Synchronisez DVF+ANIL puis recalculez, ou ajoutez manuellement." />
       </Section>
 
