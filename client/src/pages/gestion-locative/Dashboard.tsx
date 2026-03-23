@@ -18,6 +18,7 @@ import {
   PiggyBank, AlertTriangle, CreditCard, TrendingUp,
 } from "lucide-react";
 import { useLocation } from "wouter";
+import { InfoTooltip } from "../../components/ui/info-tooltip";
 
 const COLORS = ["#3b82f6", "#8b5cf6", "#06b6d4", "#10b981", "#f59e0b", "#ef4444", "#ec4899"];
 
@@ -190,7 +191,7 @@ export default function GLDashboard() {
           <KpiCard
             label="Surface totale" value={totalSurface}
             formatFn={(n) => `${formatNumber(n)} m²`} icon={Building2}
-            variant="warning" gradient delay={2}
+            variant="warning" gradient delay={2} metricKey="surface"
           />
           <KpiCard
             label="Capacité" value={totalCapacite}
@@ -201,7 +202,7 @@ export default function GLDashboard() {
 
         {/* Secondary KPIs */}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <KpiCard label="Loyer mensuel" value={totalLoyerHT / 12} formatFn={formatCurrency} icon={BarChart3} delay={4} />
+          <KpiCard label="Loyer mensuel" value={totalLoyerHT / 12} formatFn={formatCurrency} icon={BarChart3} delay={4} metricKey="loyerHT" />
           <KpiCard
             label="Loyer / berceau"
             value={totalCapacite > 0 ? totalLoyerHT / totalCapacite : 0}
@@ -383,9 +384,9 @@ export default function GLDashboard() {
                   <tr className="border-b bg-muted/30">
                     <th className="px-4 py-3 text-left font-semibold">Site</th>
                     <th className="px-4 py-3 text-left font-semibold">Ville</th>
-                    <th className="px-4 py-3 text-right font-semibold">Loyer HT</th>
-                    <th className="px-4 py-3 text-right font-semibold">Charges</th>
-                    <th className="px-4 py-3 text-right font-semibold">Surface</th>
+                    <th className="px-4 py-3 text-right font-semibold"><InfoTooltip metricKey="loyerHT">Loyer HT</InfoTooltip></th>
+                    <th className="px-4 py-3 text-right font-semibold"><InfoTooltip metricKey="charges">Charges</InfoTooltip></th>
+                    <th className="px-4 py-3 text-right font-semibold"><InfoTooltip metricKey="surface">Surface</InfoTooltip></th>
                     <th className="px-4 py-3 text-right font-semibold">Berceaux</th>
                     <th className="px-4 py-3 text-right font-semibold">Loyer/berc.</th>
                     <th className="px-4 py-3 text-right font-semibold">m²/berc.</th>

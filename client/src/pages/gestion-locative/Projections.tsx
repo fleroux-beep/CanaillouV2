@@ -16,6 +16,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/ta
 import {
   TrendingUp, Calculator, Gauge, Target, AlertTriangle, Baby,
 } from "lucide-react";
+import { InfoTooltip } from "../../components/ui/info-tooltip";
 
 const chartTooltipStyle = {
   contentStyle: {
@@ -190,12 +191,12 @@ export default function ProjectionsPage() {
           <KpiCard
             label="Loyer actuel total" value={totalLoyerActuel}
             formatFn={formatCurrency} icon={Calculator}
-            variant="primary" gradient delay={0}
+            variant="primary" gradient delay={0} metricKey="loyerHTActu"
           />
           <KpiCard
             label="Loyer projeté N+1" value={loyerN1}
             formatFn={formatCurrency} icon={TrendingUp}
-            variant="success" gradient delay={1}
+            variant="success" gradient delay={1} metricKey="loyerHTActu"
           />
           <KpiCard
             label={`Loyer projeté N+${horizon}`} value={loyerNMax}

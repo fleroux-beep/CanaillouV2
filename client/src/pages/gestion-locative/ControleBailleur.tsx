@@ -13,6 +13,7 @@ import {
   TrendingUp, TrendingDown, AlertTriangle, CheckCircle,
   CalendarDays, Receipt, Scale, FileBarChart,
 } from "lucide-react";
+import { InfoTooltip } from "../../components/ui/info-tooltip";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
@@ -92,9 +93,9 @@ function LoyersIndexesTab() {
     <AnimatePresence>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
         <div className="grid gap-4 sm:grid-cols-3">
-          <KpiCard label="Loyers de base HT" value={totalBase} formatFn={formatCurrency} icon={Receipt} variant="primary" gradient delay={0} />
-          <KpiCard label="Loyers actuels (indexés)" value={totalActuel} formatFn={formatCurrency} icon={TrendingUp} variant="success" gradient delay={1} />
-          <KpiCard label="Écart indexation" value={totalEcart} formatFn={formatCurrency} icon={totalEcart >= 0 ? TrendingUp : TrendingDown} variant={totalEcart >= 0 ? "success" : "danger"} gradient delay={2} />
+          <KpiCard label="Loyers de base HT" value={totalBase} formatFn={formatCurrency} icon={Receipt} variant="primary" gradient delay={0} metricKey="loyerBaseHT" />
+          <KpiCard label="Loyers actuels (indexés)" value={totalActuel} formatFn={formatCurrency} icon={TrendingUp} variant="success" gradient delay={1} metricKey="loyerHTActu" />
+          <KpiCard label="Écart indexation" value={totalEcart} formatFn={formatCurrency} icon={totalEcart >= 0 ? TrendingUp : TrendingDown} variant={totalEcart >= 0 ? "success" : "danger"} gradient delay={2} metricKey="indexation" />
         </div>
 
         <Section title="Détail par bail" delay={1}>
@@ -105,8 +106,8 @@ function LoyersIndexesTab() {
                   <th className="px-4 py-3 text-left font-semibold">Site</th>
                   <th className="px-4 py-3 text-left font-semibold">Bailleur</th>
                   <th className="px-4 py-3 text-left font-semibold">Indice</th>
-                  <th className="px-4 py-3 text-right font-semibold">Loyer de base</th>
-                  <th className="px-4 py-3 text-right font-semibold">Loyer actuel</th>
+                  <th className="px-4 py-3 text-right font-semibold"><InfoTooltip metricKey="loyerBaseHT">Loyer de base</InfoTooltip></th>
+                  <th className="px-4 py-3 text-right font-semibold"><InfoTooltip metricKey="loyerHTActu">Loyer actuel</InfoTooltip></th>
                   <th className="px-4 py-3 text-right font-semibold">Écart</th>
                   <th className="px-4 py-3 text-right font-semibold">Écart %</th>
                 </tr>

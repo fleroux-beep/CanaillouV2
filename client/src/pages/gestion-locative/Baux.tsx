@@ -10,6 +10,7 @@ import { Badge } from "../../components/ui/badge";
 import { formatCurrency } from "../../lib/utils";
 import { Plus, Pencil, Trash2, MapPin } from "lucide-react";
 import { motion } from "framer-motion";
+import { InfoTooltip } from "../../components/ui/info-tooltip";
 
 interface Bail { id: string; nom: string; locataireId?: string; bailleurId?: string; typeBail?: string; adresse?: string; ville?: string; codePostal?: string; dateSignature?: string; dateEffet?: string; loyerBaseHT?: string; loyerHTActu?: string; indiceReference?: string; trimestreRef?: string; valeurIndiceBase?: string; charges?: string; depotGarantie?: string; taxeFonciere?: string; surface?: string; capacite?: number; statut?: string; archived?: boolean; notes?: string; taxe?: string; tvaTaux?: string; }
 interface Bailleur { id: string; nom: string; }
@@ -31,8 +32,8 @@ export default function BauxGLPage() {
     { key: "nom", label: "Site", sortable: true, render: (r) => <span className="font-medium">{r.nom}</span> },
     { key: "ville", label: "Ville", sortable: true, render: (r) => r.ville ? <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3 text-muted-foreground" />{r.ville}</span> : "—" },
     { key: "bailleurId", label: "Bailleur", sortable: true, render: (r) => r.bailleurId ? bailleurMap[r.bailleurId] || "—" : "—", exportValue: (r) => r.bailleurId ? bailleurMap[r.bailleurId] || "" : "" },
-    { key: "loyerBaseHT", label: "Loyer HT", align: "right", sortable: true, render: (r) => (r.loyerHTActu || r.loyerBaseHT) ? formatCurrency(r.loyerHTActu || r.loyerBaseHT) : "—" },
-    { key: "loyerTTC", label: "Loyer TTC", align: "right", sortable: true, render: (r) => {
+    { key: "loyerBaseHT", label: <InfoTooltip metricKey="loyerHT">Loyer HT</InfoTooltip>, exportLabel: "Loyer HT", align: "right", sortable: true, render: (r) => (r.loyerHTActu || r.loyerBaseHT) ? formatCurrency(r.loyerHTActu || r.loyerBaseHT) : "—" },
+    { key: "loyerTTC", label: <InfoTooltip metricKey="loyerTTC">Loyer TTC</InfoTooltip>, exportLabel: "Loyer TTC", align: "right", sortable: true, render: (r) => {
       const ht = Number(r.loyerHTActu || r.loyerBaseHT || 0);
       if (ht <= 0) return "—";
       const tva = Number(r.tvaTaux || 20);
@@ -50,7 +51,7 @@ export default function BauxGLPage() {
       if (r.taxe === "CRL") return <Badge variant="warning">CRL 2,5%</Badge>;
       return "—";
     }},
-    { key: "surface", label: "Surface", align: "right", render: (r) => r.surface ? `${r.surface} m²` : "—" },
+    { key: "surface", label: <InfoTooltip metricKey="surface">Surface</InfoTooltip>, exportLabel: "Surface", align: "right", render: (r) => r.surface ? `${r.surface} m²` : "—" },
     { key: "capacite", label: "Berceaux", align: "right", sortable: true },
     { key: "indiceReference", label: "Indice", render: (r) => r.indiceReference ? <Badge variant="primary">{r.indiceReference}</Badge> : "—" },
     { key: "typeBail", label: "Type", render: (r) => r.typeBail ? <Badge>{r.typeBail}</Badge> : "—" },

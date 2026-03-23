@@ -9,6 +9,7 @@ import { Badge } from "../../components/ui/badge";
 import { formatCurrency, formatNumber } from "../../lib/utils";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { InfoTooltip } from "../../components/ui/info-tooltip";
 
 interface Lot { id: string; actifId: string; designation: string; type?: string; etage?: string; surface?: string; statut?: string; loyerMensuel?: string; loyerAnnuel?: string; notes?: string; archived?: boolean; }
 interface Actif { id: string; nom: string; }
@@ -30,13 +31,13 @@ export default function LotsPage() {
     { key: "actifId", label: "Actif", sortable: true, render: (r) => r.actifId ? <Badge variant="primary">{actifMap[r.actifId] || "—"}</Badge> : "—", exportValue: (r) => r.actifId ? actifMap[r.actifId] || "" : "" },
     { key: "type", label: "Type", sortable: true, render: (r) => r.type ? <Badge>{r.type}</Badge> : "—" },
     { key: "etage", label: "Étage", sortable: true },
-    { key: "surface", label: "Surface", align: "right", sortable: true, render: (r) => r.surface ? `${formatNumber(r.surface)} m²` : "—" },
+    { key: "surface", label: <InfoTooltip metricKey="surface">Surface</InfoTooltip>, exportLabel: "Surface", align: "right", sortable: true, render: (r) => r.surface ? `${formatNumber(r.surface)} m²` : "—" },
     { key: "statut", label: "Statut", sortable: true, render: (r) => (
       <Badge variant={r.statut?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === "loue" ? "success" : r.statut === "vacant" ? "warning" : "default"}>
         {r.statut || "—"}
       </Badge>
     )},
-    { key: "loyerMensuel", label: "Loyer/mois", align: "right", sortable: true, render: (r) => r.loyerMensuel ? formatCurrency(r.loyerMensuel) : "—" },
+    { key: "loyerMensuel", label: <InfoTooltip metricKey="mensualite">Loyer/mois</InfoTooltip>, exportLabel: "Loyer/mois", align: "right", sortable: true, render: (r) => r.loyerMensuel ? formatCurrency(r.loyerMensuel) : "—" },
     { key: "actions", label: "", align: "right", render: (r) => (
       <div className="flex items-center justify-end gap-1">
         <button onClick={(e) => { e.stopPropagation(); openEdit(r); }} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button>

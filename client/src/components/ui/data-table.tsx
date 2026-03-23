@@ -5,7 +5,9 @@ import { cn } from "../../lib/utils";
 
 export interface Column<T> {
   key: string;
-  label: string;
+  label: React.ReactNode;
+  /** Plain text label used for CSV export header. Falls back to label if label is a string. */
+  exportLabel?: string;
   render?: (row: T) => React.ReactNode;
   exportValue?: (row: T) => string | number;
   sortable?: boolean;
@@ -103,7 +105,7 @@ export function DataTable<T extends Record<string, any>>({
 
   const exportCSV = () => {
     const exportCols = columns.filter((col) => col.label);
-    const headers = exportCols.map((col) => col.label);
+    const headers = exportCols.map((col) => col.exportLabel || (typeof col.label === "string" ? col.label : col.key));
     const rows = filtered.map((row) =>
       exportCols.map((col) => {
         const val = col.exportValue ? col.exportValue(row) : row[col.key];

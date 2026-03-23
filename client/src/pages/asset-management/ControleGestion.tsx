@@ -31,6 +31,7 @@ import {
   Calculator, Receipt, TrendingUp, Percent, Building2,
   Users, ArrowDownUp, BarChart3, LineChartIcon,
 } from "lucide-react";
+import { InfoTooltip } from "../../components/ui/info-tooltip";
 
 function EditableCell({ actifId, field, value, updateFn }: { actifId: string; field: string; value: number; updateFn: any }) {
   const [editing, setEditing] = useState(false);
@@ -264,9 +265,9 @@ export default function ControleGestionPage() {
 
         {/* Hero KPIs - Row 1 */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <KpiCard label="Loyers annuels" value={portfolioData.totalLoyers} formatFn={formatCurrency} icon={TrendingUp} variant="success" gradient delay={0} />
-          <KpiCard label="Charges totales" value={portfolioData.totalCharges} formatFn={formatCurrency} icon={Receipt} variant="warning" gradient delay={1} />
-          <KpiCard label="NOI" value={portfolioData.noi} formatFn={formatCurrency} icon={Calculator} variant={portfolioData.noi >= 0 ? "primary" : "danger"} gradient delay={2} />
+          <KpiCard label="Loyers annuels" value={portfolioData.totalLoyers} formatFn={formatCurrency} icon={TrendingUp} variant="success" gradient delay={0} metricKey="loyerHT" />
+          <KpiCard label="Charges totales" value={portfolioData.totalCharges} formatFn={formatCurrency} icon={Receipt} variant="warning" gradient delay={1} metricKey="chargesAnnuelles" />
+          <KpiCard label="NOI" value={portfolioData.noi} formatFn={formatCurrency} icon={Calculator} variant={portfolioData.noi >= 0 ? "primary" : "danger"} gradient delay={2} metricKey="noi" />
           <KpiCard
             label="Ratio charges/loyers"
             value={portfolioData.ratioChargesLoyers}
@@ -280,9 +281,9 @@ export default function ControleGestionPage() {
 
         {/* KPIs Row 2 */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <KpiCard label="Service de la dette" value={portfolioData.totalServiceDette} formatFn={formatCurrency} icon={ArrowDownUp} delay={4} />
-          <KpiCard label="Cash-flow net" value={portfolioData.cashFlowNet} formatFn={formatCurrency} icon={BarChart3} variant={portfolioData.cashFlowNet >= 0 ? "success" : "danger"} delay={5} />
-          <KpiCard label="NAV portefeuille" value={totalNAV} formatFn={formatCurrency} icon={Building2} variant="primary" delay={6} />
+          <KpiCard label="Service de la dette" value={portfolioData.totalServiceDette} formatFn={formatCurrency} icon={ArrowDownUp} delay={4} metricKey="serviceDette" />
+          <KpiCard label="Cash-flow net" value={portfolioData.cashFlowNet} formatFn={formatCurrency} icon={BarChart3} variant={portfolioData.cashFlowNet >= 0 ? "success" : "danger"} delay={5} metricKey="cashFlowNet" />
+          <KpiCard label="NAV portefeuille" value={totalNAV} formatFn={formatCurrency} icon={Building2} variant="primary" delay={6} metricKey="nav" />
           <KpiCard label="Nombre d'actifs" value={actifsActifs.length} icon={Building2} delay={7} />
         </div>
 
@@ -383,14 +384,14 @@ export default function ControleGestionPage() {
                   <tr className="border-b bg-muted/30">
                     <SortHeader label="Actif" sortKey="nom" currentSortKey={actifSort.sortKey} sortDir={actifSort.sortDir} onSort={actifSort.handleSort} />
                     <SortHeader label="SCI" sortKey="sciNom" currentSortKey={actifSort.sortKey} sortDir={actifSort.sortDir} onSort={actifSort.handleSort} />
-                    <SortHeader label="Loyers/an" sortKey="loyerAnnuel" align="right" currentSortKey={actifSort.sortKey} sortDir={actifSort.sortDir} onSort={actifSort.handleSort} />
-                    <SortHeader label="Taxe fonc." sortKey="taxeFonciere" align="right" currentSortKey={actifSort.sortKey} sortDir={actifSort.sortDir} onSort={actifSort.handleSort} />
-                    <SortHeader label="Assurance" sortKey="assurancePno" align="right" currentSortKey={actifSort.sortKey} sortDir={actifSort.sortDir} onSort={actifSort.handleSort} />
+                    <SortHeader label={<InfoTooltip metricKey="loyerHT">Loyers/an</InfoTooltip>} sortKey="loyerAnnuel" align="right" currentSortKey={actifSort.sortKey} sortDir={actifSort.sortDir} onSort={actifSort.handleSort} />
+                    <SortHeader label={<InfoTooltip metricKey="taxeFonciere">Taxe fonc.</InfoTooltip>} sortKey="taxeFonciere" align="right" currentSortKey={actifSort.sortKey} sortDir={actifSort.sortDir} onSort={actifSort.handleSort} />
+                    <SortHeader label={<InfoTooltip metricKey="assurance">Assurance</InfoTooltip>} sortKey="assurancePno" align="right" currentSortKey={actifSort.sortKey} sortDir={actifSort.sortDir} onSort={actifSort.handleSort} />
                     <SortHeader label="Copropriété" sortKey="chargesCopro" align="right" currentSortKey={actifSort.sortKey} sortDir={actifSort.sortDir} onSort={actifSort.handleSort} />
-                    <SortHeader label="Charges tot." sortKey="charges" align="right" currentSortKey={actifSort.sortKey} sortDir={actifSort.sortDir} onSort={actifSort.handleSort} />
-                    <SortHeader label="NOI" sortKey="noi" align="right" currentSortKey={actifSort.sortKey} sortDir={actifSort.sortDir} onSort={actifSort.handleSort} />
+                    <SortHeader label={<InfoTooltip metricKey="chargesAnnuelles">Charges tot.</InfoTooltip>} sortKey="charges" align="right" currentSortKey={actifSort.sortKey} sortDir={actifSort.sortDir} onSort={actifSort.handleSort} />
+                    <SortHeader label={<InfoTooltip metricKey="noi">NOI</InfoTooltip>} sortKey="noi" align="right" currentSortKey={actifSort.sortKey} sortDir={actifSort.sortDir} onSort={actifSort.handleSort} />
                     <SortHeader label="Ratio" sortKey="ratioCharges" align="right" currentSortKey={actifSort.sortKey} sortDir={actifSort.sortDir} onSort={actifSort.handleSort} />
-                    <SortHeader label="Rdt net" sortKey="rendementNet" align="right" currentSortKey={actifSort.sortKey} sortDir={actifSort.sortDir} onSort={actifSort.handleSort} />
+                    <SortHeader label={<InfoTooltip metricKey="rendementNet">Rdt net</InfoTooltip>} sortKey="rendementNet" align="right" currentSortKey={actifSort.sortKey} sortDir={actifSort.sortDir} onSort={actifSort.handleSort} />
                   </tr>
                 </thead>
                 <tbody>
@@ -459,14 +460,14 @@ export default function ControleGestionPage() {
                   <tr className="border-b bg-muted/30">
                     <th className="px-4 py-3 text-left font-semibold">SCI</th>
                     <th className="px-4 py-3 text-right font-semibold">Actifs</th>
-                    <SortHeader label="Valorisation" sortKey="valorisation" align="right" currentSortKey={sciSort.sortKey} sortDir={sciSort.sortDir} onSort={sciSort.handleSort} />
-                    <SortHeader label="Loyers/an" sortKey="loyerAnnuel" align="right" currentSortKey={sciSort.sortKey} sortDir={sciSort.sortDir} onSort={sciSort.handleSort} />
-                    <SortHeader label="Charges/an" sortKey="charges" align="right" currentSortKey={sciSort.sortKey} sortDir={sciSort.sortDir} onSort={sciSort.handleSort} />
-                    <SortHeader label="NOI" sortKey="noi" align="right" currentSortKey={sciSort.sortKey} sortDir={sciSort.sortDir} onSort={sciSort.handleSort} />
-                    <SortHeader label="CRD" sortKey="crd" align="right" currentSortKey={sciSort.sortKey} sortDir={sciSort.sortDir} onSort={sciSort.handleSort} />
-                    <SortHeader label="Cash-flow" sortKey="cashFlowNet" align="right" currentSortKey={sciSort.sortKey} sortDir={sciSort.sortDir} onSort={sciSort.handleSort} />
+                    <SortHeader label={<InfoTooltip metricKey="valorisation">Valorisation</InfoTooltip>} sortKey="valorisation" align="right" currentSortKey={sciSort.sortKey} sortDir={sciSort.sortDir} onSort={sciSort.handleSort} />
+                    <SortHeader label={<InfoTooltip metricKey="loyerHT">Loyers/an</InfoTooltip>} sortKey="loyerAnnuel" align="right" currentSortKey={sciSort.sortKey} sortDir={sciSort.sortDir} onSort={sciSort.handleSort} />
+                    <SortHeader label={<InfoTooltip metricKey="chargesAnnuelles">Charges/an</InfoTooltip>} sortKey="charges" align="right" currentSortKey={sciSort.sortKey} sortDir={sciSort.sortDir} onSort={sciSort.handleSort} />
+                    <SortHeader label={<InfoTooltip metricKey="noi">NOI</InfoTooltip>} sortKey="noi" align="right" currentSortKey={sciSort.sortKey} sortDir={sciSort.sortDir} onSort={sciSort.handleSort} />
+                    <SortHeader label={<InfoTooltip metricKey="crd">CRD</InfoTooltip>} sortKey="crd" align="right" currentSortKey={sciSort.sortKey} sortDir={sciSort.sortDir} onSort={sciSort.handleSort} />
+                    <SortHeader label={<InfoTooltip metricKey="cashFlowNet">Cash-flow</InfoTooltip>} sortKey="cashFlowNet" align="right" currentSortKey={sciSort.sortKey} sortDir={sciSort.sortDir} onSort={sciSort.handleSort} />
                     <th className="px-4 py-3 text-right font-semibold">Ratio</th>
-                    <SortHeader label="LTV" sortKey="ltv" align="right" currentSortKey={sciSort.sortKey} sortDir={sciSort.sortDir} onSort={sciSort.handleSort} />
+                    <SortHeader label={<InfoTooltip metricKey="ltv">LTV</InfoTooltip>} sortKey="ltv" align="right" currentSortKey={sciSort.sortKey} sortDir={sciSort.sortDir} onSort={sciSort.handleSort} />
                   </tr>
                 </thead>
                 <tbody>
@@ -544,8 +545,8 @@ export default function ControleGestionPage() {
                     <SortHeader label="Associé" sortKey="associeNom" currentSortKey={navSort.sortKey} sortDir={navSort.sortDir} onSort={navSort.handleSort} />
                     <SortHeader label="Part (%)" sortKey="partPct" align="right" currentSortKey={navSort.sortKey} sortDir={navSort.sortDir} onSort={navSort.handleSort} />
                     <SortHeader label="Apport" sortKey="apport" align="right" currentSortKey={navSort.sortKey} sortDir={navSort.sortDir} onSort={navSort.handleSort} />
-                    <SortHeader label="NAV" sortKey="navPart" align="right" currentSortKey={navSort.sortKey} sortDir={navSort.sortDir} onSort={navSort.handleSort} />
-                    <SortHeader label="+/- Value latente" sortKey="plusValueLatente" align="right" currentSortKey={navSort.sortKey} sortDir={navSort.sortDir} onSort={navSort.handleSort} />
+                    <SortHeader label={<InfoTooltip metricKey="nav">NAV</InfoTooltip>} sortKey="navPart" align="right" currentSortKey={navSort.sortKey} sortDir={navSort.sortDir} onSort={navSort.handleSort} />
+                    <SortHeader label={<InfoTooltip metricKey="plusValueLatente">+/- Value latente</InfoTooltip>} sortKey="plusValueLatente" align="right" currentSortKey={navSort.sortKey} sortDir={navSort.sortDir} onSort={navSort.handleSort} />
                     <SortHeader label="Rendement annualisé" sortKey="rendementAnnuelise" align="right" currentSortKey={navSort.sortKey} sortDir={navSort.sortDir} onSort={navSort.handleSort} />
                   </tr>
                 </thead>
@@ -656,15 +657,15 @@ export default function ControleGestionPage() {
                   <thead>
                     <tr className="border-b bg-muted/30">
                       <SortHeader label="Année" sortKey="year" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
-                      <SortHeader label="Loyers" sortKey="loyers" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
-                      <SortHeader label="Charges" sortKey="charges" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
-                      <SortHeader label="NOI" sortKey="noi" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
-                      <SortHeader label="Service dette" sortKey="serviceDette" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
-                      <SortHeader label="Cash-flow" sortKey="cashFlow" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
-                      <SortHeader label="Valorisation" sortKey="valorisation" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
-                      <SortHeader label="Rdt net" sortKey="rendementNet" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
-                      <SortHeader label="DSCR" sortKey="dscr" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
-                      <SortHeader label="LTV" sortKey="ltv" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
+                      <SortHeader label={<InfoTooltip metricKey="loyerHT">Loyers</InfoTooltip>} sortKey="loyers" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
+                      <SortHeader label={<InfoTooltip metricKey="charges">Charges</InfoTooltip>} sortKey="charges" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
+                      <SortHeader label={<InfoTooltip metricKey="noi">NOI</InfoTooltip>} sortKey="noi" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
+                      <SortHeader label={<InfoTooltip metricKey="serviceDette">Service dette</InfoTooltip>} sortKey="serviceDette" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
+                      <SortHeader label={<InfoTooltip metricKey="cashFlowNet">Cash-flow</InfoTooltip>} sortKey="cashFlow" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
+                      <SortHeader label={<InfoTooltip metricKey="valorisation">Valorisation</InfoTooltip>} sortKey="valorisation" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
+                      <SortHeader label={<InfoTooltip metricKey="rendementNet">Rdt net</InfoTooltip>} sortKey="rendementNet" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
+                      <SortHeader label={<InfoTooltip metricKey="dscr">DSCR</InfoTooltip>} sortKey="dscr" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
+                      <SortHeader label={<InfoTooltip metricKey="ltv">LTV</InfoTooltip>} sortKey="ltv" align="right" currentSortKey={projSort.sortKey} sortDir={projSort.sortDir} onSort={projSort.handleSort} />
                     </tr>
                   </thead>
                   <tbody>

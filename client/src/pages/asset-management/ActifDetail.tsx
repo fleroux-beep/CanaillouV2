@@ -7,6 +7,7 @@ import { GlassCard } from "../../components/ui/glass-card";
 import { PageHeader } from "../../components/ui/page-header";
 import { Section } from "../../components/ui/section";
 import { Badge } from "../../components/ui/badge";
+import { InfoTooltip } from "../../components/ui/info-tooltip";
 import { useLocation, useParams } from "wouter";
 import {
   ArrowLeft,
@@ -123,9 +124,9 @@ export default function ActifDetailPage() {
 
         {/* KPIs */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <KpiCard label="Prix acquisition" value={prixAcq} formatFn={formatCurrency} icon={Building2} variant="primary" gradient delay={0} />
-          <KpiCard label="Coût total" value={fraisTotal} formatFn={formatCurrency} icon={PiggyBank} variant="warning" gradient delay={1} />
-          <KpiCard label="Loyer annuel (lots)" value={loyerAnnuelTotal} formatFn={formatCurrency} icon={TrendingUp} variant="success" gradient delay={2} />
+          <KpiCard label="Prix acquisition" metricKey="prixAcquisition" value={prixAcq} formatFn={formatCurrency} icon={Building2} variant="primary" gradient delay={0} />
+          <KpiCard label="Coût total" metricKey="prixAcquisition" value={fraisTotal} formatFn={formatCurrency} icon={PiggyBank} variant="warning" gradient delay={1} />
+          <KpiCard label="Loyer annuel (lots)" metricKey="loyerHT" value={loyerAnnuelTotal} formatFn={formatCurrency} icon={TrendingUp} variant="success" gradient delay={2} />
           <KpiCard label="Lots" value={lots.length} formatFn={(n) => `${lotsLoues}/${n} loués`} icon={Home} delay={3} />
         </div>
 
@@ -141,8 +142,8 @@ export default function ActifDetailPage() {
             <InfoRow label="SCI" value={sciName ? <Badge variant="primary">{sciName}</Badge> : "—"} />
             <InfoRow label="Type" value={actif.type ? <Badge variant={typeVariant[actif.type] || "default"}>{actif.type}</Badge> : "—"} />
             <InfoRow label="Date acquisition" value={formatDate(actif.dateAcquisition)} />
-            <InfoRow label="Surface" value={actif.surface ? `${actif.surface} m²` : "—"} />
-            <InfoRow label="Surface Carrez" value={actif.surfaceCarrez ? `${actif.surfaceCarrez} m²` : "—"} />
+            <InfoRow label={<InfoTooltip metricKey="surface">Surface</InfoTooltip>} value={actif.surface ? `${actif.surface} m²` : "—"} />
+            <InfoRow label={<InfoTooltip metricKey="surfaceCarrez">Surface Carrez</InfoTooltip>} value={actif.surfaceCarrez ? `${actif.surfaceCarrez} m²` : "—"} />
             <InfoRow label="DPE" value={actif.dpe ? <Badge>{actif.dpe}</Badge> : "—"} />
             <InfoRow label="Syndic" value={actif.syndic || "—"} />
           </div>
@@ -154,7 +155,7 @@ export default function ActifDetailPage() {
             <PiggyBank className="h-4 w-4" /> Acquisition
           </h3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <InfoRow label="Prix acquisition" value={actif.prixAcquisition ? formatCurrency(actif.prixAcquisition) : "—"} />
+            <InfoRow label={<InfoTooltip metricKey="prixAcquisition">Prix acquisition</InfoTooltip>} value={actif.prixAcquisition ? formatCurrency(actif.prixAcquisition) : "—"} />
             <InfoRow label="Frais notaire" value={actif.fraisNotaire ? formatCurrency(actif.fraisNotaire) : "—"} />
             <InfoRow label="Frais agence" value={actif.fraisAgence ? formatCurrency(actif.fraisAgence) : "—"} />
             <InfoRow label="Travaux" value={actif.montantTravaux ? formatCurrency(actif.montantTravaux) : "—"} />
@@ -167,9 +168,9 @@ export default function ActifDetailPage() {
             <Calendar className="h-4 w-4" /> Charges annuelles
           </h3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <InfoRow label="Charges annuelles" value={actif.chargesAnnuelles ? formatCurrency(actif.chargesAnnuelles) : "—"} />
-            <InfoRow label="Taxe foncière" value={actif.taxeFonciere ? formatCurrency(actif.taxeFonciere) : "—"} />
-            <InfoRow label="Assurance PNO" value={actif.assurancePno ? formatCurrency(actif.assurancePno) : "—"} />
+            <InfoRow label={<InfoTooltip metricKey="chargesAnnuelles">Charges annuelles</InfoTooltip>} value={actif.chargesAnnuelles ? formatCurrency(actif.chargesAnnuelles) : "—"} />
+            <InfoRow label={<InfoTooltip metricKey="taxeFonciere">Taxe foncière</InfoTooltip>} value={actif.taxeFonciere ? formatCurrency(actif.taxeFonciere) : "—"} />
+            <InfoRow label={<InfoTooltip metricKey="assurance">Assurance PNO</InfoTooltip>} value={actif.assurancePno ? formatCurrency(actif.assurancePno) : "—"} />
           </div>
         </GlassCard>
 
@@ -179,8 +180,8 @@ export default function ActifDetailPage() {
             <TrendingUp className="h-4 w-4" /> Valorisation
           </h3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <InfoRow label="Taux capitalisation" value={actif.tauxCapitalisation ? `${actif.tauxCapitalisation}%` : "—"} />
-            <InfoRow label="Prix/m² marché" value={actif.prixM2Marche ? `${formatCurrency(actif.prixM2Marche)}/m²` : "—"} />
+            <InfoRow label={<InfoTooltip metricKey="tauxCapitalisation">Taux capitalisation</InfoTooltip>} value={actif.tauxCapitalisation ? `${actif.tauxCapitalisation}%` : "—"} />
+            <InfoRow label={<InfoTooltip metricKey="prixM2">Prix/m² marché</InfoTooltip>} value={actif.prixM2Marche ? `${formatCurrency(actif.prixM2Marche)}/m²` : "—"} />
           </div>
         </GlassCard>
 
@@ -197,8 +198,8 @@ export default function ActifDetailPage() {
                       <th className="pb-3 font-medium">Désignation</th>
                       <th className="pb-3 font-medium">Type</th>
                       <th className="pb-3 font-medium">Étage</th>
-                      <th className="pb-3 font-medium text-right">Surface</th>
-                      <th className="pb-3 font-medium text-right">Loyer mensuel</th>
+                      <th className="pb-3 font-medium text-right"><InfoTooltip metricKey="surface">Surface</InfoTooltip></th>
+                      <th className="pb-3 font-medium text-right"><InfoTooltip metricKey="mensualite">Loyer mensuel</InfoTooltip></th>
                       <th className="pb-3 font-medium">Statut</th>
                     </tr>
                   </thead>

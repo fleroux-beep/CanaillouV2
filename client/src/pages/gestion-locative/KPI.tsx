@@ -177,6 +177,7 @@ export default function GLKPIPage() {
             variant="danger"
             gradient
             delay={3}
+            metricKey="prixM2"
           />
         </div>
 

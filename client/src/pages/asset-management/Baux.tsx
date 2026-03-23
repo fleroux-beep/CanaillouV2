@@ -9,6 +9,7 @@ import { Badge } from "../../components/ui/badge";
 import { formatCurrency } from "../../lib/utils";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { InfoTooltip } from "../../components/ui/info-tooltip";
 
 interface BailAM {
   id: string;
@@ -52,8 +53,8 @@ export default function BauxAMPage() {
     { key: "locataireId", label: "Locataire", sortable: true, render: (r) => <span className="font-medium">{getLocataireName(r.locataireId)}</span> },
     { key: "actifId", label: "Actif", sortable: true, render: (r) => getActifName(r.actifId) },
     { key: "typeBail", label: "Type", sortable: true, render: (r) => r.typeBail ? <Badge variant="primary">{r.typeBail}</Badge> : "—" },
-    { key: "loyerMensuel", label: "Loyer mensuel", align: "right", sortable: true, render: (r) => r.loyerMensuel ? formatCurrency(r.loyerMensuel) : "—" },
-    { key: "loyerAnnuel", label: "Loyer annuel", align: "right", sortable: true, render: (r) => r.loyerAnnuel ? formatCurrency(r.loyerAnnuel) : "—" },
+    { key: "loyerMensuel", label: <InfoTooltip metricKey="mensualite">Loyer mensuel</InfoTooltip>, exportLabel: "Loyer mensuel", align: "right", sortable: true, render: (r) => r.loyerMensuel ? formatCurrency(r.loyerMensuel) : "—" },
+    { key: "loyerAnnuel", label: <InfoTooltip metricKey="loyerHT">Loyer annuel</InfoTooltip>, exportLabel: "Loyer annuel", align: "right", sortable: true, render: (r) => r.loyerAnnuel ? formatCurrency(r.loyerAnnuel) : "—" },
     {
       key: "statut", label: "Statut", sortable: true,
       render: (r) => {

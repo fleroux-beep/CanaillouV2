@@ -22,6 +22,7 @@ import {
 } from "../../lib/am-calculations";
 import { useSortableTable, SortHeader } from "../../hooks/useSortableTable";
 import { KpiCard } from "../../components/ui/kpi-card";
+import { InfoTooltip } from "../../components/ui/info-tooltip";
 import { GlassCard } from "../../components/ui/glass-card";
 import { PageHeader } from "../../components/ui/page-header";
 import { Section } from "../../components/ui/section";
@@ -216,6 +217,7 @@ export default function ValorisationPage() {
             variant="primary"
             gradient
             delay={0}
+            metricKey="valorisation"
           />
           <KpiCard
             label="Prix d'acquisition total"
@@ -225,6 +227,7 @@ export default function ValorisationPage() {
             variant="warning"
             gradient
             delay={1}
+            metricKey="prixAcquisition"
           />
           <KpiCard
             label="Plus/Moins value"
@@ -235,6 +238,7 @@ export default function ValorisationPage() {
             trend={totalPlusValuePct}
             gradient
             delay={2}
+            metricKey="plusValueLatente"
           />
           <KpiCard
             label="Rendement net"
@@ -244,6 +248,7 @@ export default function ValorisationPage() {
             variant={avgRendementNet > 5 ? "success" : avgRendementNet > 3 ? "warning" : "danger"}
             gradient
             delay={3}
+            metricKey="rendementNet"
           />
         </div>
 
@@ -255,6 +260,7 @@ export default function ValorisationPage() {
             formatFn={(n) => `${formatNumber(n)} m²`}
             icon={Ruler}
             delay={4}
+            metricKey="surface"
           />
           <KpiCard
             label="Prix moyen / m²"
@@ -262,6 +268,7 @@ export default function ValorisationPage() {
             formatFn={formatCurrency}
             icon={Building2}
             delay={5}
+            metricKey="prixM2"
           />
           <KpiCard
             label="Valeur moyenne / m²"
@@ -269,6 +276,7 @@ export default function ValorisationPage() {
             formatFn={formatCurrency}
             icon={BarChart3}
             delay={6}
+            metricKey="prixM2"
           />
           {portfolioIRR != null && (
             <KpiCard
@@ -277,6 +285,7 @@ export default function ValorisationPage() {
               formatFn={(n) => formatPercent(n)}
               icon={Calculator}
               variant={portfolioIRR > 8 ? "success" : portfolioIRR > 5 ? "primary" : "warning"}
+              metricKey="tri"
               delay={7}
             />
           )}
@@ -408,7 +417,7 @@ export default function ValorisationPage() {
             <GlassCard>
               <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Taux d'actualisation (%)</label>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground"><InfoTooltip metricKey="dcf">Taux d'actualisation (%)</InfoTooltip></label>
                   <input
                     type="number"
                     value={dcfDiscountRate}
@@ -432,7 +441,7 @@ export default function ValorisationPage() {
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Cap rate de sortie (%)</label>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground"><InfoTooltip metricKey="tauxCapitalisation">Cap rate de sortie (%)</InfoTooltip></label>
                   <input
                     type="number"
                     value={dcfExitCapRate}
@@ -461,7 +470,7 @@ export default function ValorisationPage() {
                 <>
                   <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <div className="rounded-lg border bg-muted/30 p-4 text-center">
-                      <p className="text-xs text-muted-foreground">Valeur actuelle nette (VAN)</p>
+                      <p className="text-xs text-muted-foreground"><InfoTooltip metricKey="van">Valeur actuelle nette (VAN)</InfoTooltip></p>
                       <p className={`mt-1 text-xl font-bold ${dcfResult.totalPV - totalAcquisition >= 0 ? "text-green-600" : "text-red-500"}`}>
                         {formatCurrency(dcfResult.totalPV - totalAcquisition)}
                       </p>
@@ -473,7 +482,7 @@ export default function ValorisationPage() {
                       </p>
                     </div>
                     <div className="rounded-lg border bg-muted/30 p-4 text-center">
-                      <p className="text-xs text-muted-foreground">Valeur terminale</p>
+                      <p className="text-xs text-muted-foreground"><InfoTooltip metricKey="valeurTerminale">Valeur terminale</InfoTooltip></p>
                       <p className="mt-1 text-xl font-bold">
                         {formatCurrency(dcfResult.terminalValue)}
                       </p>
@@ -482,7 +491,7 @@ export default function ValorisationPage() {
                       </p>
                     </div>
                     <div className="rounded-lg border bg-muted/30 p-4 text-center">
-                      <p className="text-xs text-muted-foreground">TRI du projet</p>
+                      <p className="text-xs text-muted-foreground"><InfoTooltip metricKey="tri">TRI du projet</InfoTooltip></p>
                       <p className={`mt-1 text-xl font-bold ${(dcfResult.irr ?? 0) > dcfDiscountRate ? "text-green-600" : "text-red-500"}`}>
                         {dcfResult.irr != null ? formatPercent(dcfResult.irr) : "N/A"}
                       </p>
@@ -556,14 +565,14 @@ export default function ValorisationPage() {
                   <tr className="border-b bg-muted/30">
                     <SortHeader sortKey="nom" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort}>Actif</SortHeader>
                     <SortHeader sortKey="sciNom" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort}>SCI</SortHeader>
-                    <SortHeader sortKey="surface" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right">Surface</SortHeader>
-                    <SortHeader sortKey="prixAcquisition" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right">Prix acq.</SortHeader>
-                    <SortHeader sortKey="tauxCapi" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right">Taux capi</SortHeader>
+                    <SortHeader sortKey="surface" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right"><InfoTooltip metricKey="surface">Surface</InfoTooltip></SortHeader>
+                    <SortHeader sortKey="prixAcquisition" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right"><InfoTooltip metricKey="prixAcquisition">Prix acq.</InfoTooltip></SortHeader>
+                    <SortHeader sortKey="tauxCapi" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right"><InfoTooltip metricKey="tauxCapitalisation">Taux capi</InfoTooltip></SortHeader>
                     <SortHeader sortKey="valeurCapitalisation" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right">Val. Capitalisation</SortHeader>
                     <SortHeader sortKey="valeurComparables" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right">Val. Comparables</SortHeader>
-                    <SortHeader sortKey="valeurEstimee" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right">Val. retenue</SortHeader>
-                    <SortHeader sortKey="plusValue" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right">+/- Value</SortHeader>
-                    <SortHeader sortKey="rendementNet" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right">Rdt net</SortHeader>
+                    <SortHeader sortKey="valeurEstimee" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right"><InfoTooltip metricKey="valorisation">Val. retenue</InfoTooltip></SortHeader>
+                    <SortHeader sortKey="plusValue" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right"><InfoTooltip metricKey="plusValueLatente">+/- Value</InfoTooltip></SortHeader>
+                    <SortHeader sortKey="rendementNet" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="right"><InfoTooltip metricKey="rendementNet">Rdt net</InfoTooltip></SortHeader>
                   </tr>
                 </thead>
                 <tbody>

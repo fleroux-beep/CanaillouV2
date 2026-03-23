@@ -17,6 +17,7 @@ import { Plus, Pencil, Trash2, TrendingDown, Calculator, RefreshCw, Landmark, Pe
 import { getAnnuiteEmprunt, computeAmortSchedule, type AMEmprunt, type AmortRow } from "../../lib/am-calculations";
 import { findRefTauxEmprunt, compareTauxEmprunt, badgeVariant, type RefTauxEmprunt } from "../../lib/market-utils";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area } from "recharts";
+import { InfoTooltip } from "../../components/ui/info-tooltip";
 
 interface Emprunt {
   id: string; sciId?: string; actifId?: string; banque?: string; montantEmprunte?: string;
@@ -164,11 +165,11 @@ function EmpruntsTab() {
               <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Banque</th>
               <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Actif</th>
               <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Montant</th>
-              <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">CRD</th>
-              <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Taux</th>
+              <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground"><InfoTooltip metricKey="crd">CRD</InfoTooltip></th>
+              <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground"><InfoTooltip metricKey="tauxAnnuel">Taux</InfoTooltip></th>
               <th className="px-4 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">vs Marché</th>
-              <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Annuité</th>
-              <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Taux assur.</th>
+              <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground"><InfoTooltip metricKey="annuite">Annuité</InfoTooltip></th>
+              <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground"><InfoTooltip metricKey="assurance">Taux assur.</InfoTooltip></th>
               <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">IRA</th>
               <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Échéance</th>
               <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground"></th>
@@ -381,7 +382,7 @@ function CoutCreditTab() {
           <KpiCard label="Capital emprunte" value={totalMontant} formatFn={(n) => formatCurrency(n)} icon={Landmark} variant="primary" gradient delay={0} />
           <KpiCard label="Cout des interets" value={totalInterets} formatFn={(n) => formatCurrency(n)} icon={TrendingDown} variant="danger" gradient delay={1} />
           <KpiCard label="Cout assurance" value={totalAssurance} formatFn={(n) => formatCurrency(n)} icon={Calculator} variant="warning" gradient delay={2} />
-          <KpiCard label="Coût total du crédit" value={totalCout} formatFn={(n) => formatCurrency(n)} icon={Percent} variant="danger" gradient delay={3} />
+          <KpiCard label="Coût total du crédit" value={totalCout} formatFn={(n) => formatCurrency(n)} icon={Percent} variant="danger" gradient delay={3} metricKey="coutCredit" />
         </div>
 
         {chartData.length > 0 && (
@@ -638,8 +639,8 @@ function RachatCreditTab() {
           <>
             {/* Résultat KPIs */}
             <div className="grid gap-4 sm:grid-cols-4">
-              <KpiCard label="Ancienne mensualité" value={simulation.ancienneMens + simulation.ancienneAssurance} formatFn={(n) => formatCurrency(n)} icon={TrendingDown} variant="warning" gradient delay={0} />
-              <KpiCard label="Nouvelle mensualité" value={simulation.nouvelleMensualite} formatFn={(n) => formatCurrency(n)} icon={RefreshCw} variant="primary" gradient delay={1} />
+              <KpiCard label="Ancienne mensualité" value={simulation.ancienneMens + simulation.ancienneAssurance} formatFn={(n) => formatCurrency(n)} icon={TrendingDown} variant="warning" gradient delay={0} metricKey="mensualite" />
+              <KpiCard label="Nouvelle mensualité" value={simulation.nouvelleMensualite} formatFn={(n) => formatCurrency(n)} icon={RefreshCw} variant="primary" gradient delay={1} metricKey="mensualite" />
               <KpiCard label="Économie totale" value={simulation.economie} formatFn={(n) => formatCurrency(n)} icon={Calculator} variant={simulation.economie > 0 ? "success" : "danger"} gradient delay={2} />
               <KpiCard label="Point mort" value={simulation.pointMort} formatFn={(n) => n > 0 ? `${n} mois` : "N/A"} icon={Percent} variant="primary" gradient delay={3} />
             </div>
@@ -817,7 +818,7 @@ function AmortissementTab() {
               <KpiCard label="Capital emprunte" value={parseFloat(selectedEmprunt.montantEmprunte || "0")} formatFn={formatCurrency} icon={Landmark} variant="primary" gradient delay={0} />
               <KpiCard label="Total interets" value={totalInterets} formatFn={formatCurrency} icon={TrendingDown} variant="danger" gradient delay={1} />
               <KpiCard label="Total assurance" value={totalAssurance} formatFn={formatCurrency} icon={Calculator} variant="warning" gradient delay={2} />
-              <KpiCard label="Cout total credit" value={totalCout} formatFn={formatCurrency} icon={Percent} variant="danger" gradient delay={3} />
+              <KpiCard label="Cout total credit" value={totalCout} formatFn={formatCurrency} icon={Percent} variant="danger" gradient delay={3} metricKey="coutCredit" />
             </div>
 
             <Section title={`Tableau d'amortissement — ${empruntLabel(selectedEmprunt)}`} delay={1}>

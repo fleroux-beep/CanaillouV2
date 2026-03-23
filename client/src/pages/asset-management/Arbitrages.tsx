@@ -28,6 +28,7 @@ import { GlassCard } from "../../components/ui/glass-card";
 import { PageHeader } from "../../components/ui/page-header";
 import { Section } from "../../components/ui/section";
 import { Target, Building2, TrendingUp, ShieldAlert, Scale, AlertTriangle, CheckCircle, Eye } from "lucide-react";
+import { InfoTooltip } from "../../components/ui/info-tooltip";
 
 const chartTooltipStyle = {
   contentStyle: {
@@ -188,15 +189,15 @@ export default function ArbitragesPage() {
         {/* Hero KPIs */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <KpiCard label="Actifs" value={actifsActifs.length} icon={Building2} variant="primary" gradient delay={0} />
-          <KpiCard label="Valorisation" value={totalValorisation} formatFn={formatCurrency} icon={Target} variant="success" gradient delay={1} />
-          <KpiCard label="Rendement moyen" value={avgRendement} formatFn={(n) => formatPercent(n)} icon={TrendingUp} variant={avgRendement > 5 ? "success" : avgRendement > 3 ? "warning" : "danger"} gradient delay={2} />
-          <KpiCard label="LTV portefeuille" value={portfolioLTV} formatFn={(n) => formatPercent(n)} icon={Scale} variant={portfolioLTV < 60 ? "success" : portfolioLTV < 80 ? "warning" : "danger"} gradient delay={3} />
+          <KpiCard label="Valorisation" value={totalValorisation} formatFn={formatCurrency} icon={Target} variant="success" gradient delay={1} metricKey="valorisation" />
+          <KpiCard label="Rendement moyen" value={avgRendement} formatFn={(n) => formatPercent(n)} icon={TrendingUp} variant={avgRendement > 5 ? "success" : avgRendement > 3 ? "warning" : "danger"} gradient delay={2} metricKey="rendementBrut" />
+          <KpiCard label="LTV portefeuille" value={portfolioLTV} formatFn={(n) => formatPercent(n)} icon={Scale} variant={portfolioLTV < 60 ? "success" : portfolioLTV < 80 ? "warning" : "danger"} gradient delay={3} metricKey="ltv" />
         </div>
 
         {/* Score summary + DSCR + Cash flow */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <KpiCard label="DSCR portefeuille" value={portfolioDSCR} formatFn={(n) => n.toFixed(2) + "x"} icon={ShieldAlert} variant={portfolioDSCR > 1.2 ? "success" : portfolioDSCR > 1 ? "warning" : "danger"} delay={4} />
-          <KpiCard label="Cash-flow net" value={totalCashFlow} formatFn={formatCurrency} icon={TrendingUp} variant={totalCashFlow >= 0 ? "success" : "danger"} delay={5} />
+          <KpiCard label="DSCR portefeuille" value={portfolioDSCR} formatFn={(n) => n.toFixed(2) + "x"} icon={ShieldAlert} variant={portfolioDSCR > 1.2 ? "success" : portfolioDSCR > 1 ? "warning" : "danger"} delay={4} metricKey="dscr" />
+          <KpiCard label="Cash-flow net" value={totalCashFlow} formatFn={formatCurrency} icon={TrendingUp} variant={totalCashFlow >= 0 ? "success" : "danger"} delay={5} metricKey="cashFlowNet" />
           <GlassCard delay={6} className="flex items-center justify-center">
             <div className="flex gap-4 text-center">
               <div>
@@ -213,7 +214,7 @@ export default function ArbitragesPage() {
               </div>
             </div>
           </GlassCard>
-          <KpiCard label="+/- Value totale" value={totalPlusValue} formatFn={formatCurrency} icon={Target} variant={totalPlusValue >= 0 ? "success" : "danger"} delay={7} />
+          <KpiCard label="+/- Value totale" value={totalPlusValue} formatFn={formatCurrency} icon={Target} variant={totalPlusValue >= 0 ? "success" : "danger"} delay={7} metricKey="plusValueLatente" />
         </div>
 
         {/* Rendement bar chart */}
@@ -341,13 +342,13 @@ export default function ArbitragesPage() {
                 <thead>
                   <tr className="border-b bg-muted/30">
                     <SortHeader sortKey="label" currentSortKey={stressSort.sortKey} sortDir={stressSort.sortDir} onSort={stressSort.handleSort}>Scénario</SortHeader>
-                    <SortHeader sortKey="vacanceRate" currentSortKey={stressSort.sortKey} sortDir={stressSort.sortDir} onSort={stressSort.handleSort} align="right">Vacance</SortHeader>
-                    <SortHeader sortKey="loyerAjuste" currentSortKey={stressSort.sortKey} sortDir={stressSort.sortDir} onSort={stressSort.handleSort} align="right">Loyers ajustés</SortHeader>
-                    <SortHeader sortKey="chargesAjustees" currentSortKey={stressSort.sortKey} sortDir={stressSort.sortDir} onSort={stressSort.handleSort} align="right">Charges ajustées</SortHeader>
-                    <SortHeader sortKey="noiAjuste" currentSortKey={stressSort.sortKey} sortDir={stressSort.sortDir} onSort={stressSort.handleSort} align="right">NOI</SortHeader>
-                    <SortHeader sortKey="cashFlowAjuste" currentSortKey={stressSort.sortKey} sortDir={stressSort.sortDir} onSort={stressSort.handleSort} align="right">Cash-flow</SortHeader>
-                    <SortHeader sortKey="dscr" currentSortKey={stressSort.sortKey} sortDir={stressSort.sortDir} onSort={stressSort.handleSort} align="right">DSCR</SortHeader>
-                    <SortHeader sortKey="rendementNet" currentSortKey={stressSort.sortKey} sortDir={stressSort.sortDir} onSort={stressSort.handleSort} align="right">Rdt net</SortHeader>
+                    <SortHeader sortKey="vacanceRate" currentSortKey={stressSort.sortKey} sortDir={stressSort.sortDir} onSort={stressSort.handleSort} align="right"><InfoTooltip metricKey="tauxVacance">Vacance</InfoTooltip></SortHeader>
+                    <SortHeader sortKey="loyerAjuste" currentSortKey={stressSort.sortKey} sortDir={stressSort.sortDir} onSort={stressSort.handleSort} align="right"><InfoTooltip metricKey="loyerHTActu">Loyers ajustés</InfoTooltip></SortHeader>
+                    <SortHeader sortKey="chargesAjustees" currentSortKey={stressSort.sortKey} sortDir={stressSort.sortDir} onSort={stressSort.handleSort} align="right"><InfoTooltip metricKey="charges">Charges ajustées</InfoTooltip></SortHeader>
+                    <SortHeader sortKey="noiAjuste" currentSortKey={stressSort.sortKey} sortDir={stressSort.sortDir} onSort={stressSort.handleSort} align="right"><InfoTooltip metricKey="noi">NOI</InfoTooltip></SortHeader>
+                    <SortHeader sortKey="cashFlowAjuste" currentSortKey={stressSort.sortKey} sortDir={stressSort.sortDir} onSort={stressSort.handleSort} align="right"><InfoTooltip metricKey="cashFlowNet">Cash-flow</InfoTooltip></SortHeader>
+                    <SortHeader sortKey="dscr" currentSortKey={stressSort.sortKey} sortDir={stressSort.sortDir} onSort={stressSort.handleSort} align="right"><InfoTooltip metricKey="dscr">DSCR</InfoTooltip></SortHeader>
+                    <SortHeader sortKey="rendementNet" currentSortKey={stressSort.sortKey} sortDir={stressSort.sortDir} onSort={stressSort.handleSort} align="right"><InfoTooltip metricKey="rendementNet">Rdt net</InfoTooltip></SortHeader>
                   </tr>
                 </thead>
                 <tbody>
@@ -407,14 +408,14 @@ export default function ArbitragesPage() {
                   <tr className="border-b bg-muted/30">
                     <SortHeader sortKey="nom" currentSortKey={detailSort.sortKey} sortDir={detailSort.sortDir} onSort={detailSort.handleSort}>Actif</SortHeader>
                     <SortHeader sortKey="sciNom" currentSortKey={detailSort.sortKey} sortDir={detailSort.sortDir} onSort={detailSort.handleSort}>SCI</SortHeader>
-                    <SortHeader sortKey="prixAcquisition" currentSortKey={detailSort.sortKey} sortDir={detailSort.sortDir} onSort={detailSort.handleSort} align="right">Prix acq.</SortHeader>
-                    <SortHeader sortKey="valeurEstimee" currentSortKey={detailSort.sortKey} sortDir={detailSort.sortDir} onSort={detailSort.handleSort} align="right">Val. est.</SortHeader>
-                    <SortHeader sortKey="plusValue" currentSortKey={detailSort.sortKey} sortDir={detailSort.sortDir} onSort={detailSort.handleSort} align="right">+/- Value</SortHeader>
-                    <SortHeader sortKey="rendementBrut" currentSortKey={detailSort.sortKey} sortDir={detailSort.sortDir} onSort={detailSort.handleSort} align="right">Rdt brut</SortHeader>
-                    <SortHeader sortKey="rendementNet" currentSortKey={detailSort.sortKey} sortDir={detailSort.sortDir} onSort={detailSort.handleSort} align="right">Rdt net</SortHeader>
-                    <SortHeader sortKey="ltv" currentSortKey={detailSort.sortKey} sortDir={detailSort.sortDir} onSort={detailSort.handleSort} align="right">LTV</SortHeader>
-                    <SortHeader sortKey="dscr" currentSortKey={detailSort.sortKey} sortDir={detailSort.sortDir} onSort={detailSort.handleSort} align="right">DSCR</SortHeader>
-                    <SortHeader sortKey="cashFlowNet" currentSortKey={detailSort.sortKey} sortDir={detailSort.sortDir} onSort={detailSort.handleSort} align="right">Cash-flow</SortHeader>
+                    <SortHeader sortKey="prixAcquisition" currentSortKey={detailSort.sortKey} sortDir={detailSort.sortDir} onSort={detailSort.handleSort} align="right"><InfoTooltip metricKey="prixAcquisition">Prix acq.</InfoTooltip></SortHeader>
+                    <SortHeader sortKey="valeurEstimee" currentSortKey={detailSort.sortKey} sortDir={detailSort.sortDir} onSort={detailSort.handleSort} align="right"><InfoTooltip metricKey="valorisation">Val. est.</InfoTooltip></SortHeader>
+                    <SortHeader sortKey="plusValue" currentSortKey={detailSort.sortKey} sortDir={detailSort.sortDir} onSort={detailSort.handleSort} align="right"><InfoTooltip metricKey="plusValueLatente">+/- Value</InfoTooltip></SortHeader>
+                    <SortHeader sortKey="rendementBrut" currentSortKey={detailSort.sortKey} sortDir={detailSort.sortDir} onSort={detailSort.handleSort} align="right"><InfoTooltip metricKey="rendementBrut">Rdt brut</InfoTooltip></SortHeader>
+                    <SortHeader sortKey="rendementNet" currentSortKey={detailSort.sortKey} sortDir={detailSort.sortDir} onSort={detailSort.handleSort} align="right"><InfoTooltip metricKey="rendementNet">Rdt net</InfoTooltip></SortHeader>
+                    <SortHeader sortKey="ltv" currentSortKey={detailSort.sortKey} sortDir={detailSort.sortDir} onSort={detailSort.handleSort} align="right"><InfoTooltip metricKey="ltv">LTV</InfoTooltip></SortHeader>
+                    <SortHeader sortKey="dscr" currentSortKey={detailSort.sortKey} sortDir={detailSort.sortDir} onSort={detailSort.handleSort} align="right"><InfoTooltip metricKey="dscr">DSCR</InfoTooltip></SortHeader>
+                    <SortHeader sortKey="cashFlowNet" currentSortKey={detailSort.sortKey} sortDir={detailSort.sortDir} onSort={detailSort.handleSort} align="right"><InfoTooltip metricKey="cashFlowNet">Cash-flow</InfoTooltip></SortHeader>
                     <SortHeader sortKey="score.label" currentSortKey={detailSort.sortKey} sortDir={detailSort.sortDir} onSort={detailSort.handleSort} align="center">Score</SortHeader>
                   </tr>
                 </thead>

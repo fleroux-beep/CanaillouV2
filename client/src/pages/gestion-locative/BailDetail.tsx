@@ -238,7 +238,7 @@ export default function BailGLDetailPage() {
             <InfoRow label="Ville" value={bail.ville || "—"} />
             <InfoRow label="Code postal" value={bail.codePostal || "—"} />
             <InfoRow
-              label="Surface"
+              label={<InfoTooltip metricKey="surface">Surface</InfoTooltip>}
               value={bail.surface ? `${bail.surface} m²` : "—"}
             />
             <InfoRow
@@ -292,7 +292,7 @@ export default function BailGLDetailPage() {
               value={bail.periodeFermeDureeAns ? `${bail.periodeFermeDureeAns} ans` : "—"}
             />
             <InfoRow
-              label="Échéance triennale 1"
+              label={<InfoTooltip metricKey="echeanceTriennale">Échéance triennale 1</InfoTooltip>}
               value={bail.echTrien1 || "—"}
             />
             <InfoRow
@@ -314,23 +314,23 @@ export default function BailGLDetailPage() {
           </h3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <InfoRow
-              label="Loyer base HT"
+              label={<InfoTooltip metricKey="loyerBaseHT">Loyer base HT</InfoTooltip>}
               value={
                 bail.loyerBaseHT ? formatCurrency(bail.loyerBaseHT) : "—"
               }
             />
             <InfoRow
-              label="Loyer HT actuel"
+              label={<InfoTooltip metricKey="loyerHTActu">Loyer HT actuel</InfoTooltip>}
               value={
                 bail.loyerHTActu ? formatCurrency(bail.loyerHTActu) : "—"
               }
             />
             <InfoRow
-              label="Charges"
+              label={<InfoTooltip metricKey="charges">Charges</InfoTooltip>}
               value={bail.charges ? formatCurrency(bail.charges) : "—"}
             />
             <InfoRow
-              label="Dépôt de garantie"
+              label={<InfoTooltip metricKey="depotGarantie">Dépôt de garantie</InfoTooltip>}
               value={
                 bail.depotGarantie
                   ? formatCurrency(bail.depotGarantie)
@@ -338,7 +338,7 @@ export default function BailGLDetailPage() {
               }
             />
             <InfoRow
-              label="Taxe foncière"
+              label={<InfoTooltip metricKey="taxeFonciere">Taxe foncière</InfoTooltip>}
               value={
                 bail.taxeFonciere
                   ? formatCurrency(bail.taxeFonciere)
@@ -346,11 +346,11 @@ export default function BailGLDetailPage() {
               }
             />
             <InfoRow
-              label="Taxe (TVA/CRL)"
+              label={<InfoTooltip metricKey="tva">Taxe (TVA/CRL)</InfoTooltip>}
               value={bail.taxe || "—"}
             />
             <InfoRow
-              label="Taux TVA"
+              label={<InfoTooltip metricKey="tva">Taux TVA</InfoTooltip>}
               value={bail.tvaTaux ? `${bail.tvaTaux}%` : "—"}
             />
             <InfoRow

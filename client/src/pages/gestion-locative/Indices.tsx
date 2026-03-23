@@ -13,6 +13,7 @@ import { formatCurrency } from "../../lib/utils";
 import { apiRequest } from "../../lib/queryClient";
 import { Plus, Pencil, Trash2, Calculator, RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
+import { InfoTooltip } from "../../components/ui/info-tooltip";
 
 interface Indice { id: string; type: string; trimestre: string; valeur: string; }
 interface BailGL { id: string; nom: string; indiceReference?: string; trimestreRef?: string; valeurIndiceBase?: string; loyerBaseHT?: string; loyerHTActu?: string; forceManual?: boolean; archived?: boolean; }
@@ -102,7 +103,7 @@ export default function IndicesPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const columns: Column<Indice>[] = [
-    { key: "type", label: "Type", sortable: true, render: (r) => <Badge variant="primary">{r.type}</Badge> },
+    { key: "type", label: <InfoTooltip metricKey="indexation">Type</InfoTooltip>, exportLabel: "Type", sortable: true, render: (r) => <Badge variant="primary">{r.type}</Badge> },
     { key: "trimestre", label: "Trimestre", sortable: true, render: (r) => <span className="font-medium">{r.trimestre}</span> },
     { key: "valeur", label: "Valeur", align: "right", sortable: true, render: (r) => <span className="font-mono font-medium">{r.valeur}</span> },
     { key: "actions", label: "", align: "right", render: (r) => (

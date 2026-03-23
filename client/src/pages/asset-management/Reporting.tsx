@@ -22,6 +22,7 @@ import { Section } from "../../components/ui/section";
 import {
   BookOpen, Landmark, Building2, TrendingUp, PiggyBank, Wallet,
 } from "lucide-react";
+import { InfoTooltip } from "../../components/ui/info-tooltip";
 
 const COLORS = ["#3b82f6", "#8b5cf6", "#06b6d4", "#10b981", "#f59e0b", "#ef4444", "#ec4899"];
 
@@ -92,8 +93,8 @@ export default function ReportingPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <KpiCard label="SCIs" value={scis.length} icon={Landmark} variant="primary" gradient delay={0} />
           <KpiCard label="Actifs" value={actifsActifs.length} icon={Building2} variant="success" gradient delay={1} />
-          <KpiCard label="Valorisation" value={valorisation} formatFn={formatCurrency} icon={TrendingUp} variant="warning" gradient delay={2} />
-          <KpiCard label="Fonds propres" value={valorisation - crd} formatFn={formatCurrency} icon={Wallet} variant="primary" gradient delay={3} />
+          <KpiCard label="Valorisation" value={valorisation} formatFn={formatCurrency} icon={TrendingUp} variant="warning" gradient delay={2} metricKey="valorisation" />
+          <KpiCard label="Fonds propres" value={valorisation - crd} formatFn={formatCurrency} icon={Wallet} variant="primary" gradient delay={3} metricKey="fondsPropres" />
         </div>
 
         {/* Synthèse financière par SCI */}
@@ -109,13 +110,13 @@ export default function ReportingPage() {
                 <tr className="border-b bg-muted/30">
                   <th className="px-4 py-3 text-left font-semibold">SCI</th>
                   <th className="px-4 py-3 text-right font-semibold">Actifs</th>
-                  <th className="px-4 py-3 text-right font-semibold">Valorisation</th>
-                  <th className="px-4 py-3 text-right font-semibold">Loyers/an</th>
-                  <th className="px-4 py-3 text-right font-semibold">Charges</th>
-                  <th className="px-4 py-3 text-right font-semibold">NOI</th>
-                  <th className="px-4 py-3 text-right font-semibold">CRD</th>
-                  <th className="px-4 py-3 text-right font-semibold">Cash-flow</th>
-                  <th className="px-4 py-3 text-right font-semibold">LTV</th>
+                  <th className="px-4 py-3 text-right font-semibold"><InfoTooltip metricKey="valorisation">Valorisation</InfoTooltip></th>
+                  <th className="px-4 py-3 text-right font-semibold"><InfoTooltip metricKey="loyerHT">Loyers/an</InfoTooltip></th>
+                  <th className="px-4 py-3 text-right font-semibold"><InfoTooltip metricKey="charges">Charges</InfoTooltip></th>
+                  <th className="px-4 py-3 text-right font-semibold"><InfoTooltip metricKey="noi">NOI</InfoTooltip></th>
+                  <th className="px-4 py-3 text-right font-semibold"><InfoTooltip metricKey="crd">CRD</InfoTooltip></th>
+                  <th className="px-4 py-3 text-right font-semibold"><InfoTooltip metricKey="cashFlowNet">Cash-flow</InfoTooltip></th>
+                  <th className="px-4 py-3 text-right font-semibold"><InfoTooltip metricKey="ltv">LTV</InfoTooltip></th>
                 </tr>
               </thead>
               <tbody>
