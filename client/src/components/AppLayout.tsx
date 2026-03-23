@@ -10,7 +10,7 @@ import {
   ChevronLeft, ChevronRight, LogOut, Sun, Moon, ArrowLeft,
   AlertTriangle, DollarSign, FolderOpen, ShieldCheck,
   TreePine, Hammer, ArrowLeftRight, FlaskConical, ClipboardList,
-  ArrowUpDown, FileBarChart, Menu, X, Settings, Activity,
+  ArrowUpDown, FileBarChart, Menu, X, Settings, Activity, Search,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { ChatPanel } from "./ui/chat-panel";
@@ -49,6 +49,7 @@ const amNavGroups: NavGroup[] = [
       { label: "Controle de gestion", href: "/asset-management/controle-gestion", icon: ClipboardList },
       { label: "Arbitrages", href: "/asset-management/arbitrages", icon: ArrowUpDown },
       { label: "Donnees de marche", href: "/asset-management/donnees-marche", icon: Activity },
+      { label: "Etude de marche", href: "/asset-management/etude-marche", icon: Search },
     ],
   },
   {

@@ -1,0 +1,269 @@
+/**
+ * Orchestrateur de scraping — lance tous les scrapers pour un actif donné
+ * et stocke les résultats en base.
+ */
+import { db } from "../../db";
+import { refMarcheScraping, actifs, refValeursVenales, refValeursLocatives, refTauxCapitalisation } from "@shared/schema";
+import { eq, and, isNull } from "drizzle-orm";
+import { logger } from "../logger";
+import type { ScrapingContext, ScrapedResult, Scraper } from "./base";
+import { mapActifTypeToSearch } from "./base";
+
+// Import scrapers
+import { meilleursAgentsScraper } from "./meilleursagents";
+import { leboncoinScraper } from "./leboncoin";
+import { selogerScraper } from "./seloger";
+import { papScraper } from "./pap";
+import { selogerBCScraper } from "./seloger-bc";
+import { bureauxLocauxScraper } from "./bureauxlocaux";
+
+const ALL_SCRAPERS: Scraper[] = [
+  meilleursAgentsScraper,
+  leboncoinScraper,
+  selogerScraper,
+  papScraper,
+  selogerBCScraper,
+  bureauxLocauxScraper,
+];
+
+const RAYON_KM = 1; // 1km par défaut
+
+/**
+ * Lance le scraping pour un actif donné et stocke les résultats.
+ */
+export async function scrapeForActif(actif: {
+  id: string;
+  lat: number | null;
+  lng: number | null;
+  codePostal: string | null;
+  ville: string | null;
+  type: string | null;
+  surface: string | null;
+}): Promise<{ results: number; errors: string[] }> {
+  const errors: string[] = [];
+
+  if (!actif.lat || !actif.lng || !actif.codePostal || !actif.ville) {
+    return { results: 0, errors: ["Actif sans coordonnées GPS ou code postal"] };
+  }
+
+  const { typeBien } = mapActifTypeToSearch(actif.type || "résidentiel");
+  const now = new Date().toISOString().slice(0, 10);
+
+  const ctx: ScrapingContext = {
+    lat: actif.lat,
+    lng: actif.lng,
+    codePostal: actif.codePostal,
+    ville: actif.ville,
+    typeBien,
+    rayonKm: RAYON_KM,
+    surface: actif.surface ? Number(actif.surface) : undefined,
+  };
+
+  // Delete existing scraped data for this actif
+  await db.delete(refMarcheScraping).where(eq(refMarcheScraping.actifId, actif.id));
+
+  let totalResults = 0;
+
+  for (const scraper of ALL_SCRAPERS) {
+    try {
+      const scraperResults = await scraper.scrape(ctx);
+
+      for (const r of scraperResults) {
+        await db.insert(refMarcheScraping).values({
+          actifId: actif.id,
+          source: r.source,
+          typeRecherche: r.typeRecherche,
+          typeBien: r.typeBien,
+          prixM2Median: r.prixM2Median != null ? String(r.prixM2Median) : null,
+          prixM2Bas: r.prixM2Bas != null ? String(r.prixM2Bas) : null,
+          prixM2Haut: r.prixM2Haut != null ? String(r.prixM2Haut) : null,
+          loyerM2MensuelMedian: r.loyerM2MensuelMedian != null ? String(r.loyerM2MensuelMedian) : null,
+          loyerM2MensuelBas: r.loyerM2MensuelBas != null ? String(r.loyerM2MensuelBas) : null,
+          loyerM2MensuelHaut: r.loyerM2MensuelHaut != null ? String(r.loyerM2MensuelHaut) : null,
+          nbAnnonces: r.nbAnnonces || null,
+          rayonKm: String(RAYON_KM),
+          lat: actif.lat,
+          lng: actif.lng,
+          codePostal: actif.codePostal,
+          ville: actif.ville,
+          tauxCapiDeduit: r.tauxCapiDeduit != null ? String(r.tauxCapiDeduit) : null,
+          dateReleve: now,
+          rawData: r.rawData || null,
+          notes: r.notes || null,
+        });
+        totalResults++;
+      }
+    } catch (err: any) {
+      const msg = `${scraper.name}: ${err.message}`;
+      errors.push(msg);
+      logger.warn(`Scraper error for ${actif.id}`, { scraper: scraper.name, error: err.message });
+    }
+  }
+
+  return { results: totalResults, errors };
+}
+
+/**
+ * Lance le scraping global pour tous les actifs actifs.
+ */
+export async function scrapeAllActifs(): Promise<{
+  total: number;
+  scraped: number;
+  errors: string[];
+}> {
+  const allActifs = await db
+    .select({
+      id: actifs.id,
+      nom: actifs.nom,
+      lat: actifs.lat,
+      lng: actifs.lng,
+      codePostal: actifs.codePostal,
+      ville: actifs.ville,
+      type: actifs.type,
+      surface: actifs.surface,
+    })
+    .from(actifs)
+    .where(and(eq(actifs.archived, false), isNull(actifs.deletedAt)));
+
+  let scraped = 0;
+  const allErrors: string[] = [];
+
+  for (const actif of allActifs) {
+    logger.info(`Scraping market data for: ${actif.nom} (${actif.ville} ${actif.codePostal})`);
+    const { results, errors } = await scrapeForActif(actif);
+    scraped += results;
+    allErrors.push(...errors.map((e) => `${actif.nom}: ${e}`));
+  }
+
+  return { total: allActifs.length, scraped, errors: allErrors };
+}
+
+/**
+ * Récupère les données d'étude de marché par actif (Phase 1 + Phase 2).
+ */
+export async function getEtudeMarche(actifId?: string) {
+  // Get actifs
+  const query = actifId
+    ? db.select().from(actifs).where(and(eq(actifs.id, actifId), isNull(actifs.deletedAt)))
+    : db.select().from(actifs).where(and(eq(actifs.archived, false), isNull(actifs.deletedAt)));
+
+  const allActifs = await query;
+
+  // Get all reference data
+  const venales = await db.select().from(refValeursVenales);
+  const locatives = await db.select().from(refValeursLocatives);
+  const tauxCapi = await db.select().from(refTauxCapitalisation);
+  const scraping = await db.select().from(refMarcheScraping);
+
+  // Build per-actif data
+  return allActifs.map((actif) => {
+    const cp = actif.codePostal || "";
+    const { typeBien } = mapActifTypeToSearch(actif.type || "résidentiel");
+
+    // Phase 1: données officielles (DVF + ANIL)
+    const venalesDVF = venales.filter(
+      (v) => v.codePostal === cp && v.typeBien === typeBien && v.source === "dvf",
+    );
+    const locativesANIL = locatives.filter(
+      (l) => l.codePostal === cp && (l.typeBien === typeBien || l.typeBien === "appartement") && l.source === "anil",
+    );
+    const tauxCalc = tauxCapi.filter(
+      (t) => t.codePostal === cp && t.typeBien === typeBien && t.source === "calculé",
+    );
+
+    // Phase 2: données scrapées
+    const scrapedData = scraping.filter((s) => s.actifId === actif.id);
+    const scrapedVente = scrapedData.filter((s) => s.typeRecherche === "vente");
+    const scrapedLocation = scrapedData.filter((s) => s.typeRecherche === "location");
+
+    // Aggregate Phase 2 vente
+    const phase2VentePrix = scrapedVente
+      .filter((s) => s.prixM2Median)
+      .map((s) => ({ source: s.source, prixM2: Number(s.prixM2Median), nb: s.nbAnnonces || 0 }));
+
+    const phase2LocLoyer = scrapedLocation
+      .filter((s) => s.loyerM2MensuelMedian)
+      .map((s) => ({ source: s.source, loyerM2: Number(s.loyerM2MensuelMedian), nb: s.nbAnnonces || 0 }));
+
+    // Taux capi Phase 2 (moyenne des taux déduits)
+    const phase2TauxValues = scrapedData
+      .filter((s) => s.tauxCapiDeduit)
+      .map((s) => Number(s.tauxCapiDeduit));
+
+    const phase2TauxCapi = phase2TauxValues.length > 0
+      ? Math.round((phase2TauxValues.reduce((a, b) => a + b, 0) / phase2TauxValues.length) * 100) / 100
+      : null;
+
+    return {
+      actif: {
+        id: actif.id,
+        nom: actif.nom,
+        adresse: actif.adresse,
+        ville: actif.ville,
+        codePostal: actif.codePostal,
+        type: actif.type,
+        surface: actif.surface,
+        surfaceCarrez: actif.surfaceCarrez,
+        lat: actif.lat,
+        lng: actif.lng,
+        // Valeurs manuelles pour comparaison
+        tauxCapitalisation: actif.tauxCapitalisation,
+        prixM2Marche: actif.prixM2Marche,
+      },
+      phase1: {
+        valeurVenale: venalesDVF[0]
+          ? {
+              prixM2Median: Number(venalesDVF[0].prixM2Median),
+              prixM2Bas: Number(venalesDVF[0].prixM2Bas),
+              prixM2Haut: Number(venalesDVF[0].prixM2Haut),
+              nbTransactions: venalesDVF[0].nbTransactions,
+              periode: venalesDVF[0].periode,
+              source: "DVF",
+            }
+          : null,
+        valeurLocative: locativesANIL[0]
+          ? {
+              loyerM2Median: Number(locativesANIL[0].loyerM2MensuelMedian),
+              loyerM2Bas: Number(locativesANIL[0].loyerM2MensuelBas),
+              loyerM2Haut: Number(locativesANIL[0].loyerM2MensuelHaut),
+              periode: locativesANIL[0].periode,
+              source: "ANIL",
+            }
+          : null,
+        tauxCapi: tauxCalc[0]
+          ? {
+              taux: Number(tauxCalc[0].tauxCapi),
+              tauxBas: Number(tauxCalc[0].tauxCapiBas),
+              tauxHaut: Number(tauxCalc[0].tauxCapiHaut),
+              fiabilite: tauxCalc[0].fiabilite,
+              methode: tauxCalc[0].methodeCalcul,
+            }
+          : null,
+      },
+      phase2: {
+        vente: scrapedVente.map((s) => ({
+          source: s.source,
+          prixM2Median: s.prixM2Median ? Number(s.prixM2Median) : null,
+          prixM2Bas: s.prixM2Bas ? Number(s.prixM2Bas) : null,
+          prixM2Haut: s.prixM2Haut ? Number(s.prixM2Haut) : null,
+          nbAnnonces: s.nbAnnonces,
+          tauxCapiDeduit: s.tauxCapiDeduit ? Number(s.tauxCapiDeduit) : null,
+          notes: s.notes,
+          dateReleve: s.dateReleve,
+        })),
+        location: scrapedLocation.map((s) => ({
+          source: s.source,
+          loyerM2Median: s.loyerM2MensuelMedian ? Number(s.loyerM2MensuelMedian) : null,
+          loyerM2Bas: s.loyerM2MensuelBas ? Number(s.loyerM2MensuelBas) : null,
+          loyerM2Haut: s.loyerM2MensuelHaut ? Number(s.loyerM2MensuelHaut) : null,
+          nbAnnonces: s.nbAnnonces,
+          tauxCapiDeduit: s.tauxCapiDeduit ? Number(s.tauxCapiDeduit) : null,
+          notes: s.notes,
+          dateReleve: s.dateReleve,
+        })),
+        tauxCapiMoyen: phase2TauxCapi,
+        dateReleve: scrapedData[0]?.dateReleve || null,
+      },
+    };
+  });
+}

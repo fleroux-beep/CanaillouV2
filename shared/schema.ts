@@ -599,6 +599,40 @@ export const refTauxCapitalisation = pgTable("ref_taux_capitalisation", {
 });
 
 // ============================================================
+// MARCHÉ — Données scrapées (Phase 2)
+// ============================================================
+
+export const refMarcheScraping = pgTable("ref_marche_scraping", {
+  id: varchar("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  actifId: varchar("actif_id").references(() => actifs.id, { onDelete: "cascade" }),
+  source: varchar("source").notNull(), // meilleursagents, leboncoin, seloger, seloger_bc, pap, bureauxlocaux
+  typeRecherche: varchar("type_recherche").notNull(), // vente, location
+  typeBien: varchar("type_bien").notNull(), // appartement, maison, bureau, commerce, local_commercial
+  // Prix
+  prixM2Median: numeric("prix_m2_median"),
+  prixM2Bas: numeric("prix_m2_bas"),
+  prixM2Haut: numeric("prix_m2_haut"),
+  // Loyers (si typeRecherche = location)
+  loyerM2MensuelMedian: numeric("loyer_m2_mensuel_median"),
+  loyerM2MensuelBas: numeric("loyer_m2_mensuel_bas"),
+  loyerM2MensuelHaut: numeric("loyer_m2_mensuel_haut"),
+  // Contexte
+  nbAnnonces: integer("nb_annonces"),
+  rayonKm: numeric("rayon_km"),
+  lat: real("lat"),
+  lng: real("lng"),
+  codePostal: varchar("code_postal"),
+  ville: varchar("ville"),
+  // Taux capi déduit
+  tauxCapiDeduit: numeric("taux_capi_deduit"),
+  // Meta
+  dateReleve: varchar("date_releve"),
+  rawData: jsonb("raw_data"), // données brutes pour debug
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ============================================================
 // RELATIONS (for Drizzle relational queries)
 // ============================================================
 

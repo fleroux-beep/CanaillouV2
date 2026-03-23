@@ -11,6 +11,7 @@ import { logger } from "../lib/logger";
 import { syncDVF } from "../lib/sync-dvf";
 import { syncANIL } from "../lib/sync-anil";
 import { computeTauxCapiFromRefs } from "../lib/compute-taux-capi";
+import { scrapeAllActifs, scrapeForActif, getEtudeMarche } from "../lib/scrapers";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -140,6 +141,67 @@ export function registerMarcheRoutes(app: Express) {
     } catch (error: any) {
       logger.error("compute-taux-capi error", { error: error.message, stack: error.stack });
       res.status(500).json({ error: `Erreur calcul taux capi: ${error.message}` });
+    }
+  });
+
+  // ============================================================
+  // Étude de marché — Phase 2 (Scraping)
+  // ============================================================
+
+  // Sync global: scrape toutes les plateformes pour tous les actifs
+  app.post("/api/am/marche/sync-scraping", requireWriteAdmin, async (_req: any, res: any) => {
+    try {
+      logger.info("sync-scraping: starting global scrape");
+      const result = await scrapeAllActifs();
+      res.json(result);
+    } catch (error: any) {
+      logger.error("sync-scraping error", { error: error.message, stack: error.stack });
+      res.status(500).json({ error: `Erreur scraping: ${error.message}` });
+    }
+  });
+
+  // Sync par actif
+  app.post("/api/am/marche/sync-scraping/:actifId", requireWriteAdmin, async (req: any, res: any) => {
+    try {
+      const actifId = req.params.actifId;
+      if (!UUID_RE.test(actifId)) return res.status(400).json({ error: "ID invalide" });
+
+      const [actif] = await db.select().from(actifs).where(eq(actifs.id, actifId));
+      if (!actif) return res.status(404).json({ error: "Actif non trouvé" });
+
+      const result = await scrapeForActif(actif);
+      res.json(result);
+    } catch (error: any) {
+      logger.error("sync-scraping error", { error: error.message, stack: error.stack });
+      res.status(500).json({ error: `Erreur scraping: ${error.message}` });
+    }
+  });
+
+  // ============================================================
+  // Étude de marché — Vue consolidée par actif (Phase 1 + Phase 2)
+  // ============================================================
+
+  app.get("/api/am/marche/etude", requireAuth, async (_req: any, res: any) => {
+    try {
+      const data = await getEtudeMarche();
+      res.json(data);
+    } catch (error: any) {
+      logger.error("etude-marche error", { error: error.message, stack: error.stack });
+      res.status(500).json({ error: "Erreur interne" });
+    }
+  });
+
+  app.get("/api/am/marche/etude/:actifId", requireAuth, async (req: any, res: any) => {
+    try {
+      const actifId = req.params.actifId;
+      if (!UUID_RE.test(actifId)) return res.status(400).json({ error: "ID invalide" });
+
+      const data = await getEtudeMarche(actifId);
+      if (data.length === 0) return res.status(404).json({ error: "Actif non trouvé" });
+      res.json(data[0]);
+    } catch (error: any) {
+      logger.error("etude-marche error", { error: error.message, stack: error.stack });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 }
