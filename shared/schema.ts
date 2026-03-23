@@ -532,6 +532,73 @@ export const documentsAM = pgTable("am_documents", {
 });
 
 // ============================================================
+// ASSET MANAGEMENT — Données de Marché (Référentiel)
+// ============================================================
+
+export const refTauxEmprunt = pgTable("ref_taux_emprunt", {
+  id: varchar("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  source: varchar("source").notNull(), // bdf, manuel
+  typeActif: varchar("type_actif").notNull(), // résidentiel, commercial, bureau, crèche, mixte
+  dureeAns: integer("duree_ans").notNull(), // 7, 10, 15, 20, 25
+  taux: numeric("taux").notNull(), // en %
+  periode: varchar("periode"), // ex: "2025-03", "T1-2025"
+  dateReleve: varchar("date_releve"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const refValeursVenales = pgTable("ref_valeurs_venales", {
+  id: varchar("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  source: varchar("source").notNull(), // dvf, manuel
+  codePostal: varchar("code_postal").notNull(),
+  ville: varchar("ville"),
+  codeInsee: varchar("code_insee"),
+  typeBien: varchar("type_bien").notNull(), // appartement, maison, local_commercial, bureau, terrain
+  prixM2Median: numeric("prix_m2_median"),
+  prixM2Bas: numeric("prix_m2_bas"), // Q1
+  prixM2Haut: numeric("prix_m2_haut"), // Q3
+  nbTransactions: integer("nb_transactions"),
+  periode: varchar("periode"), // ex: "S1-2025"
+  dateReleve: varchar("date_releve"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const refValeursLocatives = pgTable("ref_valeurs_locatives", {
+  id: varchar("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  source: varchar("source").notNull(), // anil, oll, manuel, interne
+  codePostal: varchar("code_postal").notNull(),
+  ville: varchar("ville"),
+  codeInsee: varchar("code_insee"),
+  typeBien: varchar("type_bien").notNull(), // appartement, maison, local_commercial, bureau, crèche
+  loyerM2MensuelMedian: numeric("loyer_m2_mensuel_median"),
+  loyerM2MensuelBas: numeric("loyer_m2_mensuel_bas"),
+  loyerM2MensuelHaut: numeric("loyer_m2_mensuel_haut"),
+  periode: varchar("periode"),
+  dateReleve: varchar("date_releve"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const refTauxCapitalisation = pgTable("ref_taux_capitalisation", {
+  id: varchar("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  source: varchar("source").notNull(), // calculé, manuel, immostat
+  codePostal: varchar("code_postal").notNull(),
+  ville: varchar("ville"),
+  codeInsee: varchar("code_insee"),
+  typeBien: varchar("type_bien").notNull(), // appartement, maison, local_commercial, bureau, crèche
+  tauxCapi: numeric("taux_capi").notNull(), // en %
+  tauxCapiBas: numeric("taux_capi_bas"),
+  tauxCapiHaut: numeric("taux_capi_haut"),
+  fiabilite: varchar("fiabilite"), // haute, moyenne, faible
+  methodeCalcul: varchar("methode_calcul"), // ex: "DVF S2-2025 / ANIL 2025"
+  periode: varchar("periode"),
+  dateReleve: varchar("date_releve"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ============================================================
 // RELATIONS (for Drizzle relational queries)
 // ============================================================
 

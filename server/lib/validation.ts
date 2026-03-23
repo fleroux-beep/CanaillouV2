@@ -404,6 +404,65 @@ export const indiceSchema = z.object({
 });
 
 // ============================================================
+// DONNÉES DE MARCHÉ (Référentiel)
+// ============================================================
+
+export const refTauxEmpruntSchema = z.object({
+  source: z.enum(["bdf", "manuel"]),
+  typeActif: z.string().min(1, "Le type d'actif est requis"),
+  dureeAns: z.union([z.string(), z.number()]).pipe(z.coerce.number().int()),
+  taux: z.union([z.string(), z.number()]),
+  periode: optStr,
+  dateReleve: optStr,
+  notes: optStr,
+});
+
+export const refValeursVenalesSchema = z.object({
+  source: z.enum(["dvf", "manuel"]),
+  codePostal: z.string().min(1, "Le code postal est requis"),
+  ville: optStr,
+  codeInsee: optStr,
+  typeBien: z.string().min(1, "Le type de bien est requis"),
+  prixM2Median: optNum,
+  prixM2Bas: optNum,
+  prixM2Haut: optNum,
+  nbTransactions: optInt,
+  periode: optStr,
+  dateReleve: optStr,
+  notes: optStr,
+});
+
+export const refValeursLocativesSchema = z.object({
+  source: z.enum(["anil", "oll", "manuel", "interne"]),
+  codePostal: z.string().min(1, "Le code postal est requis"),
+  ville: optStr,
+  codeInsee: optStr,
+  typeBien: z.string().min(1, "Le type de bien est requis"),
+  loyerM2MensuelMedian: optNum,
+  loyerM2MensuelBas: optNum,
+  loyerM2MensuelHaut: optNum,
+  periode: optStr,
+  dateReleve: optStr,
+  notes: optStr,
+});
+
+export const refTauxCapitalisationSchema = z.object({
+  source: z.enum(["calculé", "manuel", "immostat"]),
+  codePostal: z.string().min(1, "Le code postal est requis"),
+  ville: optStr,
+  codeInsee: optStr,
+  typeBien: z.string().min(1, "Le type de bien est requis"),
+  tauxCapi: z.union([z.string(), z.number()]),
+  tauxCapiBas: optNum,
+  tauxCapiHaut: optNum,
+  fiabilite: optStr,
+  methodeCalcul: optStr,
+  periode: optStr,
+  dateReleve: optStr,
+  notes: optStr,
+});
+
+// ============================================================
 // Map resource name → schemas (for CRUD factory)
 // ============================================================
 

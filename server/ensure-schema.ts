@@ -546,6 +546,81 @@ export async function ensureSchema() {
       )
     `);
 
+    // Ref Taux Emprunt (données de marché)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "ref_taux_emprunt" (
+        "id" varchar PRIMARY KEY NOT NULL,
+        "source" varchar NOT NULL,
+        "type_actif" varchar NOT NULL,
+        "duree_ans" integer NOT NULL,
+        "taux" numeric NOT NULL,
+        "periode" varchar,
+        "date_releve" varchar,
+        "notes" text,
+        "created_at" timestamp DEFAULT now()
+      )
+    `);
+
+    // Ref Valeurs Vénales (prix/m² marché)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "ref_valeurs_venales" (
+        "id" varchar PRIMARY KEY NOT NULL,
+        "source" varchar NOT NULL,
+        "code_postal" varchar NOT NULL,
+        "ville" varchar,
+        "code_insee" varchar,
+        "type_bien" varchar NOT NULL,
+        "prix_m2_median" numeric,
+        "prix_m2_bas" numeric,
+        "prix_m2_haut" numeric,
+        "nb_transactions" integer,
+        "periode" varchar,
+        "date_releve" varchar,
+        "notes" text,
+        "created_at" timestamp DEFAULT now()
+      )
+    `);
+
+    // Ref Valeurs Locatives (loyer/m² marché)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "ref_valeurs_locatives" (
+        "id" varchar PRIMARY KEY NOT NULL,
+        "source" varchar NOT NULL,
+        "code_postal" varchar NOT NULL,
+        "ville" varchar,
+        "code_insee" varchar,
+        "type_bien" varchar NOT NULL,
+        "loyer_m2_mensuel_median" numeric,
+        "loyer_m2_mensuel_bas" numeric,
+        "loyer_m2_mensuel_haut" numeric,
+        "periode" varchar,
+        "date_releve" varchar,
+        "notes" text,
+        "created_at" timestamp DEFAULT now()
+      )
+    `);
+
+    // Ref Taux de Capitalisation (dérivé ou manuel)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "ref_taux_capitalisation" (
+        "id" varchar PRIMARY KEY NOT NULL,
+        "source" varchar NOT NULL,
+        "code_postal" varchar NOT NULL,
+        "ville" varchar,
+        "code_insee" varchar,
+        "type_bien" varchar NOT NULL,
+        "taux_capi" numeric NOT NULL,
+        "taux_capi_bas" numeric,
+        "taux_capi_haut" numeric,
+        "fiabilite" varchar,
+        "methode_calcul" varchar,
+        "periode" varchar,
+        "date_releve" varchar,
+        "notes" text,
+        "created_at" timestamp DEFAULT now()
+      )
+    `);
+
     // Foreign keys (use DO blocks to skip if already exist)
     const fks = [
       `ALTER TABLE "am_actifs" ADD CONSTRAINT "am_actifs_sci_id_am_scis_id_fk" FOREIGN KEY ("sci_id") REFERENCES "am_scis"("id") ON DELETE set null ON UPDATE no action`,

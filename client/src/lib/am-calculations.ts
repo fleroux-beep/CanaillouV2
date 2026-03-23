@@ -12,6 +12,8 @@ export interface AMActif {
   id: string;
   sciId?: string | null;
   nom: string;
+  codePostal?: string | null;
+  type?: string | null;
   surface?: string | null;
   surfaceCarrez?: string | null;
   prixAcquisition?: string | null;
@@ -26,6 +28,13 @@ export interface AMActif {
   prixM2Marche?: string | null;
   archived?: boolean | null;
   [key: string]: unknown;
+}
+
+/** Données de marché optionnelles pour enrichir les calculs */
+export interface MarketRefs {
+  prixM2?: number;   // prix/m² marché (DVF ou manuel)
+  tauxCapi?: number;  // taux de capitalisation marché (%)
+  loyerM2?: number;   // loyer/m²/an marché
 }
 
 export interface AMBail {
@@ -162,22 +171,27 @@ export function getPrixAcquisition(actif: AMActif): number {
  * - Si une seule est disponible : cette valeur
  * - Sinon : prix d'acquisition
  *
- * Aucune valeur par défaut. Seules les données en base sont utilisées.
+ * Priorité des données :
+ * 1. Données saisies sur l'actif (tauxCapitalisation, prixM2Marche)
+ * 2. Données du référentiel marché (marketRefs) en fallback
+ * 3. Prix d'acquisition en dernier recours
  */
-export function getValeurEstimee(actif: AMActif, baux: AMBail[], lots?: AMLot[]): number {
+export function getValeurEstimee(actif: AMActif, baux: AMBail[], lots?: AMLot[], marketRefs?: MarketRefs): number {
   if (!actif) return 0;
 
   // Méthode par capitalisation
+  // Priorité : taux capi saisi > taux capi marché
   const loyerAnnuel = getLoyerAnnuelActif(actif, baux, lots);
   const charges = getChargesAnnuelles(actif);
   const loyerNet = Math.max(0, loyerAnnuel - charges);
-  const tauxCapi = Number(actif.tauxCapitalisation || 0);
+  const tauxCapi = Number(actif.tauxCapitalisation || 0) || (marketRefs?.tauxCapi || 0);
   const valeurCapitalisation =
     tauxCapi > 0 && loyerNet > 0 ? loyerNet / (tauxCapi / 100) : 0;
 
   // Méthode par comparables
+  // Priorité : prix/m² saisi > prix/m² marché (DVF)
   const surface = Number(actif.surfaceCarrez || actif.surface || 0);
-  const prixM2 = Number(actif.prixM2Marche || 0);
+  const prixM2 = Number(actif.prixM2Marche || 0) || (marketRefs?.prixM2 || 0);
   const valeurComparables = surface > 0 && prixM2 > 0 ? surface * prixM2 : 0;
 
   // Médiane

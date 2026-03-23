@@ -24,6 +24,7 @@ import ReportingPage from "./pages/asset-management/Reporting";
 import SCIsAssociesPage from "./pages/asset-management/SCIsAssocies";
 import VuePatrimoinePage from "./pages/asset-management/VuePatrimoine";
 import SimulateurPage from "./pages/asset-management/Simulateur";
+import DonneesMarche from "./pages/asset-management/DonneesMarche";
 // Gestion Locative
 import GLDashboard from "./pages/gestion-locative/Dashboard";
 import BauxGLPage from "./pages/gestion-locative/Baux";
@@ -86,6 +87,7 @@ export default function App() {
         <Route path="/asset-management/calendrier" component={CalendrierAMPage} />
         <Route path="/asset-management/reporting" component={ReportingPage} />
         <Route path="/asset-management/simulateur" component={SimulateurPage} />
+        <Route path="/asset-management/donnees-marche" component={DonneesMarche} />
 
         {/* Gestion Locative */}
         <Route path="/gestion-locative" component={GLDashboard} />

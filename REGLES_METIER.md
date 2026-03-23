@@ -502,6 +502,76 @@ Taux_occupation = (Lots_loues / Total_lots) * 100
 
 ---
 
+## 17. Referentiel de marche — Donnees de marche
+
+### Tables de reference
+
+| Table | Contenu | Sources |
+|-------|---------|---------|
+| `ref_taux_emprunt` | Taux d'emprunt par type actif et duree | Banque de France (auto), Manuel |
+| `ref_valeurs_venales` | Prix/m² vente par code postal et type bien | DVF Etalab (auto), Manuel |
+| `ref_valeurs_locatives` | Loyer/m² par code postal et type bien | ANIL Carte des loyers (auto), OLL, Manuel, Interne |
+| `ref_taux_capitalisation` | Taux capi par code postal et type bien | Calcule (auto), Manuel, ImmoStat |
+
+### Taux de capitalisation derive (automatique)
+
+```
+Taux_capi = (Loyer_m2_annuel / Prix_m2_vente) * 100
+  avec Loyer_m2_annuel = Loyer_m2_mensuel_ANIL * 12
+  et Prix_m2_vente = Prix_m2_median_DVF
+```
+
+**Fourchette :**
+```
+Taux_capi_bas  = (Loyer_m2_bas * 12)  / Prix_m2_haut * 100  (scenario prudent)
+Taux_capi_haut = (Loyer_m2_haut * 12) / Prix_m2_bas * 100   (scenario optimiste)
+```
+
+**Score de fiabilite :**
+- `haute` : nb transactions DVF >= 30 ET donnee locative presente
+- `moyenne` : nb transactions >= 10 OU donnee locative presente
+- `faible` : donnees insuffisantes
+
+### Enrichissement de getValeurEstimee()
+
+```
+Taux_capi utilise = actif.tauxCapitalisation || ref_taux_capi_marche || 0
+Prix_m2 utilise   = actif.prixM2Marche || ref_prix_m2_DVF || 0
+```
+
+**Regle de priorite : la donnee saisie sur l'actif prime TOUJOURS sur le referentiel marche.**
+Le referentiel sert de fallback et de benchmark de comparaison.
+
+### Comparaison Emprunts vs Marche
+
+```
+Diff_bp = (Taux_emprunt - Taux_marche) * 100
+  <= -25bp → bon (vert)
+  -25 a +25bp → neutre
+  +25 a +75bp → attention (orange)
+  > +75bp → mauvais (rouge)
+```
+
+### Sources de donnees
+
+| Source | API/URL | MAJ | Couverture |
+|--------|---------|-----|------------|
+| DVF (Etalab/DGFiP) | api.cquest.org/dvf | Semestrielle | Prix vente France entiere |
+| Carte des loyers ANIL | data.gouv.fr | Annuelle | Loyers residentiels par commune |
+| Banque de France | webstat.banque-france.fr | Mensuelle | Taux credits immo residentiels |
+| ImmoStat (GIE) | immostat.com | Trimestrielle | Bureaux IdF (saisie manuelle) |
+
+**Fichier source :**
+- `shared/schema.ts` — Tables `ref_taux_emprunt`, `ref_valeurs_venales`, `ref_valeurs_locatives`, `ref_taux_capitalisation`
+- `server/routes/am-marche.ts` — CRUD + endpoints sync
+- `server/lib/sync-dvf.ts` — Sync DVF
+- `server/lib/sync-anil.ts` — Sync ANIL
+- `server/lib/compute-taux-capi.ts` — Calcul taux capi derive
+- `client/src/lib/market-utils.ts` — Helpers comparaison, badges
+- `client/src/pages/asset-management/DonneesMarche.tsx` — Page Donnees de Marche (4 onglets)
+
+---
+
 ## Annexe — Fichiers source
 
 | Fichier | Contenu |
@@ -511,6 +581,12 @@ Taux_occupation = (Lots_loues / Total_lots) * 100
 | `client/src/lib/utils.ts` | Formatage (devise, %, nombres) |
 | `shared/schema.ts` | Schema BDD (Drizzle/PostgreSQL) |
 | `server/routes/am.ts` | API Asset Management |
+| `server/routes/am-marche.ts` | API Donnees de Marche (CRUD + sync) |
+| `server/lib/sync-dvf.ts` | Sync DVF (valeurs venales) |
+| `server/lib/sync-anil.ts` | Sync ANIL (valeurs locatives) |
+| `server/lib/compute-taux-capi.ts` | Calcul taux de capitalisation derive |
+| `client/src/lib/market-utils.ts` | Helpers marche (comparaison, badges, lookup) |
+| `client/src/pages/asset-management/DonneesMarche.tsx` | Page Donnees de Marche |
 | `server/routes/gl.ts` | API Gestion Locative (incl. indexation auto) |
 | `client/src/pages/asset-management/Dashboard.tsx` | Dashboard AM |
 | `client/src/pages/asset-management/Simulateur.tsx` | DCF, stress, projections |

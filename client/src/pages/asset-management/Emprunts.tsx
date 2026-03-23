@@ -15,6 +15,7 @@ import { Badge } from "../../components/ui/badge";
 import { formatCurrency, formatPercent } from "../../lib/utils";
 import { Plus, Pencil, Trash2, TrendingDown, Calculator, RefreshCw, Landmark, Percent, TableIcon, Search, Download, ChevronDown, ChevronRight, Inbox } from "lucide-react";
 import { getAnnuiteEmprunt, computeAmortSchedule, type AMEmprunt, type AmortRow } from "../../lib/am-calculations";
+import { findRefTauxEmprunt, compareTauxEmprunt, badgeVariant, type RefTauxEmprunt } from "../../lib/market-utils";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area } from "recharts";
 
 interface Emprunt {
@@ -34,6 +35,7 @@ function EmpruntsTab() {
   const { data, create, update, remove, creating, updating, deleting } = useCrud<Emprunt>("/api/am/emprunts", "Emprunt");
   const { data: scis } = useCrud<SCI>("/api/am/scis", "SCI");
   const { data: actifsList } = useCrud<Actif>("/api/am/actifs", "Actif");
+  const { data: refTaux = [] } = useQuery<RefTauxEmprunt[]>({ queryKey: ["/api/am/marche/taux-emprunt"], queryFn: () => apiRequest("/api/am/marche/taux-emprunt") });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Emprunt | null>(null);
   const [form, setForm] = useState<Partial<Emprunt>>(empty);
@@ -164,6 +166,7 @@ function EmpruntsTab() {
               <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Montant</th>
               <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">CRD</th>
               <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Taux</th>
+              <th className="px-4 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">vs Marché</th>
               <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Annuité</th>
               <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Taux assur.</th>
               <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">IRA</th>
@@ -174,7 +177,7 @@ function EmpruntsTab() {
           <tbody className="divide-y divide-border/40">
             {totalCount === 0 ? (
               <tr>
-                <td colSpan={11} className="px-4 py-16 text-center">
+                <td colSpan={12} className="px-4 py-16 text-center">
                   <div className="flex flex-col items-center gap-3">
                     <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted"><Inbox className="h-6 w-6 text-muted-foreground/50" /></div>
                     <p className="font-medium text-muted-foreground">Aucun emprunt</p>
@@ -202,7 +205,7 @@ function EmpruntsTab() {
                       </td>
                       <td className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground">{formatCurrency(group.totalMontant)}</td>
                       <td className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground">{formatCurrency(group.totalCRD)}</td>
-                      <td colSpan={6}></td>
+                      <td colSpan={7}></td>
                     </motion.tr>
                     {/* Emprunt rows */}
                     {!isCollapsed && group.emprunts.map((emp, i) => {
@@ -221,6 +224,15 @@ function EmpruntsTab() {
                           <td className="px-4 py-3.5 text-right">{emp.montantEmprunte ? formatCurrency(emp.montantEmprunte) : "—"}</td>
                           <td className="px-4 py-3.5 text-right">{emp.capitalRestantDu ? formatCurrency(emp.capitalRestantDu) : "—"}</td>
                           <td className="px-4 py-3.5 text-right">{emp.tauxAnnuel ? formatPercent(emp.tauxAnnuel) : "—"}</td>
+                          <td className="px-4 py-3.5 text-center">
+                            {(() => {
+                              if (!emp.tauxAnnuel || refTaux.length === 0) return <span className="text-xs text-muted-foreground">—</span>;
+                              const ref = findRefTauxEmprunt(refTaux, "résidentiel", emp.dureeAns);
+                              if (!ref) return <span className="text-xs text-muted-foreground">—</span>;
+                              const cmp = compareTauxEmprunt(Number(emp.tauxAnnuel), Number(ref.taux));
+                              return <span title={cmp.detail}><Badge variant={badgeVariant(cmp.level)}>{cmp.label}</Badge></span>;
+                            })()}
+                          </td>
                           <td className="px-4 py-3.5 text-right">{annuite > 0 ? formatCurrency(annuite) : "—"}</td>
                           <td className="px-4 py-3.5 text-right">{emp.tauxAssurance ? formatPercent(emp.tauxAssurance) : "—"}</td>
                           <td className="px-4 py-3.5 text-right">{emp.ira ? formatCurrency(emp.ira) : "—"}</td>

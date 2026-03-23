@@ -1,0 +1,133 @@
+import type { Express } from "express";
+import { db } from "../db";
+import {
+  refTauxEmprunt, refValeursVenales, refValeursLocatives,
+  refTauxCapitalisation, actifs,
+} from "@shared/schema";
+import { eq, desc, and, isNull } from "drizzle-orm";
+import { requireAuth, requireWriteAdmin } from "../middleware/auth";
+import { validate, refTauxEmpruntSchema, refValeursVenalesSchema, refValeursLocativesSchema, refTauxCapitalisationSchema } from "../lib/validation";
+import { logger } from "../lib/logger";
+import { syncDVF } from "../lib/sync-dvf";
+import { syncANIL } from "../lib/sync-anil";
+import { computeTauxCapiFromRefs } from "../lib/compute-taux-capi";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function registerMarketCrud(
+  app: Express,
+  path: string,
+  table: any,
+  schema: any,
+) {
+  app.get(`/api/am/marche/${path}`, requireAuth, async (_req: any, res: any) => {
+    try {
+      const rows = await db.select().from(table).orderBy(desc(table.createdAt));
+      res.json(rows);
+    } catch (error: any) {
+      logger.error("market route error", { path, error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
+    }
+  });
+
+  app.post(`/api/am/marche/${path}`, requireWriteAdmin, validate(schema), async (req: any, res: any) => {
+    try {
+      const rows = await db.insert(table).values(req.body).returning() as any[];
+      res.status(201).json(rows[0]);
+    } catch (error: any) {
+      logger.error("market route error", { path, error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
+    }
+  });
+
+  app.patch(`/api/am/marche/${path}/:id`, requireWriteAdmin, validate(schema.partial()), async (req: any, res: any) => {
+    try {
+      const id = req.params.id;
+      if (!UUID_RE.test(id)) return res.status(400).json({ error: "ID invalide" });
+      const rows = await db.update(table).set(req.body).where(eq(table.id, id)).returning() as any[];
+      if (rows.length === 0) return res.status(404).json({ error: "Non trouvé" });
+      res.json(rows[0]);
+    } catch (error: any) {
+      logger.error("market route error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
+    }
+  });
+
+  app.delete(`/api/am/marche/${path}/:id`, requireWriteAdmin, async (req: any, res: any) => {
+    try {
+      const id = req.params.id;
+      if (!UUID_RE.test(id)) return res.status(400).json({ error: "ID invalide" });
+      await db.delete(table).where(eq(table.id, id));
+      res.json({ ok: true });
+    } catch (error: any) {
+      logger.error("market route error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
+    }
+  });
+}
+
+export function registerMarcheRoutes(app: Express) {
+  // CRUD for 4 reference tables
+  registerMarketCrud(app, "taux-emprunt", refTauxEmprunt, refTauxEmpruntSchema);
+  registerMarketCrud(app, "valeurs-venales", refValeursVenales, refValeursVenalesSchema);
+  registerMarketCrud(app, "valeurs-locatives", refValeursLocatives, refValeursLocativesSchema);
+  registerMarketCrud(app, "taux-capitalisation", refTauxCapitalisation, refTauxCapitalisationSchema);
+
+  // ============================================================
+  // Sync DVF — Fetch prix/m² par code postal des actifs
+  // ============================================================
+  app.post("/api/am/marche/sync-dvf", requireWriteAdmin, async (_req: any, res: any) => {
+    try {
+      // Get distinct code_postal from actifs
+      const actifsRows = await db.select({ codePostal: actifs.codePostal, type: actifs.type })
+        .from(actifs)
+        .where(and(eq(actifs.archived, false), isNull(actifs.deletedAt)));
+
+      const codesPostaux = [...new Set(actifsRows.map((a) => a.codePostal).filter(Boolean))] as string[];
+      if (codesPostaux.length === 0) {
+        return res.json({ message: "Aucun actif avec code postal", synced: 0 });
+      }
+
+      const result = await syncDVF(codesPostaux);
+      res.json(result);
+    } catch (error: any) {
+      logger.error("sync-dvf error", { error: error.message, stack: error.stack });
+      res.status(500).json({ error: `Erreur sync DVF: ${error.message}` });
+    }
+  });
+
+  // ============================================================
+  // Sync ANIL — Fetch loyers/m² carte des loyers
+  // ============================================================
+  app.post("/api/am/marche/sync-anil", requireWriteAdmin, async (_req: any, res: any) => {
+    try {
+      const actifsRows = await db.select({ codePostal: actifs.codePostal })
+        .from(actifs)
+        .where(and(eq(actifs.archived, false), isNull(actifs.deletedAt)));
+
+      const codesPostaux = [...new Set(actifsRows.map((a) => a.codePostal).filter(Boolean))] as string[];
+      if (codesPostaux.length === 0) {
+        return res.json({ message: "Aucun actif avec code postal", synced: 0 });
+      }
+
+      const result = await syncANIL(codesPostaux);
+      res.json(result);
+    } catch (error: any) {
+      logger.error("sync-anil error", { error: error.message, stack: error.stack });
+      res.status(500).json({ error: `Erreur sync ANIL: ${error.message}` });
+    }
+  });
+
+  // ============================================================
+  // Compute taux de capitalisation (dérivé DVF × ANIL)
+  // ============================================================
+  app.post("/api/am/marche/compute-taux-capi", requireWriteAdmin, async (_req: any, res: any) => {
+    try {
+      const result = await computeTauxCapiFromRefs();
+      res.json(result);
+    } catch (error: any) {
+      logger.error("compute-taux-capi error", { error: error.message, stack: error.stack });
+      res.status(500).json({ error: `Erreur calcul taux capi: ${error.message}` });
+    }
+  });
+}

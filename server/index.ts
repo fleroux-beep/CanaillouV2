@@ -11,6 +11,7 @@ import { users, scis, actifs } from "@shared/schema";
 import { isNull } from "drizzle-orm";
 import { registerAuthRoutes } from "./routes/auth";
 import { registerAMRoutes } from "./routes/am";
+import { registerMarcheRoutes } from "./routes/am-marche";
 import { registerGLRoutes } from "./routes/gl";
 import { registerImportRoutes } from "./routes/import";
 import { registerChatRoutes } from "./routes/chat";
@@ -81,6 +82,7 @@ app.use(
 // API routes
 registerAuthRoutes(app);
 registerAMRoutes(app);
+registerMarcheRoutes(app);
 registerGLRoutes(app);
 registerImportRoutes(app);
 registerChatRoutes(app);
