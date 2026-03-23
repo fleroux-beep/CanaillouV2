@@ -21,6 +21,29 @@ const ANIL_APPART_URL =
 const ANIL_MAISON_URL =
   "https://www.data.gouv.fr/fr/datasets/r/129f764d-b613-44e4-952c-5ff50a8c9b73";
 
+/**
+ * Décode la réponse HTTP avec le bon charset.
+ * Les CSV de data.gouv.fr sont souvent en Latin-1 (ISO-8859-1).
+ */
+async function decodeResponseText(response: Response): Promise<string> {
+  const contentType = response.headers.get("content-type") || "";
+  const charsetMatch = contentType.match(/charset=([^\s;]+)/i);
+  const charset = charsetMatch ? charsetMatch[1].toLowerCase() : "";
+
+  const buffer = await response.arrayBuffer();
+
+  if (charset && charset !== "utf-8" && charset !== "utf8") {
+    return new TextDecoder(charset).decode(buffer);
+  }
+
+  // Try UTF-8 first; if we detect replacement characters, fallback to Latin-1
+  const utf8 = new TextDecoder("utf-8").decode(buffer);
+  if (utf8.includes("\ufffd")) {
+    return new TextDecoder("latin1").decode(buffer);
+  }
+  return utf8;
+}
+
 function parseCSVLine(line: string): string[] {
   const result: string[] = [];
   let current = "";
@@ -99,7 +122,7 @@ async function fetchCsv(url: string, label: string): Promise<string | null> {
       logger.error(`ANIL ${label}: HTTP ${response.status}`);
       return null;
     }
-    return await response.text();
+    return await decodeResponseText(response);
   } catch (err: any) {
     logger.error(`ANIL ${label}: ${err.message}`);
     return null;

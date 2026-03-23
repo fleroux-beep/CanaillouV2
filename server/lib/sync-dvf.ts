@@ -14,6 +14,30 @@ import { resolveAllInsee } from "./code-postal-insee";
 
 const DVF_BASE = "https://files.data.gouv.fr/geo-dvf/latest/csv";
 
+/**
+ * Décode la réponse HTTP avec le bon charset.
+ * Les CSV de data.gouv.fr sont souvent en Latin-1 (ISO-8859-1),
+ * alors que response.text() suppose UTF-8 par défaut.
+ */
+async function decodeResponseText(response: Response): Promise<string> {
+  const contentType = response.headers.get("content-type") || "";
+  const charsetMatch = contentType.match(/charset=([^\s;]+)/i);
+  const charset = charsetMatch ? charsetMatch[1].toLowerCase() : "";
+
+  const buffer = await response.arrayBuffer();
+
+  if (charset && charset !== "utf-8" && charset !== "utf8") {
+    return new TextDecoder(charset).decode(buffer);
+  }
+
+  // Try UTF-8 first; if we detect replacement characters, fallback to Latin-1
+  const utf8 = new TextDecoder("utf-8").decode(buffer);
+  if (utf8.includes("\ufffd")) {
+    return new TextDecoder("latin1").decode(buffer);
+  }
+  return utf8;
+}
+
 function mapTypeDVF(typeLocal: string): string | null {
   const t = (typeLocal || "").toLowerCase().trim();
   if (t === "appartement") return "appartement";
@@ -140,7 +164,7 @@ export async function syncDVF(
           continue;
         }
 
-        const csvText = await response.text();
+        const csvText = await decodeResponseText(response);
         const mutations = parseDvfCsv(csvText);
         allMutations.push(...mutations);
       } catch (err: any) {
