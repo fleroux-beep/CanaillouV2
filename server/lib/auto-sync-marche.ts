@@ -1,13 +1,14 @@
 /**
  * Synchronisation automatique des données de marché.
  *
- * - Au démarrage du serveur (après un délai de 30s pour laisser le temps à l'init)
- * - Puis toutes les semaines (les données DVF/ANIL changent rarement)
+ * - Au démarrage du serveur (si données absentes ou périmées)
+ * - Tous les jours à 5h00, heure de Paris (Europe/Paris)
  *
  * Enchaîne automatiquement :
  *  1. Sync DVF (valeurs vénales)
  *  2. Sync ANIL (valeurs locatives)
  *  3. Calcul des taux de capitalisation
+ *  4. Scraping Phase 2 (plateformes immobilières)
  */
 import { db } from "../db";
 import { actifs, refValeursVenales, refValeursLocatives } from "@shared/schema";
@@ -16,8 +17,8 @@ import { logger } from "./logger";
 import { syncDVF } from "./sync-dvf";
 import { syncANIL } from "./sync-anil";
 import { computeTauxCapiFromRefs } from "./compute-taux-capi";
+import { scrapeAllActifs } from "./scrapers";
 
-const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const STARTUP_DELAY_MS = 30 * 1000; // 30 seconds after server starts
 
 /**
@@ -56,7 +57,7 @@ async function isStale(): Promise<boolean> {
 }
 
 /**
- * Lance la synchronisation complète : DVF → ANIL → taux de capi.
+ * Lance la synchronisation complète : DVF → ANIL → taux de capi → scraping.
  */
 async function runFullSync(): Promise<void> {
   const pairs = await getActifPairs();
@@ -108,7 +109,81 @@ async function runFullSync(): Promise<void> {
     logger.error("auto-sync: compute taux capi failed", { error: err.message });
   }
 
-  logger.info("auto-sync: synchronisation complète terminée");
+  // 4. Scraping Phase 2 (plateformes immobilières)
+  try {
+    logger.info("auto-sync: lancement scraping Phase 2");
+    const scrapingResult = await scrapeAllActifs();
+    logger.info("auto-sync: scraping Phase 2 terminé", {
+      total: scrapingResult.total,
+      scraped: scrapingResult.scraped,
+      errors: scrapingResult.errors.length,
+    });
+    if (scrapingResult.errors.length > 0) {
+      logger.warn("auto-sync: scraping errors", { errors: scrapingResult.errors.slice(0, 10) });
+    }
+  } catch (err: any) {
+    logger.error("auto-sync: scraping Phase 2 failed", { error: err.message });
+  }
+
+  logger.info("auto-sync: synchronisation complète terminée (Phase 1 + Phase 2)");
+}
+
+/**
+ * Calcule le délai en ms jusqu'au prochain 5h00 heure de Paris.
+ */
+function msUntilNext5amParis(): number {
+  // Formatter qui donne l'heure de Paris
+  const formatter = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Paris",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+
+  const now = new Date();
+  const parts = formatter.formatToParts(now);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value || "0");
+
+  const parisHour = get("hour");
+  const parisMinute = get("minute");
+  const parisSecond = get("second");
+
+  // Nombre de secondes depuis minuit Paris
+  const secSinceMidnight = parisHour * 3600 + parisMinute * 60 + parisSecond;
+  const targetSec = 5 * 3600; // 5h00 = 18000s
+
+  // Si on est avant 5h, on attend jusqu'à 5h aujourd'hui
+  // Si on est après 5h, on attend jusqu'à 5h demain
+  let delaySec = targetSec - secSinceMidnight;
+  if (delaySec <= 0) {
+    delaySec += 24 * 3600; // demain
+  }
+
+  return delaySec * 1000;
+}
+
+/**
+ * Planifie la prochaine exécution à 5h Paris et relance la planification après.
+ */
+function scheduleDailySync(): void {
+  const delayMs = msUntilNext5amParis();
+  const delayH = (delayMs / 3600000).toFixed(1);
+  logger.info(`auto-sync: prochaine sync dans ${delayH}h (5h00 heure de Paris)`);
+
+  setTimeout(async () => {
+    try {
+      logger.info("auto-sync: sync quotidienne 5h00 Paris — démarrage");
+      await runFullSync();
+    } catch (err: any) {
+      logger.error("auto-sync: daily sync failed", { error: err.message });
+    }
+    // Re-planifier pour demain
+    scheduleDailySync();
+  }, delayMs);
 }
 
 /**
@@ -130,15 +205,6 @@ export function startAutoSync(): void {
     }
   }, STARTUP_DELAY_MS);
 
-  // Schedule weekly re-sync
-  setInterval(async () => {
-    try {
-      logger.info("auto-sync: sync hebdomadaire programmée");
-      await runFullSync();
-    } catch (err: any) {
-      logger.error("auto-sync: weekly sync failed", { error: err.message });
-    }
-  }, ONE_WEEK_MS);
-
-  logger.info("auto-sync: planifié — sync initiale dans 30s, puis toutes les semaines");
+  // Schedule daily sync at 5:00 AM Paris time
+  scheduleDailySync();
 }

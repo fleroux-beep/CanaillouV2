@@ -220,9 +220,9 @@ export function mapActifTypeToSearch(type: string): {
     return { typeBien: "appartement", searchTypes: ["appartement", "local_commercial"], dvfCompatible: true, anilCompatible: true };
   }
   if (t === "crèche" || t === "creche") {
-    // Les crèches sont des actifs atypiques : ni résidentiel, ni commercial classique.
-    // Aucune donnée DVF/ANIL n'est pertinente. Seul le scraping Phase 2 ciblé peut aider.
-    return { typeBien: "local_commercial", searchTypes: ["local_commercial"], dvfCompatible: false, anilCompatible: false };
+    // Les crèches sont assimilées à des locaux commerciaux pour les données de marché.
+    // DVF pertinent (transactions de locaux commerciaux comparables), ANIL non (résidentiel uniquement).
+    return { typeBien: "local_commercial", searchTypes: ["local_commercial"], dvfCompatible: true, anilCompatible: false };
   }
   return { typeBien: "appartement", searchTypes: ["appartement"], dvfCompatible: true, anilCompatible: true };
 }
