@@ -529,7 +529,7 @@ export default function EtudeMarche() {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<string>("all");
 
-  const { data: etudes = [], isLoading } = useQuery<EtudeActif[]>({
+  const { data: etudes = [], isLoading, isError, error } = useQuery<EtudeActif[]>({
     queryKey: ["/api/am/marche/etude"],
     queryFn: () => apiRequest("/api/am/marche/etude"),
   });
@@ -708,8 +708,29 @@ export default function EtudeMarche() {
         </div>
       )}
 
+      {/* Error state */}
+      {isError && (
+        <GlassCard>
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-red-500 to-orange-500 shadow-lg mb-5">
+              <AlertTriangle className="h-7 w-7 text-white" />
+            </div>
+            <h3 className="text-lg font-bold">Erreur de chargement</h3>
+            <p className="text-sm text-muted-foreground mt-2 max-w-md">
+              {(error as Error)?.message || "Impossible de charger les études de marché. Veuillez réessayer."}
+            </p>
+            <button
+              onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/am/marche/etude"] })}
+              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              <RefreshCw className="h-4 w-4" /> Réessayer
+            </button>
+          </div>
+        </GlassCard>
+      )}
+
       {/* Empty state */}
-      {!isLoading && etudes.length === 0 && (
+      {!isLoading && !isError && etudes.length === 0 && (
         <GlassCard>
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-rose-500 shadow-lg mb-5">

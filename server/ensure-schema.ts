@@ -621,6 +621,34 @@ export async function ensureSchema() {
       )
     `);
 
+    // Ref Marché Scraping (données Phase 2 scrapées)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "ref_marche_scraping" (
+        "id" varchar PRIMARY KEY NOT NULL,
+        "actif_id" varchar REFERENCES "am_actifs"("id") ON DELETE cascade,
+        "source" varchar NOT NULL,
+        "type_recherche" varchar NOT NULL,
+        "type_bien" varchar NOT NULL,
+        "prix_m2_median" numeric,
+        "prix_m2_bas" numeric,
+        "prix_m2_haut" numeric,
+        "loyer_m2_mensuel_median" numeric,
+        "loyer_m2_mensuel_bas" numeric,
+        "loyer_m2_mensuel_haut" numeric,
+        "nb_annonces" integer,
+        "rayon_km" numeric,
+        "lat" real,
+        "lng" real,
+        "code_postal" varchar,
+        "ville" varchar,
+        "taux_capi_deduit" numeric,
+        "date_releve" varchar,
+        "raw_data" jsonb,
+        "notes" text,
+        "created_at" timestamp DEFAULT now()
+      )
+    `);
+
     // Foreign keys (use DO blocks to skip if already exist)
     const fks = [
       `ALTER TABLE "am_actifs" ADD CONSTRAINT "am_actifs_sci_id_am_scis_id_fk" FOREIGN KEY ("sci_id") REFERENCES "am_scis"("id") ON DELETE set null ON UPDATE no action`,
