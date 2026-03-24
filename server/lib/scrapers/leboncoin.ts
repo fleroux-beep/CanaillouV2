@@ -124,10 +124,10 @@ async function scrapeLBCType(
   if (!html) return null;
 
   const listings = parseListingsFromHtml(html);
-  if (listings.length < 2) return null; // Not enough data
+  if (listings.length < 1) return null; // Not enough data
 
   const prixM2Values = listings.map((l) => l.prixM2).filter((v) => v > 50 && v < 100000);
-  if (prixM2Values.length < 2) return null;
+  if (prixM2Values.length < 1) return null;
 
   const result: ScrapedResult = {
     source: "leboncoin",

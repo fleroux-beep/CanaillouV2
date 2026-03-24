@@ -84,10 +84,10 @@ async function scrapeType(
   if (!html) return null;
 
   const listings = parseListings(html);
-  if (listings.length < 2) return null;
+  if (listings.length < 1) return null;
 
   const prixM2Values = listings.map((l) => l.prixM2).filter((v) => v > 10 && v < 100000);
-  if (prixM2Values.length < 2) return null;
+  if (prixM2Values.length < 1) return null;
 
   const result: ScrapedResult = {
     source: "seloger_bc",

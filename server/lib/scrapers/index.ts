@@ -26,10 +26,63 @@ const ALL_SCRAPERS: Scraper[] = [
   bureauxLocauxScraper,
 ];
 
-const RAYON_KM = 1; // 1km par défaut
+const RAYON_KM = 5;          // rayon initial 5 km
+const RAYON_FALLBACK_KM = 10; // rayon élargi si aucun résultat au premier passage
+
+/**
+ * Exécute tous les scrapers avec un contexte donné.
+ * Retourne le nombre de résultats insérés et les erreurs.
+ */
+async function runScrapers(
+  actifId: string,
+  ctx: ScrapingContext,
+  now: string,
+): Promise<{ results: number; errors: string[] }> {
+  let totalResults = 0;
+  const errors: string[] = [];
+
+  for (const scraper of ALL_SCRAPERS) {
+    try {
+      const scraperResults = await scraper.scrape(ctx);
+
+      for (const r of scraperResults) {
+        await db.insert(refMarcheScraping).values({
+          actifId,
+          source: r.source,
+          typeRecherche: r.typeRecherche,
+          typeBien: r.typeBien,
+          prixM2Median: r.prixM2Median != null ? String(r.prixM2Median) : null,
+          prixM2Bas: r.prixM2Bas != null ? String(r.prixM2Bas) : null,
+          prixM2Haut: r.prixM2Haut != null ? String(r.prixM2Haut) : null,
+          loyerM2MensuelMedian: r.loyerM2MensuelMedian != null ? String(r.loyerM2MensuelMedian) : null,
+          loyerM2MensuelBas: r.loyerM2MensuelBas != null ? String(r.loyerM2MensuelBas) : null,
+          loyerM2MensuelHaut: r.loyerM2MensuelHaut != null ? String(r.loyerM2MensuelHaut) : null,
+          nbAnnonces: r.nbAnnonces || null,
+          rayonKm: String(ctx.rayonKm),
+          lat: ctx.lat,
+          lng: ctx.lng,
+          codePostal: ctx.codePostal,
+          ville: ctx.ville,
+          tauxCapiDeduit: r.tauxCapiDeduit != null ? String(r.tauxCapiDeduit) : null,
+          dateReleve: now,
+          rawData: r.rawData || null,
+          notes: r.notes || null,
+        });
+        totalResults++;
+      }
+    } catch (err: any) {
+      const msg = `${scraper.name}: ${err.message}`;
+      errors.push(msg);
+      logger.warn(`Scraper error for ${actifId}`, { scraper: scraper.name, error: err.message });
+    }
+  }
+
+  return { results: totalResults, errors };
+}
 
 /**
  * Lance le scraping pour un actif donné et stocke les résultats.
+ * Essaie d'abord avec RAYON_KM, puis élargit à RAYON_FALLBACK_KM si aucun résultat.
  */
 export async function scrapeForActif(actif: {
   id: string;
@@ -40,8 +93,6 @@ export async function scrapeForActif(actif: {
   type: string | null;
   surface: string | null;
 }): Promise<{ results: number; errors: string[] }> {
-  const errors: string[] = [];
-
   if (!actif.lat || !actif.lng || !actif.codePostal || !actif.ville) {
     return { results: 0, errors: ["Actif sans coordonnées GPS ou code postal"] };
   }
@@ -49,7 +100,7 @@ export async function scrapeForActif(actif: {
   const { typeBien } = mapActifTypeToSearch(actif.type || "résidentiel");
   const now = new Date().toISOString().slice(0, 10);
 
-  const ctx: ScrapingContext = {
+  const baseCtx: ScrapingContext = {
     lat: actif.lat,
     lng: actif.lng,
     codePostal: actif.codePostal,
@@ -62,45 +113,16 @@ export async function scrapeForActif(actif: {
   // Delete existing scraped data for this actif
   await db.delete(refMarcheScraping).where(eq(refMarcheScraping.actifId, actif.id));
 
-  let totalResults = 0;
+  // Premier essai avec le rayon par défaut (5 km)
+  let result = await runScrapers(actif.id, baseCtx, now);
 
-  for (const scraper of ALL_SCRAPERS) {
-    try {
-      const scraperResults = await scraper.scrape(ctx);
-
-      for (const r of scraperResults) {
-        await db.insert(refMarcheScraping).values({
-          actifId: actif.id,
-          source: r.source,
-          typeRecherche: r.typeRecherche,
-          typeBien: r.typeBien,
-          prixM2Median: r.prixM2Median != null ? String(r.prixM2Median) : null,
-          prixM2Bas: r.prixM2Bas != null ? String(r.prixM2Bas) : null,
-          prixM2Haut: r.prixM2Haut != null ? String(r.prixM2Haut) : null,
-          loyerM2MensuelMedian: r.loyerM2MensuelMedian != null ? String(r.loyerM2MensuelMedian) : null,
-          loyerM2MensuelBas: r.loyerM2MensuelBas != null ? String(r.loyerM2MensuelBas) : null,
-          loyerM2MensuelHaut: r.loyerM2MensuelHaut != null ? String(r.loyerM2MensuelHaut) : null,
-          nbAnnonces: r.nbAnnonces || null,
-          rayonKm: String(RAYON_KM),
-          lat: actif.lat,
-          lng: actif.lng,
-          codePostal: actif.codePostal,
-          ville: actif.ville,
-          tauxCapiDeduit: r.tauxCapiDeduit != null ? String(r.tauxCapiDeduit) : null,
-          dateReleve: now,
-          rawData: r.rawData || null,
-          notes: r.notes || null,
-        });
-        totalResults++;
-      }
-    } catch (err: any) {
-      const msg = `${scraper.name}: ${err.message}`;
-      errors.push(msg);
-      logger.warn(`Scraper error for ${actif.id}`, { scraper: scraper.name, error: err.message });
-    }
+  // Si aucun résultat, élargir au rayon de fallback (10 km)
+  if (result.results === 0) {
+    logger.info(`Scraping: 0 résultats à ${RAYON_KM}km pour ${actif.ville} — élargissement à ${RAYON_FALLBACK_KM}km`);
+    result = await runScrapers(actif.id, { ...baseCtx, rayonKm: RAYON_FALLBACK_KM }, now);
   }
 
-  return { results: totalResults, errors };
+  return result;
 }
 
 /**
