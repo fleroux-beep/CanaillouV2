@@ -5,6 +5,7 @@ import { eq, desc, count, isNull, and } from "drizzle-orm";
 import { requireAuth, requireWriteAdmin } from "../middleware/auth";
 import { validate, amSchemas } from "../lib/validation";
 import { logger } from "../lib/logger";
+import { geocodeAddress, needsGeocoding } from "../lib/geocode";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -127,11 +128,123 @@ function registerCrud(app: Express, path: string, table: any) {
   });
 }
 
+/**
+ * Routes CRUD spécialisées pour les actifs avec géocodage automatique.
+ */
+function registerActifsCrud(app: Express) {
+  const schema = amSchemas["actifs"];
+  const path = "actifs";
+
+  // GET all
+  app.get(`/api/am/${path}`, requireAuth, async (_req: any, res: any) => {
+    try {
+      const rows = await db.select().from(actifs).where(isNull(actifs.deletedAt)).orderBy(desc(actifs.createdAt));
+      res.json(rows);
+    } catch (error: any) {
+      logger.error("route error", { path, error: error.message, stack: error.stack });
+      res.status(500).json({ error: `Erreur interne: ${error.message}` });
+    }
+  });
+
+  // GET one
+  app.get(`/api/am/${path}/:id`, requireAuth, async (req: any, res: any) => {
+    try {
+      const rows = await db.select().from(actifs).where(eq(actifs.id, paramId(req))).limit(1) as any[];
+      if (rows.length === 0) return res.status(404).json({ error: "Non trouvé" });
+      res.json(rows[0]);
+    } catch (error: any) {
+      logger.error("route error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
+    }
+  });
+
+  // POST — création avec géocodage automatique
+  app.post(`/api/am/${path}`, requireWriteAdmin, ...(schema ? [validate(schema)] : []), async (req: any, res: any) => {
+    try {
+      const body = { ...req.body };
+
+      // Géocodage automatique si adresse fournie sans coordonnées
+      if (needsGeocoding(body)) {
+        const geo = await geocodeAddress(body.adresse, body.codePostal, body.ville);
+        if (geo) {
+          body.lat = geo.lat;
+          body.lng = geo.lng;
+          logger.info("actif geocoded", { nom: body.nom, lat: geo.lat, lng: geo.lng, score: geo.score });
+        }
+      }
+
+      const rows = await db.insert(actifs).values(body).returning() as any[];
+      res.status(201).json(rows[0]);
+    } catch (error: any) {
+      logger.error("route error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
+    }
+  });
+
+  // PATCH — mise à jour avec re-géocodage si l'adresse change
+  app.patch(`/api/am/${path}/:id`, requireWriteAdmin, ...(schema ? [validate(schema.partial())] : []), async (req: any, res: any) => {
+    try {
+      const id = paramId(req, res);
+      if (!id) return;
+
+      const body = { ...req.body, updatedAt: new Date() };
+
+      // Récupérer l'actif existant pour comparer l'adresse
+      const [existing] = await db.select().from(actifs).where(eq(actifs.id, id)).limit(1) as any[];
+      if (!existing) return res.status(404).json({ error: "Non trouvé" });
+
+      // Re-géocoder si l'adresse change ou si les coordonnées manquent
+      if (needsGeocoding(body, existing)) {
+        const adresse = body.adresse ?? existing.adresse;
+        const cp = body.codePostal ?? existing.codePostal;
+        const ville = body.ville ?? existing.ville;
+        const geo = await geocodeAddress(adresse, cp, ville);
+        if (geo) {
+          body.lat = geo.lat;
+          body.lng = geo.lng;
+          logger.info("actif re-geocoded", { id, lat: geo.lat, lng: geo.lng, score: geo.score });
+        }
+      }
+
+      const rows = await db.update(actifs).set(body).where(eq(actifs.id, id)).returning() as any[];
+      if (rows.length === 0) return res.status(404).json({ error: "Non trouvé" });
+      res.json(rows[0]);
+    } catch (error: any) {
+      logger.error("route error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
+    }
+  });
+
+  // DELETE — soft delete avec cascade (même logique que le CRUD générique)
+  app.delete(`/api/am/${path}/:id`, requireWriteAdmin, async (req: any, res: any) => {
+    try {
+      const id = paramId(req);
+      const now = new Date();
+      await db.update(actifs).set({ deletedAt: now }).where(eq(actifs.id, id));
+
+      // Cascade soft-delete
+      if ("deletedAt" in lots) {
+        await db.update(lots).set({ deletedAt: now }).where(eq(lots.actifId, id));
+      }
+      if ("deletedAt" in bauxAM) {
+        await db.update(bauxAM).set({ deletedAt: now }).where(eq(bauxAM.actifId, id));
+      }
+      await db.delete(travaux).where(eq(travaux.actifId, id));
+      logger.info("cascade soft-delete actif", { actifId: id });
+
+      res.json({ ok: true });
+    } catch (error: any) {
+      logger.error("route error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
+    }
+  });
+}
+
 export function registerAMRoutes(app: Express) {
   registerCrud(app, "scis", scis);
   registerCrud(app, "associes", associes);
   registerCrud(app, "participations", participations);
-  registerCrud(app, "actifs", actifs);
+  registerActifsCrud(app);
   registerCrud(app, "lots", lots);
   registerCrud(app, "locataires", locatairesAM);
   registerCrud(app, "baux", bauxAM);
@@ -140,6 +253,37 @@ export function registerAMRoutes(app: Express) {
   registerCrud(app, "documents", documentsAM);
 
   // === Custom endpoints ===
+
+  // Géocodage en masse des actifs sans coordonnées GPS
+  app.post("/api/am/actifs/geocode-all", requireWriteAdmin, async (_req: any, res: any) => {
+    try {
+      const missing = await db.select().from(actifs).where(
+        and(isNull(actifs.deletedAt), eq(actifs.archived, false))
+      ) as any[];
+
+      const toGeocode = missing.filter((a: any) => (a.lat == null || a.lng == null) && (a.adresse || a.ville));
+      let geocoded = 0;
+      const errors: string[] = [];
+
+      for (const actif of toGeocode) {
+        const geo = await geocodeAddress(actif.adresse, actif.codePostal, actif.ville);
+        if (geo) {
+          await db.update(actifs).set({ lat: geo.lat, lng: geo.lng, updatedAt: new Date() }).where(eq(actifs.id, actif.id));
+          geocoded++;
+          logger.info("batch geocode", { nom: actif.nom, lat: geo.lat, lng: geo.lng });
+        } else {
+          errors.push(actif.nom);
+        }
+        // Pause 200ms entre chaque requête pour ne pas surcharger l'API
+        await new Promise((r) => setTimeout(r, 200));
+      }
+
+      res.json({ total: toGeocode.length, geocoded, errors });
+    } catch (error: any) {
+      logger.error("geocode-all error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
+    }
+  });
 
   app.get("/api/am/actifs/:id/lots", requireAuth, async (req: any, res: any) => {
     try {

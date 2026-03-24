@@ -14,6 +14,7 @@ import { fileURLToPath } from "url";
 import { randomUUID } from "crypto";
 import { pool } from "./db";
 import { logger } from "./lib/logger";
+import { geocodeAddress } from "./lib/geocode";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -841,11 +842,51 @@ export async function importExcelData(): Promise<{
 
     await client.query("COMMIT");
     logger.info("import: transaction committed successfully", counts);
+
+    // Géocoder automatiquement les actifs importés (en arrière-plan, sans bloquer)
+    geocodeImportedActifs().catch((err) =>
+      logger.warn("import: geocoding failed (non-blocking)", { error: err.message })
+    );
+
     return counts;
   } catch (error: any) {
     await client.query("ROLLBACK").catch(() => {});
     logger.error("import: ROLLBACK", { error: error.message, stack: error.stack });
     throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Géocode tous les actifs sans coordonnées GPS après un import Excel.
+ * Exécuté en arrière-plan pour ne pas bloquer la réponse de l'import.
+ */
+async function geocodeImportedActifs() {
+  const client = await pool.connect();
+  try {
+    const { rows } = await client.query(
+      `SELECT id, nom, adresse, ville, code_postal FROM am_actifs
+       WHERE deleted_at IS NULL AND (lat IS NULL OR lng IS NULL)
+       AND (adresse IS NOT NULL OR ville IS NOT NULL)`
+    );
+
+    let geocoded = 0;
+    for (const row of rows) {
+      const geo = await geocodeAddress(row.adresse, row.code_postal, row.ville);
+      if (geo) {
+        await client.query(
+          `UPDATE am_actifs SET lat = $1, lng = $2, updated_at = now() WHERE id = $3`,
+          [geo.lat, geo.lng, row.id]
+        );
+        geocoded++;
+        logger.info("import geocode", { nom: row.nom, lat: geo.lat, lng: geo.lng });
+      }
+      // Pause 200ms entre chaque requête
+      await new Promise((r) => setTimeout(r, 200));
+    }
+
+    logger.info(`import: geocoded ${geocoded}/${rows.length} actifs`);
   } finally {
     client.release();
   }
