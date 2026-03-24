@@ -151,7 +151,7 @@ function Phase1Block({ data }: { data: Phase1Data }) {
     return (
       <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
         <AlertTriangle className="h-4 w-4" />
-        Aucune donnee officielle. Lancez la synchronisation DVF + ANIL depuis "Donnees de marche".
+        Aucune donnée officielle. Lancez la synchronisation DVF + ANIL depuis « Données de marché ».
       </div>
     );
   }
@@ -161,7 +161,7 @@ function Phase1Block({ data }: { data: Phase1Data }) {
       {/* Valeur vénale */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="rounded-lg border border-border/40 bg-muted/30 p-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Valeur venale (DVF)</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Valeur vénale (DVF)</p>
           <p className="text-lg font-bold">{fmtPrix(data.valeurVenale?.prixM2Median)}</p>
           {data.valeurVenale && (
             <p className="text-xs text-muted-foreground">
@@ -182,7 +182,7 @@ function Phase1Block({ data }: { data: Phase1Data }) {
         </div>
 
         <div className="rounded-lg border border-border/40 bg-muted/30 p-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Taux capi deduit</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Taux capi déduit</p>
           <p className="text-lg font-bold">{fmtTaux(data.tauxCapi?.taux)}</p>
           {data.tauxCapi && (
             <p className="text-xs text-muted-foreground">
@@ -210,7 +210,7 @@ function Phase2Block({ data }: { data: Phase2Data }) {
     return (
       <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
         <Search className="h-4 w-4" />
-        Aucune donnee scrapee. Cliquez sur "Synchroniser toutes les plateformes" pour lancer la collecte.
+        Aucune donnée scrapée. Cliquez sur « Synchroniser toutes les plateformes » pour lancer la collecte.
       </div>
     );
   }
@@ -220,13 +220,13 @@ function Phase2Block({ data }: { data: Phase2Data }) {
       {/* Vente */}
       {data.vente.length > 0 && (
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Valeurs venales (annonces vente)</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Valeurs vénales (annonces vente)</p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border/40 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                   <th className="py-2 pr-3">Source</th>
-                  <th className="py-2 pr-3 text-right">Median</th>
+                  <th className="py-2 pr-3 text-right">Médian</th>
                   <th className="py-2 pr-3 text-right">Bas</th>
                   <th className="py-2 pr-3 text-right">Haut</th>
                   <th className="py-2 pr-3 text-right">Annonces</th>
@@ -263,7 +263,7 @@ function Phase2Block({ data }: { data: Phase2Data }) {
               <thead>
                 <tr className="border-b border-border/40 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                   <th className="py-2 pr-3">Source</th>
-                  <th className="py-2 pr-3 text-right">Median</th>
+                  <th className="py-2 pr-3 text-right">Médian</th>
                   <th className="py-2 pr-3 text-right">Bas</th>
                   <th className="py-2 pr-3 text-right">Haut</th>
                   <th className="py-2 pr-3 text-right">Annonces</th>
@@ -294,7 +294,7 @@ function Phase2Block({ data }: { data: Phase2Data }) {
       {/* Taux capi moyen Phase 2 */}
       {data.tauxCapiMoyen && (
         <div className="rounded-lg border border-border/40 bg-muted/30 p-3 inline-block">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Taux capi moyen Phase 2</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Taux capi. moyen Phase 2</p>
           <p className="text-lg font-bold">{fmtTaux(data.tauxCapiMoyen)}</p>
         </div>
       )}
@@ -326,11 +326,11 @@ function SyntheseBlock({ phase1, phase2 }: { phase1: Phase1Data; phase2: Phase2D
 
   return (
     <div className="rounded-lg border-2 border-dashed border-border/60 p-4 mt-1">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Synthese : ecart Phase 1 vs Phase 2</p>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Synthèse : écart Phase 1 vs Phase 2</p>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {/* Ecart prix */}
         <div className="flex items-center gap-3">
-          <div className="text-sm text-muted-foreground">Valeur venale</div>
+          <div className="text-sm text-muted-foreground">Valeur vénale</div>
           <EcartBadge v1={p2Prix} v2={p1Prix} />
         </div>
         {/* Ecart loyer */}
@@ -434,7 +434,7 @@ function ActifCard({ etude, index }: { etude: EtudeActif; index: number }) {
           <div>
             <div className="flex items-center gap-2 mb-3">
               <Database className="h-4 w-4 text-blue-500" />
-              <h4 className="text-sm font-semibold">Phase 1 — Donnees officielles (DVF + ANIL)</h4>
+              <h4 className="text-sm font-semibold">Phase 1 — Données officielles (DVF + ANIL)</h4>
               <Badge variant="outline" className="text-[10px] py-0 bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20">
                 Fiable
               </Badge>
@@ -446,7 +446,7 @@ function ActifCard({ etude, index }: { etude: EtudeActif; index: number }) {
           <div>
             <div className="flex items-center gap-2 mb-3">
               <Search className="h-4 w-4 text-purple-500" />
-              <h4 className="text-sm font-semibold">Phase 2 — Donnees marche actuel (scraping)</h4>
+              <h4 className="text-sm font-semibold">Phase 2 — Données marché actuel (scraping)</h4>
               <Badge variant="outline" className="text-[10px] py-0 bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20">
                 Indicatif
               </Badge>
@@ -506,8 +506,8 @@ export default function EtudeMarche() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Etude de marche"
-        description="Donnees venales et locatives par actif — Phase 1 (DVF/ANIL) et Phase 2 (scraping plateformes)"
+        title="Étude de marché"
+        description="Données vénales et locatives par actif — Phase 1 (DVF/ANIL) et Phase 2 (scraping plateformes)"
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -541,12 +541,12 @@ export default function EtudeMarche() {
       {/* Status messages */}
       {syncPhase1Mutation.isSuccess && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-sm text-emerald-700 dark:text-emerald-300">
-          Phase 1 synchronisee avec succes.
+          Phase 1 synchronisée avec succès.
         </motion.div>
       )}
       {syncScrapingMutation.isSuccess && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="rounded-lg border border-purple-500/30 bg-purple-500/5 p-3 text-sm text-purple-700 dark:text-purple-300">
-          Phase 2 synchronisee. {(syncScrapingMutation.data as any)?.scraped || 0} resultats collectes pour {(syncScrapingMutation.data as any)?.total || 0} actifs.
+          Phase 2 synchronisée. {(syncScrapingMutation.data as any)?.scraped || 0} résultats collectés pour {(syncScrapingMutation.data as any)?.total || 0} actifs.
         </motion.div>
       )}
       {(syncPhase1Mutation.isError || syncScrapingMutation.isError) && (
@@ -595,7 +595,7 @@ export default function EtudeMarche() {
             <Building2 className="h-12 w-12 text-muted-foreground/30 mb-4" />
             <h3 className="text-lg font-semibold">Aucun actif</h3>
             <p className="text-sm text-muted-foreground mt-1">
-              Ajoutez des actifs avec une adresse et un code postal pour voir l'etude de marche.
+              Ajoutez des actifs avec une adresse et un code postal pour voir l'étude de marché.
             </p>
           </div>
         </GlassCard>

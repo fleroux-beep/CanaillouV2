@@ -21,9 +21,9 @@ export default function LocatairesGLPage() {
 
   const columns: Column<LocataireGL>[] = [
     { key: "nom", label: "Nom", sortable: true, render: (r) => <span className="font-medium">{r.nom}</span> },
-    { key: "prenom", label: "Prenom", sortable: true },
+    { key: "prenom", label: "Prénom", sortable: true },
     { key: "email", label: "Email", sortable: true },
-    { key: "telephone", label: "Telephone" },
+    { key: "telephone", label: "Téléphone" },
     { key: "siret", label: "SIRET" },
     { key: "actions", label: "", align: "right", render: (r) => (
       <div className="flex items-center justify-end gap-1">
@@ -48,9 +48,9 @@ export default function LocatairesGLPage() {
       <FormDialog open={dialogOpen} onClose={() => setDialogOpen(false)} title={editing ? "Modifier le locataire" : "Nouveau locataire"} onSubmit={handleSubmit} loading={creating || updating}>
         <FormGrid>
           <FormField label="Nom" name="nom" value={form.nom} onChange={onChange} required />
-          <FormField label="Prenom" name="prenom" value={form.prenom} onChange={onChange} />
+          <FormField label="Prénom" name="prenom" value={form.prenom} onChange={onChange} />
           <FormField label="Email" name="email" value={form.email} onChange={onChange} type="email" />
-          <FormField label="Telephone" name="telephone" value={form.telephone} onChange={onChange} />
+          <FormField label="Téléphone" name="telephone" value={form.telephone} onChange={onChange} />
           <FormField label="Adresse" name="adresse" value={form.adresse} onChange={onChange} />
           <FormField label="SIRET" name="siret" value={form.siret} onChange={onChange} />
         </FormGrid>

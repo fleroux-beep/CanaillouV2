@@ -370,7 +370,7 @@ function CoutCreditTab() {
 
   const chartData = coutData.map((c) => ({
     name: c.label,
-    Interets: Math.round(c.coutInterets),
+    Intérêts: Math.round(c.coutInterets),
     Assurance: Math.round(c.coutAssurance),
     Capital: Math.round(c.montant),
   }));
@@ -379,14 +379,14 @@ function CoutCreditTab() {
     <AnimatePresence>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
         <div className="grid gap-4 sm:grid-cols-4">
-          <KpiCard label="Capital emprunte" value={totalMontant} formatFn={(n) => formatCurrency(n)} icon={Landmark} variant="primary" gradient delay={0} />
-          <KpiCard label="Cout des interets" value={totalInterets} formatFn={(n) => formatCurrency(n)} icon={TrendingDown} variant="danger" gradient delay={1} />
-          <KpiCard label="Cout assurance" value={totalAssurance} formatFn={(n) => formatCurrency(n)} icon={Calculator} variant="warning" gradient delay={2} />
+          <KpiCard label="Capital emprunté" value={totalMontant} formatFn={(n) => formatCurrency(n)} icon={Landmark} variant="primary" gradient delay={0} />
+          <KpiCard label="Coût des intérêts" value={totalInterets} formatFn={(n) => formatCurrency(n)} icon={TrendingDown} variant="danger" gradient delay={1} />
+          <KpiCard label="Coût assurance" value={totalAssurance} formatFn={(n) => formatCurrency(n)} icon={Calculator} variant="warning" gradient delay={2} />
           <KpiCard label="Coût total du crédit" value={totalCout} formatFn={(n) => formatCurrency(n)} icon={Percent} variant="danger" gradient delay={3} metricKey="coutCredit" />
         </div>
 
         {chartData.length > 0 && (
-          <Section title="Decomposition par emprunt" delay={1}>
+          <Section title="Décomposition par emprunt" delay={1}>
             <GlassCard>
               <div className="h-[350px]">
                 <ResponsiveContainer width="100%" height="100%">
@@ -397,7 +397,7 @@ function CoutCreditTab() {
                     <Tooltip formatter={(v: number) => formatCurrency(v)} />
                     <Legend />
                     <Bar dataKey="Capital" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="Interets" stackId="a" fill="#ef4444" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="Intérêts" stackId="a" fill="#ef4444" radius={[0, 0, 0, 0]} />
                     <Bar dataKey="Assurance" stackId="a" fill="#f59e0b" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -815,10 +815,10 @@ function AmortissementTab() {
         {selectedEmprunt && schedule.length > 0 && (
           <>
             <div className="grid gap-4 sm:grid-cols-4">
-              <KpiCard label="Capital emprunte" value={parseFloat(selectedEmprunt.montantEmprunte || "0")} formatFn={formatCurrency} icon={Landmark} variant="primary" gradient delay={0} />
-              <KpiCard label="Total interets" value={totalInterets} formatFn={formatCurrency} icon={TrendingDown} variant="danger" gradient delay={1} />
+              <KpiCard label="Capital emprunté" value={parseFloat(selectedEmprunt.montantEmprunte || "0")} formatFn={formatCurrency} icon={Landmark} variant="primary" gradient delay={0} />
+              <KpiCard label="Total intérêts" value={totalInterets} formatFn={formatCurrency} icon={TrendingDown} variant="danger" gradient delay={1} />
               <KpiCard label="Total assurance" value={totalAssurance} formatFn={formatCurrency} icon={Calculator} variant="warning" gradient delay={2} />
-              <KpiCard label="Cout total credit" value={totalCout} formatFn={formatCurrency} icon={Percent} variant="danger" gradient delay={3} metricKey="coutCredit" />
+              <KpiCard label="Coût total crédit" value={totalCout} formatFn={formatCurrency} icon={Percent} variant="danger" gradient delay={3} metricKey="coutCredit" />
             </div>
 
             <Section title={`Tableau d'amortissement — ${empruntLabel(selectedEmprunt)}`} delay={1}>
@@ -826,12 +826,12 @@ function AmortissementTab() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/30">
-                      <th className="px-4 py-3 text-left font-semibold">Annee</th>
-                      <th className="px-4 py-3 text-right font-semibold">CRD debut</th>
-                      <th className="px-4 py-3 text-right font-semibold">Capital rembourse</th>
-                      <th className="px-4 py-3 text-right font-semibold">Interets</th>
+                      <th className="px-4 py-3 text-left font-semibold">Année</th>
+                      <th className="px-4 py-3 text-right font-semibold">CRD début</th>
+                      <th className="px-4 py-3 text-right font-semibold">Capital remboursé</th>
+                      <th className="px-4 py-3 text-right font-semibold">Intérêts</th>
                       <th className="px-4 py-3 text-right font-semibold">Assurance</th>
-                      <th className="px-4 py-3 text-right font-semibold">Annuite</th>
+                      <th className="px-4 py-3 text-right font-semibold">Annuité</th>
                       <th className="px-4 py-3 text-right font-semibold">Total annuel</th>
                       <th className="px-4 py-3 text-right font-semibold">CRD fin</th>
                     </tr>
@@ -870,19 +870,19 @@ function AmortissementTab() {
             </Section>
 
             {/* Amortization chart */}
-            <Section title="Evolution du capital et des interets" delay={2}>
+            <Section title="Évolution du capital et des intérêts" delay={2}>
               <GlassCard>
                 <div className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={schedule.map((r) => ({ annee: r.anneeReelle ?? `N+${r.year}`, "Capital rembourse": Math.round(r.capitalAmorti), "Interets": Math.round(r.interets), "CRD": Math.round(r.capitalFin) }))}>
+                    <AreaChart data={schedule.map((r) => ({ annee: r.anneeReelle ?? `N+${r.year}`, "Capital remboursé": Math.round(r.capitalAmorti), "Intérêts": Math.round(r.interets), "CRD": Math.round(r.capitalFin) }))}>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                       <XAxis dataKey="annee" tick={{ fontSize: 11 }} />
                       <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
                       <Tooltip formatter={(v: number) => formatCurrency(v)} />
                       <Legend />
                       <Area type="monotone" dataKey="CRD" name="Capital restant" fill="#3b82f6" fillOpacity={0.3} stroke="#3b82f6" />
-                      <Area type="monotone" dataKey="Capital rembourse" name="Capital rembourse" fill="#10b981" fillOpacity={0.2} stroke="#10b981" />
-                      <Area type="monotone" dataKey="Interets" name="Interets" fill="#ef4444" fillOpacity={0.2} stroke="#ef4444" />
+                      <Area type="monotone" dataKey="Capital remboursé" name="Capital remboursé" fill="#10b981" fillOpacity={0.2} stroke="#10b981" />
+                      <Area type="monotone" dataKey="Intérêts" name="Intérêts" fill="#ef4444" fillOpacity={0.2} stroke="#ef4444" />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -910,7 +910,7 @@ export default function EmpruntsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Emprunts & Financements" description="Gestion des emprunts, cout du credit et simulation de rachat" />
+      <PageHeader title="Emprunts & Financements" description="Gestion des emprunts, coût du crédit et simulation de rachat" />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>

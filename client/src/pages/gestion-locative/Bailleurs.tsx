@@ -22,7 +22,7 @@ export default function BailleursPage() {
     { key: "nom", label: "Nom", sortable: true, render: (r) => <span className="font-medium">{r.nom}</span> },
     { key: "type", label: "Type", sortable: true },
     { key: "email", label: "Email" },
-    { key: "telephone", label: "Telephone" },
+    { key: "telephone", label: "Téléphone" },
     { key: "siret", label: "SIRET" },
     { key: "actions", label: "", align: "right", render: (r) => (
       <div className="flex items-center justify-end gap-1">
@@ -51,7 +51,7 @@ export default function BailleursPage() {
             { value: "personne_physique", label: "Personne physique" }, { value: "SCI", label: "SCI" }, { value: "societe", label: "Société" },
           ]} />
           <FormField label="Email" name="email" value={form.email} onChange={onChange} type="email" />
-          <FormField label="Telephone" name="telephone" value={form.telephone} onChange={onChange} />
+          <FormField label="Téléphone" name="telephone" value={form.telephone} onChange={onChange} />
           <FormField label="SIRET" name="siret" value={form.siret} onChange={onChange} />
           <FormField label="IBAN" name="iban" value={form.iban} onChange={onChange} />
         </FormGrid>

@@ -214,7 +214,7 @@ export default function VuePatrimoinePage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Patrimoine" description="Vue complete du patrimoine immobilier" />
+      <PageHeader title="Patrimoine" description="Vue complète du patrimoine immobilier" />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>

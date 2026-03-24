@@ -21,7 +21,7 @@ export default function LocatairesAMPage() {
   const columns: Column<Locataire>[] = [
     { key: "nom", label: "Nom", sortable: true, render: (r) => <span className="font-medium">{r.nom} {r.prenom || ""}</span> },
     { key: "email", label: "Email", sortable: true },
-    { key: "telephone", label: "Telephone" },
+    { key: "telephone", label: "Téléphone" },
     { key: "siret", label: "SIRET" },
     { key: "actions", label: "", align: "right", render: (r) => (
       <div className="flex items-center justify-end gap-1">
@@ -46,9 +46,9 @@ export default function LocatairesAMPage() {
       <FormDialog open={dialogOpen} onClose={() => setDialogOpen(false)} title={editing ? "Modifier le locataire" : "Nouveau locataire"} onSubmit={handleSubmit} loading={creating || updating}>
         <FormGrid>
           <FormField label="Nom" name="nom" value={form.nom} onChange={onChange} required />
-          <FormField label="Prenom" name="prenom" value={form.prenom} onChange={onChange} />
+          <FormField label="Prénom" name="prenom" value={form.prenom} onChange={onChange} />
           <FormField label="Email" name="email" value={form.email} onChange={onChange} type="email" />
-          <FormField label="Telephone" name="telephone" value={form.telephone} onChange={onChange} />
+          <FormField label="Téléphone" name="telephone" value={form.telephone} onChange={onChange} />
           <FormField label="SIRET" name="siret" value={form.siret} onChange={onChange} />
         </FormGrid>
         <FormField label="Adresse" name="adresse" value={form.adresse} onChange={onChange} className="mt-4" />

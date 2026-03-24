@@ -12,24 +12,24 @@ const modules = [
     gradient: "from-orange-500 via-amber-500 to-yellow-500",
     iconBg: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
     borderAccent: "hover:border-orange-500/30",
-    features: ["SCIs & Associes", "Valorisation DCF", "LTV & DSCR", "Reporting"],
+    features: ["SCIs & Associés", "Valorisation DCF", "LTV & DSCR", "Reporting"],
   },
   {
     href: "/gestion-locative",
     icon: FileText,
     title: "Gestion Locative",
-    description: "Suivez vos baux commerciaux en detail : loyers, indexations automatiques, echeancier, projections et tresorerie.",
+    description: "Suivez vos baux commerciaux en détail : loyers, indexations automatiques, échéancier, projections et trésorerie.",
     gradient: "from-rose-500 via-pink-500 to-fuchsia-500",
     iconBg: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
     borderAccent: "hover:border-rose-500/30",
-    features: ["Baux commerciaux", "Indexation auto", "Projections", "Tresorerie"],
+    features: ["Baux commerciaux", "Indexation auto", "Projections", "Trésorerie"],
   },
 ];
 
 const highlights = [
-  { icon: BarChart3, label: "Tableaux de bord", desc: "KPIs en temps reel" },
+  { icon: BarChart3, label: "Tableaux de bord", desc: "KPIs en temps réel" },
   { icon: TrendingUp, label: "Analyse", desc: "DCF, stress tests" },
-  { icon: Shield, label: "Controle", desc: "Suivi des risques" },
+  { icon: Shield, label: "Contrôle", desc: "Suivi des risques" },
   { icon: Zap, label: "Automatisation", desc: "Indexations, alertes" },
 ];
 

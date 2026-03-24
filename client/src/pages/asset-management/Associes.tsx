@@ -21,7 +21,7 @@ export default function AssociesPage() {
   const columns: Column<Associe>[] = [
     { key: "nom", label: "Nom", sortable: true, render: (r) => <span className="font-medium">{r.nom} {r.prenom || ""}</span> },
     { key: "email", label: "Email", sortable: true },
-    { key: "telephone", label: "Telephone" },
+    { key: "telephone", label: "Téléphone" },
     { key: "siret", label: "SIRET" },
     { key: "actions", label: "", align: "right", render: (r) => (
       <div className="flex items-center justify-end gap-1">

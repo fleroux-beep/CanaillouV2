@@ -17,7 +17,7 @@ export function ConfirmDialog({
   onClose,
   onConfirm,
   title = "Confirmer la suppression",
-  message = "Cette action est irreversible.",
+  message = "Cette action est irréversible.",
   confirmLabel = "Supprimer",
   loading = false,
 }: ConfirmDialogProps) {

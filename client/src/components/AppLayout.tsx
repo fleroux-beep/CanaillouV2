@@ -44,12 +44,12 @@ const amNavGroups: NavGroup[] = [
   {
     label: "Finance",
     items: [
-      { label: "Emprunts & Credit", href: "/asset-management/emprunts", icon: PiggyBank },
+      { label: "Emprunts & Crédit", href: "/asset-management/emprunts", icon: PiggyBank },
       { label: "Valorisation", href: "/asset-management/valorisation", icon: BarChart3 },
-      { label: "Controle de gestion", href: "/asset-management/controle-gestion", icon: ClipboardList },
+      { label: "Contrôle de gestion", href: "/asset-management/controle-gestion", icon: ClipboardList },
       { label: "Arbitrages", href: "/asset-management/arbitrages", icon: ArrowUpDown },
-      { label: "Donnees de marche", href: "/asset-management/donnees-marche", icon: Activity },
-      { label: "Etude de marche", href: "/asset-management/etude-marche", icon: Search },
+      { label: "Données de marché", href: "/asset-management/donnees-marche", icon: Activity },
+      { label: "Étude de marché", href: "/asset-management/etude-marche", icon: Search },
     ],
   },
   {
@@ -89,14 +89,14 @@ const glNavGroups: NavGroup[] = [
       { label: "Baux", href: "/gestion-locative/baux", icon: FileText },
       { label: "Bailleurs", href: "/gestion-locative/bailleurs", icon: Building2 },
       { label: "Locataires", href: "/gestion-locative/locataires", icon: Users },
-      { label: "Controle bailleur", href: "/gestion-locative/controle-bailleur", icon: ShieldCheck },
+      { label: "Contrôle bailleur", href: "/gestion-locative/controle-bailleur", icon: ShieldCheck },
     ],
   },
   {
     label: "Analyse",
     items: [
       { label: "Projections", href: "/gestion-locative/projections", icon: TrendingUp },
-      { label: "Tresorerie", href: "/gestion-locative/tresorerie", icon: DollarSign },
+      { label: "Trésorerie", href: "/gestion-locative/tresorerie", icon: DollarSign },
       { label: "Paiements", href: "/gestion-locative/paiements", icon: PiggyBank },
       { label: "Indices", href: "/gestion-locative/indices", icon: Calculator },
     ],

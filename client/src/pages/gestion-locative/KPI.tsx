@@ -222,7 +222,7 @@ export default function GLKPIPage() {
             icon={TrendingUp}
             variant={walt > 5 ? "success" : walt > 2 ? "warning" : "danger"}
             delay={8}
-            subtitle="Duree moyenne ponderee"
+            subtitle="Durée moyenne pondérée"
             metricKey="walt"
           />
           <KpiCard
@@ -230,7 +230,7 @@ export default function GLKPIPage() {
             value={bauxActifs.length}
             icon={Building2}
             delay={9}
-            subtitle={bauxSansEcheance > 0 ? `${bauxSansEcheance} sans echeance` : undefined}
+            subtitle={bauxSansEcheance > 0 ? `${bauxSansEcheance} sans échéance` : undefined}
           />
           <KpiCard
             label="Dépôts de garantie"

@@ -171,7 +171,7 @@ function CapitalGovernancePage() {
                         <tr className="border-b bg-muted/30">
                           <SortHeader label="SCI" sortKey="nom" currentSortKey={capitalSort.sortKey} sortDir={capitalSort.sortDir} onSort={capitalSort.handleSort} />
                           <SortHeader label="Forme" sortKey="formeJuridique" currentSortKey={capitalSort.sortKey} sortDir={capitalSort.sortDir} onSort={capitalSort.handleSort} />
-                          <SortHeader label="Regime" sortKey="regimeFiscal" currentSortKey={capitalSort.sortKey} sortDir={capitalSort.sortDir} onSort={capitalSort.handleSort} />
+                          <SortHeader label="Régime" sortKey="regimeFiscal" currentSortKey={capitalSort.sortKey} sortDir={capitalSort.sortDir} onSort={capitalSort.handleSort} />
                           <SortHeader label="Capital" sortKey="capital" align="right" currentSortKey={capitalSort.sortKey} sortDir={capitalSort.sortDir} onSort={capitalSort.handleSort} />
                           <th className="px-4 py-3 text-right font-semibold">Part</th>
                         </tr>
@@ -278,7 +278,7 @@ function CapitalGovernancePage() {
                   <SortHeader label="SCI" sortKey="sci" currentSortKey={pvSort.sortKey} sortDir={pvSort.sortDir} onSort={pvSort.handleSort} />
                   <SortHeader label="Actifs" sortKey="nbActifs" align="right" currentSortKey={pvSort.sortKey} sortDir={pvSort.sortDir} onSort={pvSort.handleSort} />
                   <SortHeader label="Valeur acquisition" sortKey="acquisition" align="right" currentSortKey={pvSort.sortKey} sortDir={pvSort.sortDir} onSort={pvSort.handleSort} />
-                  <SortHeader label="Valeur marche estimee" sortKey="marche" align="right" currentSortKey={pvSort.sortKey} sortDir={pvSort.sortDir} onSort={pvSort.handleSort} />
+                  <SortHeader label="Valeur marché estimée" sortKey="marche" align="right" currentSortKey={pvSort.sortKey} sortDir={pvSort.sortDir} onSort={pvSort.handleSort} />
                   <SortHeader label="Plus-value latente" sortKey="plusValue" align="right" currentSortKey={pvSort.sortKey} sortDir={pvSort.sortDir} onSort={pvSort.handleSort} />
                 </tr>
               </thead>

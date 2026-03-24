@@ -52,7 +52,7 @@ export default function AdminPage() {
       qc.invalidateQueries({ queryKey: ["/api/users"] });
       setShowCreate(false);
       setForm({ email: "", password: "", firstName: "", lastName: "", role: "user" });
-      toast({ title: "Utilisateur cree", variant: "success" });
+      toast({ title: "Utilisateur créé", variant: "success" });
     },
     onError: (err: Error) => {
       toast({ title: err.message, variant: "destructive" });
@@ -63,7 +63,7 @@ export default function AdminPage() {
     mutationFn: (id: string) => apiRequest(`/api/users/${id}/approve`, { method: "PATCH" }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/users"] });
-      toast({ title: "Utilisateur approuve", variant: "success" });
+      toast({ title: "Utilisateur approuvé", variant: "success" });
     },
   });
 
@@ -72,7 +72,7 @@ export default function AdminPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/users"] });
       setDeleteTarget(null);
-      toast({ title: "Utilisateur supprime", variant: "success" });
+      toast({ title: "Utilisateur supprimé", variant: "success" });
     },
   });
 
@@ -82,8 +82,8 @@ export default function AdminPage() {
       setShowReimport(false);
       const counts = data?.counts;
       const msg = counts
-        ? `Import termine : ${Object.entries(counts).map(([k, v]) => `${k}: ${v}`).join(", ")}`
-        : "Import termine avec succes";
+        ? `Import terminé : ${Object.entries(counts).map(([k, v]) => `${k}: ${v}`).join(", ")}`
+        : "Import terminé avec succès";
       toast({ title: msg, variant: "success" });
     },
     onError: (err: Error) => {
@@ -95,13 +95,13 @@ export default function AdminPage() {
   if (currentUser?.role !== "admin") {
     return (
       <div className="space-y-8">
-        <PageHeader title="Administration" description="Acces restreint" />
+        <PageHeader title="Administration" description="Accès restreint" />
         <GlassCard>
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <Shield className="mb-4 h-16 w-16 text-muted-foreground/30" />
-            <h3 className="mb-2 text-lg font-semibold">Acces refuse</h3>
+            <h3 className="mb-2 text-lg font-semibold">Accès refusé</h3>
             <p className="text-sm text-muted-foreground">
-              Cette page est reservee aux administrateurs.
+              Cette page est réservée aux administrateurs.
             </p>
           </div>
         </GlassCard>
@@ -131,7 +131,7 @@ export default function AdminPage() {
             <h3 className="mb-2 text-lg font-semibold">Erreur de chargement</h3>
             <p className="mb-4 text-sm text-muted-foreground">Impossible de charger les utilisateurs.</p>
             <button onClick={() => window.location.reload()} className="rounded-lg gradient-primary px-4 py-2 text-sm font-medium text-white">
-              Reessayer
+              Réessayer
             </button>
           </div>
         </GlassCard>
@@ -147,7 +147,7 @@ export default function AdminPage() {
     <div className="space-y-8">
       <PageHeader
         title="Administration"
-        description="Gestion des utilisateurs et parametres"
+        description="Gestion des utilisateurs et paramètres"
         actions={
           <div className="flex items-center gap-3">
             <motion.button
@@ -157,7 +157,7 @@ export default function AdminPage() {
               className="flex items-center gap-2 rounded-xl border border-border bg-background px-5 py-2.5 text-sm font-semibold shadow-sm hover:bg-muted/50 transition-colors"
             >
               <RefreshCw className="h-4 w-4" />
-              Reimporter Excel
+              Réimporter Excel
             </motion.button>
             <motion.button
               whileHover={{ scale: 1.02 }}
@@ -177,14 +177,14 @@ export default function AdminPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <KpiCard label="Utilisateurs" value={users.length} icon={Users} variant="primary" delay={0} />
           <KpiCard label="Administrateurs" value={admins.length} icon={ShieldCheck} variant="warning" delay={1} />
-          <KpiCard label="Approuves" value={approved.length} icon={CheckCircle2} variant="success" delay={2} />
+          <KpiCard label="Approuvés" value={approved.length} icon={CheckCircle2} variant="success" delay={2} />
           <KpiCard label="En attente" value={pending.length} icon={XCircle} variant="danger" delay={3} />
         </div>
       </Section>
 
       {/* Pending users */}
       {pending.length > 0 && (
-        <Section title="Utilisateurs en attente" description="Ces comptes doivent etre approuves pour acceder a la plateforme">
+        <Section title="Utilisateurs en attente" description="Ces comptes doivent être approuvés pour accéder à la plateforme">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {pending.map(u => (
               <motion.div
@@ -211,7 +211,7 @@ export default function AdminPage() {
       )}
 
       {/* All users table */}
-      <Section title="Tous les utilisateurs" description={`${users.length} compte${users.length > 1 ? "s" : ""} enregistre${users.length > 1 ? "s" : ""}`}>
+      <Section title="Tous les utilisateurs" description={`${users.length} compte${users.length > 1 ? "s" : ""} enregistré${users.length > 1 ? "s" : ""}`}>
         <GlassCard className="overflow-hidden !p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -219,9 +219,9 @@ export default function AdminPage() {
                 <tr className="border-b border-border/40 bg-muted/30">
                   <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Utilisateur</th>
                   <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Email</th>
-                  <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Role</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Rôle</th>
                   <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Statut</th>
-                  <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Cree le</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Créé le</th>
                   <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Actions</th>
                 </tr>
               </thead>
@@ -255,7 +255,7 @@ export default function AdminPage() {
                       </td>
                       <td className="px-4 py-3">
                         <Badge variant={u.isApproved ? "success" : "danger"}>
-                          {u.isApproved ? "Approuve" : "En attente"}
+                          {u.isApproved ? "Approuvé" : "En attente"}
                         </Badge>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">
@@ -293,7 +293,7 @@ export default function AdminPage() {
       </Section>
 
       {/* Change password section */}
-      <Section title="Securite" description="Changer votre mot de passe">
+      <Section title="Sécurité" description="Changer votre mot de passe">
         <ChangePasswordForm />
       </Section>
 
@@ -302,16 +302,16 @@ export default function AdminPage() {
         open={showCreate}
         onClose={() => setShowCreate(false)}
         title="Ajouter un utilisateur"
-        description="Le compte sera cree et immediatement actif. Communiquez les identifiants manuellement."
+        description="Le compte sera créé et immédiatement actif. Communiquez les identifiants manuellement."
         onSubmit={(e) => {
           e.preventDefault();
           createMutation.mutate(form);
         }}
-        submitLabel="Creer le compte"
+        submitLabel="Créer le compte"
         loading={createMutation.isPending}
       >
         <div className="grid gap-4 sm:grid-cols-2">
-          <FormField label="Prenom">
+          <FormField label="Prénom">
             <input
               value={form.firstName}
               onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))}
@@ -345,7 +345,7 @@ export default function AdminPage() {
               value={form.password}
               onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
               className="w-full rounded-xl border bg-background px-3 py-2.5 pr-10 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-              placeholder="Min. 6 caracteres"
+              placeholder="Min. 6 caractères"
               required
               minLength={6}
             />
@@ -358,7 +358,7 @@ export default function AdminPage() {
             </button>
           </div>
         </FormField>
-        <FormField label="Role">
+        <FormField label="Rôle">
           <select
             value={form.role}
             onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
@@ -376,7 +376,7 @@ export default function AdminPage() {
         onClose={() => setDeleteTarget(null)}
         onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
         title="Supprimer cet utilisateur ?"
-        message={`Le compte de ${deleteTarget?.email} sera definitivement supprime.`}
+        message={`Le compte de ${deleteTarget?.email} sera définitivement supprimé.`}
         loading={deleteMutation.isPending}
       />
 
@@ -385,8 +385,8 @@ export default function AdminPage() {
         open={showReimport}
         onClose={() => setShowReimport(false)}
         onConfirm={() => importMutation.mutate()}
-        title="Reimporter les donnees Excel ?"
-        message="Les donnees SCI seront reimportees depuis le fichier Excel. Les donnees existantes seront remplacees."
+        title="Réimporter les données Excel ?"
+        message="Les données SCI seront réimportées depuis le fichier Excel. Les données existantes seront remplacées."
         loading={importMutation.isPending}
       />
     </div>
@@ -406,7 +406,7 @@ function ChangePasswordForm() {
     onSuccess: () => {
       setCurrentPw("");
       setNewPw("");
-      toast({ title: "Mot de passe modifie", variant: "success" });
+      toast({ title: "Mot de passe modifié", variant: "success" });
     },
     onError: (err: Error) => {
       toast({ title: err.message, variant: "destructive" });

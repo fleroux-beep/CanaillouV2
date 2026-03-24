@@ -110,7 +110,7 @@ export default function ActifsPage() {
           <FormField label="Nom" name="nom" value={form.nom} onChange={onChange} required />
           <FormField label="SCI" name="sciId" value={form.sciId} onChange={onChange} options={scis.map((s) => ({ value: s.id, label: s.nom }))} />
           <FormField label="Type" name="type" value={form.type} onChange={onChange} options={[
-            { value: "residentiel", label: "Residentiel" }, { value: "commercial", label: "Commercial" },
+            { value: "residentiel", label: "Résidentiel" }, { value: "commercial", label: "Commercial" },
             { value: "bureau", label: "Bureau" }, { value: "mixte", label: "Mixte" },
             { value: "creche", label: "Crèche" },
           ]} />
@@ -139,7 +139,7 @@ export default function ActifsPage() {
         <h3 className="mt-5 mb-3 text-sm font-semibold text-muted-foreground uppercase">Valorisation</h3>
         <FormGrid cols={3}>
           <FormField label="Taux capitalisation" name="tauxCapitalisation" value={form.tauxCapitalisation} onChange={onChange} type="number" suffix="%" />
-          <FormField label="Prix/m² marche" name="prixM2Marche" value={form.prixM2Marche} onChange={onChange} type="number" suffix="EUR/m²" />
+          <FormField label="Prix/m² marché" name="prixM2Marche" value={form.prixM2Marche} onChange={onChange} type="number" suffix="EUR/m²" />
           <FormField label="DPE" name="dpe" value={form.dpe} onChange={onChange} options={["A","B","C","D","E","F","G"].map((v) => ({ value: v, label: v }))} />
         </FormGrid>
         <FormField label="Notes" name="notes" value={form.notes} onChange={onChange} rows={3} className="mt-4" />

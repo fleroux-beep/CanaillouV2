@@ -34,7 +34,7 @@ const typeBadgeVariant: Record<string, "primary" | "success" | "warning"> = {
 const typeLabels: Record<string, string> = {
   "fin-bail": "Fin de bail",
   triennale: "Triennale",
-  "periode-ferme": "Période ferme",
+  "periode-ferme": "Période fermée",
 };
 
 function formatDate(dateStr: string): string {

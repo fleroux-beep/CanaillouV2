@@ -102,7 +102,7 @@ export default function BauxGLPage() {
           <FormField label="Taxe foncière" name="taxeFonciere" value={form.taxeFonciere} onChange={onChange} type="number" suffix="EUR" />
         </FormGrid>
         <FormGrid cols={2}>
-          <FormField label="Regime fiscal" name="taxe" value={form.taxe} onChange={onChange} options={[
+          <FormField label="Régime fiscal" name="taxe" value={form.taxe} onChange={onChange} options={[
             { value: "TVA", label: "TVA" }, { value: "CRL", label: "CRL (Contribution sur les Revenus Locatifs)" },
           ]} />
           {form.taxe === "TVA" && (
@@ -111,7 +111,7 @@ export default function BauxGLPage() {
         </FormGrid>
         <h3 className="mt-5 mb-3 text-sm font-semibold text-muted-foreground uppercase">Indexation</h3>
         <FormGrid cols={4}>
-          <FormField label="Indice référence" name="indiceReference" value={form.indiceReference} onChange={onChange} options={[
+          <FormField label="Indice de référence" name="indiceReference" value={form.indiceReference} onChange={onChange} options={[
             { value: "ILC", label: "ILC" }, { value: "IRL", label: "IRL" }, { value: "ILAT", label: "ILAT" }, { value: "ICC", label: "ICC" },
           ]} />
           <FormField label="Trimestre ref." name="trimestreRef" value={form.trimestreRef} onChange={onChange} placeholder="Ex: T1 2024" />

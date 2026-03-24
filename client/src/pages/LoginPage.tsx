@@ -7,7 +7,7 @@ const features = [
   { icon: Building2, text: "Gestion de patrimoine immobilier" },
   { icon: BarChart3, text: "Tableaux de bord & KPIs" },
   { icon: TrendingUp, text: "Valorisation & projections" },
-  { icon: Shield, text: "Controle des risques" },
+  { icon: Shield, text: "Contrôle des risques" },
 ];
 
 export default function LoginPage() {
