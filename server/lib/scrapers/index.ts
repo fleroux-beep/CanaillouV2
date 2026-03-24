@@ -8,6 +8,7 @@ import { eq, and, isNull } from "drizzle-orm";
 import { logger } from "../logger";
 import type { ScrapingContext, ScrapedResult, Scraper } from "./base";
 import { mapActifTypeToSearch } from "./base";
+import { analyserPhase2 } from "./analyse-marche";
 
 // Import scrapers
 import { meilleursAgentsScraper } from "./meilleursagents";
@@ -200,23 +201,20 @@ export async function getEtudeMarche(actifId?: string) {
     const scrapedVente = scrapedData.filter((s) => s.typeRecherche === "vente");
     const scrapedLocation = scrapedData.filter((s) => s.typeRecherche === "location");
 
-    // Aggregate Phase 2 vente
-    const phase2VentePrix = scrapedVente
-      .filter((s) => s.prixM2Median)
-      .map((s) => ({ source: s.source, prixM2: Number(s.prixM2Median), nb: s.nbAnnonces || 0 }));
+    // Phase 1 values for analysis context
+    const p1PrixM2 = venalesDVF[0] ? Number(venalesDVF[0].prixM2Median) : null;
+    const p1LoyerM2 = locativesANIL[0] ? Number(locativesANIL[0].loyerM2MensuelMedian) : null;
+    const p1TauxCapi = tauxCalc[0] ? Number(tauxCalc[0].tauxCapi) : null;
 
-    const phase2LocLoyer = scrapedLocation
-      .filter((s) => s.loyerM2MensuelMedian)
-      .map((s) => ({ source: s.source, loyerM2: Number(s.loyerM2MensuelMedian), nb: s.nbAnnonces || 0 }));
-
-    // Taux capi Phase 2 (moyenne des taux déduits)
-    const phase2TauxValues = scrapedData
-      .filter((s) => s.tauxCapiDeduit)
-      .map((s) => Number(s.tauxCapiDeduit));
-
-    const phase2TauxCapi = phase2TauxValues.length > 0
-      ? Math.round((phase2TauxValues.reduce((a, b) => a + b, 0) / phase2TauxValues.length) * 100) / 100
-      : null;
+    // Analyse intelligente Phase 2
+    const analyse = analyserPhase2(scrapedVente, scrapedLocation, {
+      typeActif: actif.type || "résidentiel",
+      typeBien,
+      p1PrixM2,
+      p1LoyerM2,
+      p1TauxCapi,
+      p1Fiabilite: tauxCalc[0]?.fiabilite || null,
+    });
 
     // Avertissements pour les types d'actifs sans données fiables
     const avertissements: string[] = [];
@@ -295,8 +293,36 @@ export async function getEtudeMarche(actifId?: string) {
           notes: s.notes,
           dateReleve: s.dateReleve,
         })),
-        tauxCapiMoyen: phase2TauxCapi,
+        tauxCapiMoyen: analyse.tauxCapiConsolide,
         dateReleve: scrapedData[0]?.dateReleve || null,
+      },
+      // Analyse intelligente Phase 2
+      analyse: {
+        vente: analyse.vente ? {
+          valeurConsolidee: analyse.vente.valeurConsolidee,
+          valeurBasse: analyse.vente.valeurBasse,
+          valeurHaute: analyse.vente.valeurHaute,
+          nbSources: analyse.vente.nbSources,
+          nbAnnoncesTotal: analyse.vente.nbAnnoncesTotal,
+          scoreConfiance: analyse.vente.scoreConfiance,
+          noteConfiance: analyse.vente.noteConfiance,
+          explicationConfiance: analyse.vente.explicationConfiance,
+          sources: analyse.vente.sources,
+        } : null,
+        location: analyse.location ? {
+          valeurConsolidee: analyse.location.valeurConsolidee,
+          valeurBasse: analyse.location.valeurBasse,
+          valeurHaute: analyse.location.valeurHaute,
+          nbSources: analyse.location.nbSources,
+          nbAnnoncesTotal: analyse.location.nbAnnoncesTotal,
+          scoreConfiance: analyse.location.scoreConfiance,
+          noteConfiance: analyse.location.noteConfiance,
+          explicationConfiance: analyse.location.explicationConfiance,
+          sources: analyse.location.sources,
+        } : null,
+        tauxCapiConsolide: analyse.tauxCapiConsolide,
+        tauxCapiConfiance: analyse.tauxCapiConfiance,
+        tauxCapiNote: analyse.tauxCapiNote,
       },
     };
   });

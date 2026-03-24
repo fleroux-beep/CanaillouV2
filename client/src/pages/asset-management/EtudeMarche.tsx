@@ -13,6 +13,7 @@ import {
   Database, Search, ChevronDown, AlertTriangle,
   Home, Store, Briefcase, Loader2, BarChart3,
   Globe, Eye, Layers, ArrowRight, CheckCircle2, XCircle,
+  ShieldCheck, ShieldAlert, Info, Target,
 } from "lucide-react";
 
 // ============================================================
@@ -65,6 +66,37 @@ interface Phase2Data {
   dateReleve: string | null;
 }
 
+type NoteConfiance = "A" | "B" | "C" | "D" | "E";
+
+interface SourceAnalysee {
+  source: string;
+  valeur: number;
+  nbAnnonces: number;
+  poids: number;
+  outlier: boolean;
+  rayonKm: number;
+}
+
+interface EstimationAnalyse {
+  valeurConsolidee: number;
+  valeurBasse: number;
+  valeurHaute: number;
+  nbSources: number;
+  nbAnnoncesTotal: number;
+  scoreConfiance: number;
+  noteConfiance: NoteConfiance;
+  explicationConfiance: string;
+  sources: SourceAnalysee[];
+}
+
+interface AnalyseData {
+  vente: EstimationAnalyse | null;
+  location: EstimationAnalyse | null;
+  tauxCapiConsolide: number | null;
+  tauxCapiConfiance: number | null;
+  tauxCapiNote: NoteConfiance | null;
+}
+
 interface ActifInfo {
   id: string;
   nom: string;
@@ -85,6 +117,7 @@ interface EtudeActif {
   avertissements?: string[];
   phase1: Phase1Data;
   phase2: Phase2Data;
+  analyse?: AnalyseData;
 }
 
 // ============================================================
@@ -265,6 +298,113 @@ function Phase2Table({ entries, mode }: { entries: Phase2Entry[]; mode: "vente" 
   );
 }
 
+// ============================================================
+// Analyse / Confiance components
+// ============================================================
+
+const NOTE_STYLES: Record<NoteConfiance, { bg: string; text: string; border: string; ring: string }> = {
+  A: { bg: "bg-emerald-500/10", text: "text-emerald-600 dark:text-emerald-400", border: "border-emerald-500/30", ring: "ring-emerald-500/20" },
+  B: { bg: "bg-blue-500/10", text: "text-blue-600 dark:text-blue-400", border: "border-blue-500/30", ring: "ring-blue-500/20" },
+  C: { bg: "bg-amber-500/10", text: "text-amber-600 dark:text-amber-400", border: "border-amber-500/30", ring: "ring-amber-500/20" },
+  D: { bg: "bg-orange-500/10", text: "text-orange-600 dark:text-orange-400", border: "border-orange-500/30", ring: "ring-orange-500/20" },
+  E: { bg: "bg-red-500/10", text: "text-red-600 dark:text-red-400", border: "border-red-500/30", ring: "ring-red-500/20" },
+};
+
+function ConfidenceBadge({ note, score }: { note: NoteConfiance; score: number }) {
+  const style = NOTE_STYLES[note];
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border ${style.bg} ${style.text} ${style.border}`}>
+      {note === "A" || note === "B" ? (
+        <ShieldCheck className="h-3.5 w-3.5" />
+      ) : (
+        <ShieldAlert className="h-3.5 w-3.5" />
+      )}
+      {note} · {score}/100
+    </span>
+  );
+}
+
+function ConfidenceBar({ score }: { score: number }) {
+  const color = score >= 80 ? "bg-emerald-500" : score >= 60 ? "bg-blue-500" : score >= 40 ? "bg-amber-500" : score >= 20 ? "bg-orange-500" : "bg-red-500";
+  return (
+    <div className="flex items-center gap-2 w-full">
+      <div className="flex-1 h-1.5 rounded-full bg-muted/50 overflow-hidden">
+        <div className={`h-full rounded-full ${color} transition-all duration-500`} style={{ width: `${score}%` }} />
+      </div>
+      <span className="text-[10px] font-bold tabular-nums text-muted-foreground w-8 text-right">{score}%</span>
+    </div>
+  );
+}
+
+function AnalyseBlock({ analyse, mode }: { analyse: EstimationAnalyse; mode: "vente" | "location" }) {
+  const isVente = mode === "vente";
+  const fmt = isVente ? fmtPrix : fmtLoyer;
+  const style = NOTE_STYLES[analyse.noteConfiance];
+
+  return (
+    <div className={`rounded-xl border ${style.border} ${style.bg} p-4 space-y-3`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <Target className={`h-4 w-4 ${style.text}`} />
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Estimation consolidée {isVente ? "vente" : "location"}
+            </p>
+            <p className="text-xl font-bold tracking-tight mt-0.5">{fmt(analyse.valeurConsolidee)}</p>
+          </div>
+        </div>
+        <ConfidenceBadge note={analyse.noteConfiance} score={analyse.scoreConfiance} />
+      </div>
+
+      {/* Fourchette + stats */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="rounded-lg bg-card/50 border border-border/30 px-3 py-2">
+          <p className="text-[10px] font-medium text-muted-foreground">Fourchette</p>
+          <p className="text-xs font-bold mt-0.5">{fmt(analyse.valeurBasse)} — {fmt(analyse.valeurHaute)}</p>
+        </div>
+        <div className="rounded-lg bg-card/50 border border-border/30 px-3 py-2">
+          <p className="text-[10px] font-medium text-muted-foreground">Sources valides</p>
+          <p className="text-xs font-bold mt-0.5">{analyse.nbSources} source{analyse.nbSources > 1 ? "s" : ""}</p>
+        </div>
+        <div className="rounded-lg bg-card/50 border border-border/30 px-3 py-2">
+          <p className="text-[10px] font-medium text-muted-foreground">Annonces</p>
+          <p className="text-xs font-bold mt-0.5">{analyse.nbAnnoncesTotal} annonce{analyse.nbAnnoncesTotal > 1 ? "s" : ""}</p>
+        </div>
+      </div>
+
+      {/* Barre de confiance */}
+      <ConfidenceBar score={analyse.scoreConfiance} />
+
+      {/* Explication */}
+      <div className="flex items-start gap-2 text-xs text-muted-foreground">
+        <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+        <p>{analyse.explicationConfiance}</p>
+      </div>
+
+      {/* Sources avec poids et outliers */}
+      {analyse.sources.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Détail des sources</p>
+          {analyse.sources.map((s, i) => (
+            <div key={i} className={`flex items-center gap-2 text-xs ${s.outlier ? "opacity-40 line-through" : ""}`}>
+              {sourceBadge(s.source)}
+              <span className="font-bold tabular-nums">{fmt(s.valeur)}</span>
+              <span className="text-muted-foreground">· {s.nbAnnonces} ann.</span>
+              <span className="text-muted-foreground">· poids {Math.round(s.poids * 100)}%</span>
+              {s.outlier && (
+                <span className="text-red-500 text-[10px] font-medium no-underline">outlier exclu</span>
+              )}
+              {s.rayonKm > 5 && !s.outlier && (
+                <span className="text-amber-500 text-[10px]">rayon {s.rayonKm}km</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Phase2Block({ data }: { data: Phase2Data }) {
   const hasData = data.vente.length > 0 || data.location.length > 0;
 
@@ -299,22 +439,25 @@ function Phase2Block({ data }: { data: Phase2Data }) {
   );
 }
 
-function SyntheseBlock({ phase1, phase2 }: { phase1: Phase1Data; phase2: Phase2Data }) {
+function SyntheseBlock({ phase1, phase2, analyse }: { phase1: Phase1Data; phase2: Phase2Data; analyse?: AnalyseData }) {
   const p1Prix = phase1.valeurVenale?.prixM2Median;
   const p1Loyer = phase1.valeurLocative?.loyerM2Median;
   const p1Taux = phase1.tauxCapi?.taux;
 
-  const p2Ventes = phase2.vente.filter((v) => v.prixM2Median);
-  const p2Prix = p2Ventes.length > 0
-    ? Math.round(p2Ventes.reduce((sum, v) => sum + (v.prixM2Median || 0), 0) / p2Ventes.length)
-    : null;
+  // Utiliser les valeurs consolidées de l'analyse si disponible, sinon fallback sur la moyenne simple
+  const p2Prix = analyse?.vente?.valeurConsolidee ?? (
+    phase2.vente.filter((v) => v.prixM2Median).length > 0
+      ? Math.round(phase2.vente.filter((v) => v.prixM2Median).reduce((sum, v) => sum + (v.prixM2Median || 0), 0) / phase2.vente.filter((v) => v.prixM2Median).length)
+      : null
+  );
 
-  const p2Locations = phase2.location.filter((l) => l.loyerM2Median);
-  const p2Loyer = p2Locations.length > 0
-    ? Math.round(p2Locations.reduce((sum, l) => sum + (l.loyerM2Median || 0), 0) / p2Locations.length * 100) / 100
-    : null;
+  const p2Loyer = analyse?.location?.valeurConsolidee ?? (
+    phase2.location.filter((l) => l.loyerM2Median).length > 0
+      ? Math.round(phase2.location.filter((l) => l.loyerM2Median).reduce((sum, l) => sum + (l.loyerM2Median || 0), 0) / phase2.location.filter((l) => l.loyerM2Median).length * 100) / 100
+      : null
+  );
 
-  const p2Taux = phase2.tauxCapiMoyen;
+  const p2Taux = analyse?.tauxCapiConsolide ?? phase2.tauxCapiMoyen;
 
   const comparisons = [
     { label: "Valeur vénale", p1: p1Prix, p2: p2Prix, fmt: fmtPrix, icon: Building2 },
@@ -378,7 +521,7 @@ function SyntheseBlock({ phase1, phase2 }: { phase1: Phase1Data; phase2: Phase2D
 
 function ActifCard({ etude, index }: { etude: EtudeActif; index: number }) {
   const [expanded, setExpanded] = useState(false);
-  const { actif, phase1, phase2 } = etude;
+  const { actif, phase1, phase2, analyse } = etude;
   const Icon = typeIcon(actif.type);
   const gradient = typeGradient(actif.type);
 
@@ -448,12 +591,19 @@ function ActifCard({ etude, index }: { etude: EtudeActif; index: number }) {
             </div>
 
             {/* Quick taux capi */}
-            {(phase1.tauxCapi || phase2.tauxCapiMoyen) && (
+            {(phase1.tauxCapi || phase2.tauxCapiMoyen || analyse?.tauxCapiConsolide) && (
               <div className="border-l border-border/40 pl-4">
                 <p className="text-[10px] text-muted-foreground">Taux capi</p>
-                <p className="text-sm font-bold tabular-nums">
-                  {fmtTaux(phase1.tauxCapi?.taux || phase2.tauxCapiMoyen)}
-                </p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-sm font-bold tabular-nums">
+                    {fmtTaux(phase1.tauxCapi?.taux || analyse?.tauxCapiConsolide || phase2.tauxCapiMoyen)}
+                  </p>
+                  {analyse?.tauxCapiNote && (
+                    <span className={`text-[10px] font-bold ${NOTE_STYLES[analyse.tauxCapiNote].text}`}>
+                      {analyse.tauxCapiNote}
+                    </span>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -525,8 +675,34 @@ function ActifCard({ etude, index }: { etude: EtudeActif; index: number }) {
                   <Phase2Block data={phase2} />
                 </div>
 
+                {/* Analyse intelligente */}
+                {analyse && (analyse.vente || analyse.location) && (
+                  <div>
+                    <div className="flex items-center gap-2.5 mb-4">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10">
+                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+                      </div>
+                      <h4 className="text-sm font-bold">Analyse consolidée</h4>
+                      <Badge variant="outline" className="text-[10px] py-0 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">
+                        Pondération intelligente
+                      </Badge>
+                      {analyse.tauxCapiConsolide != null && analyse.tauxCapiNote && (
+                        <div className="ml-auto flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">Taux capi consolidé :</span>
+                          <span className="text-sm font-bold">{fmtTaux(analyse.tauxCapiConsolide)}</span>
+                          <ConfidenceBadge note={analyse.tauxCapiNote} score={analyse.tauxCapiConfiance!} />
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-3">
+                      {analyse.vente && <AnalyseBlock analyse={analyse.vente} mode="vente" />}
+                      {analyse.location && <AnalyseBlock analyse={analyse.location} mode="location" />}
+                    </div>
+                  </div>
+                )}
+
                 {/* Synthèse */}
-                <SyntheseBlock phase1={phase1} phase2={phase2} />
+                <SyntheseBlock phase1={phase1} phase2={phase2} analyse={analyse} />
               </div>
             </motion.div>
           )}
