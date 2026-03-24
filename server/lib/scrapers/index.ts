@@ -158,18 +158,20 @@ export async function getEtudeMarche(actifId?: string) {
   // Build per-actif data
   return allActifs.map((actif) => {
     const cp = actif.codePostal || "";
-    const { typeBien } = mapActifTypeToSearch(actif.type || "résidentiel");
+    const { typeBien, dvfCompatible, anilCompatible } = mapActifTypeToSearch(actif.type || "résidentiel");
 
     // Phase 1: données officielles (DVF + ANIL)
-    const venalesDVF = venales.filter(
-      (v) => v.codePostal === cp && v.typeBien === typeBien && v.source === "dvf",
-    );
-    const locativesANIL = locatives.filter(
-      (l) => l.codePostal === cp && (l.typeBien === typeBien || l.typeBien === "appartement") && l.source === "anil",
-    );
-    const tauxCalc = tauxCapi.filter(
-      (t) => t.codePostal === cp && t.typeBien === typeBien && t.source === "calculé",
-    );
+    // Ne retourner des données QUE si le type d'actif est compatible avec la source.
+    // Pour les crèches et bureaux, on préfère "pas de données" à de fausses estimations.
+    const venalesDVF = dvfCompatible
+      ? venales.filter((v) => v.codePostal === cp && v.typeBien === typeBien && v.source === "dvf")
+      : [];
+    const locativesANIL = anilCompatible
+      ? locatives.filter((l) => l.codePostal === cp && l.typeBien === typeBien && l.source === "anil")
+      : [];
+    const tauxCalc = (dvfCompatible && anilCompatible)
+      ? tauxCapi.filter((t) => t.codePostal === cp && t.typeBien === typeBien && t.source === "calculé")
+      : [];
 
     // Phase 2: données scrapées
     const scrapedData = scraping.filter((s) => s.actifId === actif.id);
@@ -194,6 +196,15 @@ export async function getEtudeMarche(actifId?: string) {
       ? Math.round((phase2TauxValues.reduce((a, b) => a + b, 0) / phase2TauxValues.length) * 100) / 100
       : null;
 
+    // Avertissements pour les types d'actifs sans données fiables
+    const avertissements: string[] = [];
+    if (!dvfCompatible) {
+      avertissements.push(`Pas de données DVF disponibles pour le type "${actif.type}" — les prix de vente DVF ne sont pas applicables à ce type d'actif.`);
+    }
+    if (!anilCompatible) {
+      avertissements.push(`Pas de données ANIL disponibles pour le type "${actif.type}" — la carte des loyers ANIL ne couvre que le résidentiel.`);
+    }
+
     return {
       actif: {
         id: actif.id,
@@ -210,6 +221,7 @@ export async function getEtudeMarche(actifId?: string) {
         tauxCapitalisation: actif.tauxCapitalisation,
         prixM2Marche: actif.prixM2Marche,
       },
+      avertissements,
       phase1: {
         valeurVenale: venalesDVF[0]
           ? {

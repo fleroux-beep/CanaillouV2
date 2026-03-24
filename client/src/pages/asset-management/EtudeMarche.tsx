@@ -82,6 +82,7 @@ interface ActifInfo {
 
 interface EtudeActif {
   actif: ActifInfo;
+  avertissements?: string[];
   phase1: Phase1Data;
   phase2: Phase2Data;
 }
@@ -477,6 +478,20 @@ function ActifCard({ etude, index }: { etude: EtudeActif; index: number }) {
               transition={{ duration: 0.25 }}
             >
               <div className="border-t border-border/30 p-5 space-y-6">
+                {/* Avertissements sur la compatibilité des données */}
+                {etude.avertissements && etude.avertissements.length > 0 && (
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+                    <div className="flex items-start gap-2.5">
+                      <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                      <div className="space-y-1">
+                        {etude.avertissements.map((msg, i) => (
+                          <p key={i} className="text-xs text-amber-700 dark:text-amber-400">{msg}</p>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Phase 1 */}
                 <div>
                   <div className="flex items-center gap-2.5 mb-4">

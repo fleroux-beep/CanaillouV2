@@ -190,25 +190,41 @@ export function computeTauxCapi(prixM2: number, loyerM2Mensuel: number): number 
 
 /**
  * Map le type d'actif Canaillou vers les types recherchés par les plateformes.
+ *
+ * IMPORTANT : certains types d'actifs (crèche, bureau) n'ont PAS d'équivalent
+ * fiable dans les données DVF/ANIL. Pour ces types, `dvfCompatible` est false
+ * et la Phase 1 ne doit PAS retourner de données (mieux vaut "pas de données"
+ * que de fausses données issues d'un type de bien différent).
  */
-export function mapActifTypeToSearch(type: string): { typeBien: string; searchTypes: string[] } {
+export function mapActifTypeToSearch(type: string): {
+  typeBien: string;
+  searchTypes: string[];
+  dvfCompatible: boolean;
+  anilCompatible: boolean;
+} {
   const t = (type || "").toLowerCase();
-  if (t === "résidentiel" || t === "residentiel") {
-    return { typeBien: "appartement", searchTypes: ["appartement", "maison"] };
+  if (t === "résidentiel" || t === "residentiel" || t === "habitation") {
+    return { typeBien: "appartement", searchTypes: ["appartement", "maison"], dvfCompatible: true, anilCompatible: true };
   }
   if (t === "commercial" || t === "commerce") {
-    return { typeBien: "local_commercial", searchTypes: ["local_commercial", "commerce"] };
+    return { typeBien: "local_commercial", searchTypes: ["local_commercial", "commerce"], dvfCompatible: true, anilCompatible: false };
   }
   if (t === "bureau") {
-    return { typeBien: "bureau", searchTypes: ["bureau"] };
+    // DVF ne catégorise pas les bureaux séparément ; ANIL ne couvre que le résidentiel.
+    // Phase 2 (scraping) peut trouver des données pertinentes via les plateformes spécialisées.
+    return { typeBien: "bureau", searchTypes: ["bureau"], dvfCompatible: false, anilCompatible: false };
   }
   if (t === "mixte") {
-    return { typeBien: "appartement", searchTypes: ["appartement", "local_commercial"] };
+    // Actif mixte : on cherche des données résidentielles (le plus courant), mais on signale
+    // que les données ne couvrent pas la partie commerciale.
+    return { typeBien: "appartement", searchTypes: ["appartement", "local_commercial"], dvfCompatible: true, anilCompatible: true };
   }
   if (t === "crèche" || t === "creche") {
-    return { typeBien: "local_commercial", searchTypes: ["local_commercial"] };
+    // Les crèches sont des actifs atypiques : ni résidentiel, ni commercial classique.
+    // Aucune donnée DVF/ANIL n'est pertinente. Seul le scraping Phase 2 ciblé peut aider.
+    return { typeBien: "local_commercial", searchTypes: ["local_commercial"], dvfCompatible: false, anilCompatible: false };
   }
-  return { typeBien: "appartement", searchTypes: ["appartement"] };
+  return { typeBien: "appartement", searchTypes: ["appartement"], dvfCompatible: true, anilCompatible: true };
 }
 
 // ============================================================
