@@ -118,7 +118,14 @@ async function scrapeType(
     return null;
   }
 
-  logger.info(`PAP [${typeRecherche}]: page récupérée (${pageResult.html.length} chars), URL finale: ${pageResult.url}`);
+  const finalUrl = pageResult.url;
+  logger.info(`PAP [${typeRecherche}]: page récupérée (${pageResult.html.length} chars), URL finale: ${finalUrl}`);
+
+  // Détection de redirection hors recherche
+  if (!finalUrl.includes("pap.fr") || finalUrl.endsWith("pap.fr/")) {
+    logger.warn(`PAP [${typeRecherche}]: REDIRECTION détectée — URL finale "${finalUrl}" n'est pas une page de recherche. Résultats ignorés.`);
+    return null;
+  }
 
   const listings = extractListings(pageResult.html);
   logger.info(`PAP [${typeRecherche}]: ${listings.length} annonces extraites`);

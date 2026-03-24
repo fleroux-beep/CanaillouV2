@@ -112,7 +112,15 @@ async function scrapeType(
     return null;
   }
 
-  logger.info(`SeLoger B&C [${typeRecherche}]: page récupérée (${pageResult.html.length} chars), URL finale: ${pageResult.url}`);
+  const finalUrl = pageResult.url;
+  logger.info(`SeLoger B&C [${typeRecherche}]: page récupérée (${pageResult.html.length} chars), URL finale: ${finalUrl}`);
+
+  // Détection de redirection — si l'URL finale ne contient plus le code postal,
+  // les résultats ne sont pas pertinents pour la localisation demandée.
+  if (!finalUrl.includes(ctx.codePostal)) {
+    logger.warn(`SeLoger B&C [${typeRecherche}]: REDIRECTION détectée — URL finale "${finalUrl}" ne contient pas le code postal "${ctx.codePostal}". Résultats ignorés.`);
+    return null;
+  }
 
   const listings = extractListings(pageResult.html);
   logger.info(`SeLoger B&C [${typeRecherche}]: ${listings.length} annonces extraites`);

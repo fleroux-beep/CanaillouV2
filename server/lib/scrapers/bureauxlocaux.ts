@@ -93,7 +93,17 @@ async function scrapeType(
     return null;
   }
 
-  logger.info(`BureauxLocaux [${typeRecherche}]: page récupérée (${pageResult.html.length} chars), URL finale: ${pageResult.url}`);
+  // Détection de redirection — si l'URL finale ne contient plus le code postal,
+  // le site a redirigé vers une page générique (nationale/régionale).
+  // Les résultats ne sont pas pertinents pour la localisation demandée.
+  const finalUrl = pageResult.url;
+  logger.info(`BureauxLocaux [${typeRecherche}]: page récupérée (${pageResult.html.length} chars), URL finale: ${finalUrl}`);
+
+  if (!finalUrl.includes(ctx.codePostal)) {
+    logger.warn(`BureauxLocaux [${typeRecherche}]: REDIRECTION détectée — URL finale "${finalUrl}" ne contient pas le code postal "${ctx.codePostal}". ` +
+      `Le site a probablement redirigé vers une page générique. Résultats ignorés.`);
+    return null;
+  }
 
   const listings = extractListings(pageResult.html);
   logger.info(`BureauxLocaux [${typeRecherche}]: ${listings.length} annonces extraites`);

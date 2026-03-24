@@ -151,7 +151,14 @@ async function scrapeLBCType(
     return null;
   }
 
-  logger.info(`LeBonCoin [${typeRecherche}]: page récupérée (${pageResult.html.length} chars), URL finale: ${pageResult.url}`);
+  const finalUrl = pageResult.url;
+  logger.info(`LeBonCoin [${typeRecherche}]: page récupérée (${pageResult.html.length} chars), URL finale: ${finalUrl}`);
+
+  // Détection de redirection hors recherche (page d'accueil, captcha, etc.)
+  if (!finalUrl.includes("leboncoin.fr/recherche") && !finalUrl.includes("leboncoin.fr/annonces")) {
+    logger.warn(`LeBonCoin [${typeRecherche}]: REDIRECTION détectée — URL finale "${finalUrl}" n'est pas une page de recherche. Résultats ignorés.`);
+    return null;
+  }
 
   const listings = extractListings(pageResult.html);
   logger.info(`LeBonCoin [${typeRecherche}]: ${listings.length} annonces extraites du HTML`);

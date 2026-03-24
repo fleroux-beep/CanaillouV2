@@ -125,7 +125,14 @@ async function scrapeType(
     return null;
   }
 
-  logger.info(`SeLoger [${typeRecherche}]: page récupérée (${pageResult.html.length} chars), URL finale: ${pageResult.url}`);
+  const finalUrl = pageResult.url;
+  logger.info(`SeLoger [${typeRecherche}]: page récupérée (${pageResult.html.length} chars), URL finale: ${finalUrl}`);
+
+  // Détection de redirection hors recherche
+  if (!finalUrl.includes("seloger.com") || finalUrl.endsWith("seloger.com/")) {
+    logger.warn(`SeLoger [${typeRecherche}]: REDIRECTION détectée — URL finale "${finalUrl}" n'est pas une page de recherche. Résultats ignorés.`);
+    return null;
+  }
 
   const listings = extractListings(pageResult.html);
   logger.info(`SeLoger [${typeRecherche}]: ${listings.length} annonces extraites`);
