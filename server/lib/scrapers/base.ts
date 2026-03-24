@@ -54,6 +54,17 @@ let browserAvailable: boolean | null = null; // null = not checked yet
  * Retourne une instance partagée du navigateur Chromium.
  * Retourne null si Chromium n'est pas disponible.
  */
+const BROWSER_LAUNCH_TIMEOUT_MS = 15_000; // 15s max pour lancer Chromium
+
+async function launchWithTimeout(opts: Record<string, any>): Promise<Browser> {
+  return Promise.race([
+    chromium.launch(opts),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Chromium launch timeout")), BROWSER_LAUNCH_TIMEOUT_MS),
+    ),
+  ]);
+}
+
 async function getBrowser(): Promise<Browser | null> {
   if (browserAvailable === false) return null;
 
@@ -77,25 +88,15 @@ async function getBrowser(): Promise<Browser | null> {
   }
 
   if (!executablePath) {
-    // Essayer le lancement sans chemin explicite (Playwright cherche tout seul)
-    try {
-      browserInstance = await chromium.launch({
-        headless: true,
-        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-      });
-      browserAvailable = true;
-      logger.info("Playwright: navigateur Chromium lancé (auto-détecté)");
-      return browserInstance;
-    } catch {
-      browserAvailable = false;
-      logger.warn("Playwright: aucun navigateur Chromium trouvé — scrapers Phase 2 désactivés. " +
-        "Installez Chromium ou définissez CHROMIUM_PATH.");
-      return null;
-    }
+    // Pas de binaire trouvé — marquer indisponible immédiatement (pas de tentative auto)
+    browserAvailable = false;
+    logger.warn("Playwright: aucun navigateur Chromium trouvé — scrapers Phase 2 désactivés. " +
+      "Installez Chromium ou définissez CHROMIUM_PATH.");
+    return null;
   }
 
   try {
-    browserInstance = await chromium.launch({
+    browserInstance = await launchWithTimeout({
       headless: true,
       executablePath,
       args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
@@ -113,6 +114,14 @@ async function getBrowser(): Promise<Browser | null> {
 /**
  * Ferme proprement le navigateur (appelé à l'arrêt du serveur).
  */
+/**
+ * Tente de lancer le navigateur si pas encore vérifié, puis retourne la dispo.
+ */
+export async function ensureBrowserChecked(): Promise<boolean> {
+  if (browserAvailable === null) await getBrowser();
+  return browserAvailable === true;
+}
+
 export async function closeBrowser(): Promise<void> {
   if (browserInstance) {
     await browserInstance.close().catch(() => {});

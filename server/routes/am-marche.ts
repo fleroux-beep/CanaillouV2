@@ -149,14 +149,25 @@ export function registerMarcheRoutes(app: Express) {
   // ============================================================
 
   // Sync global: scrape toutes les plateformes pour tous les actifs
+  // Timeout de 5 minutes pour éviter les requêtes infinies
   app.post("/api/am/marche/sync-scraping", requireWriteAdmin, async (_req: any, res: any) => {
+    const SCRAPE_TIMEOUT_MS = 5 * 60 * 1000; // 5 min
+    const timer = setTimeout(() => {
+      if (!res.headersSent) {
+        logger.warn("sync-scraping: timeout après 5 minutes");
+        res.status(504).json({ error: "Scraping timeout après 5 minutes" });
+      }
+    }, SCRAPE_TIMEOUT_MS);
+
     try {
       logger.info("sync-scraping: starting global scrape");
       const result = await scrapeAllActifs();
-      res.json(result);
+      clearTimeout(timer);
+      if (!res.headersSent) res.json(result);
     } catch (error: any) {
+      clearTimeout(timer);
       logger.error("sync-scraping error", { error: error.message, stack: error.stack });
-      res.status(500).json({ error: `Erreur scraping: ${error.message}` });
+      if (!res.headersSent) res.status(500).json({ error: `Erreur scraping: ${error.message}` });
     }
   });
 

@@ -7,7 +7,7 @@ import { refMarcheScraping, actifs, refValeursVenales, refValeursLocatives, refT
 import { eq, and, isNull } from "drizzle-orm";
 import { logger } from "../logger";
 import type { ScrapingContext, ScrapedResult, Scraper } from "./base";
-import { mapActifTypeToSearch } from "./base";
+import { mapActifTypeToSearch, ensureBrowserChecked } from "./base";
 import { analyserPhase2 } from "./analyse-marche";
 
 // Import scrapers
@@ -134,6 +134,13 @@ export async function scrapeAllActifs(): Promise<{
   scraped: number;
   errors: string[];
 }> {
+  // Vérifier dès le début si le navigateur est disponible — éviter 11×6 appels inutiles
+  const hasBrowser = await ensureBrowserChecked();
+  if (!hasBrowser) {
+    logger.warn("scrapeAllActifs: Chromium indisponible — scraping Phase 2 ignoré");
+    return { total: 0, scraped: 0, errors: ["Chromium non disponible — installez chromium ou définissez CHROMIUM_PATH"] };
+  }
+
   const allActifs = await db
     .select({
       id: actifs.id,
