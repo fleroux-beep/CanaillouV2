@@ -5,7 +5,7 @@
 import {
   Scraper, ScrapedResult, ScrapingContext,
   fetchPage, getCached, setCache,
-  median, percentile, computeTauxCapi,
+  median, percentile, computeTauxCapi, filterPlausiblePrixM2,
 } from "./base";
 import { logger } from "../logger";
 
@@ -122,13 +122,21 @@ async function scrapeType(
   }
 
   const allPrixM2 = listings.map((l) => l.prixM2);
-  const prixM2Values = allPrixM2.filter((v) => v > 10 && v < 100000);
-  logger.info(`SeLoger B&C [${typeRecherche}]: ${prixM2Values.length}/${allPrixM2.length} prix/m² valides. ` +
-    `Valeurs brutes (5 premiers): ${allPrixM2.slice(0, 5).join(", ")}`);
-  if (prixM2Values.length < 1) {
-    logger.warn(`SeLoger B&C [${typeRecherche}]: aucun prix/m² valide — abandon`);
+  logger.info(`SeLoger B&C [${typeRecherche}]: ${allPrixM2.length} prix/m² bruts. ` +
+    `Valeurs (5 premiers): ${allPrixM2.slice(0, 5).join(", ")}`);
+
+  // Validation de plausibilité
+  const plausibility = filterPlausiblePrixM2(allPrixM2, typeRecherche, true);
+  if (plausibility.reason) {
+    logger.info(`SeLoger B&C [${typeRecherche}]: filtre plausibilité → ${plausibility.reason}`);
+  }
+  if (plausibility.values.length < 1) {
+    logger.warn(`SeLoger B&C [${typeRecherche}]: aucun prix/m² plausible — abandon (rejeté: ${plausibility.rejected})`);
     return null;
   }
+
+  const prixM2Values = plausibility.values;
+  logger.info(`SeLoger B&C [${typeRecherche}]: ${prixM2Values.length} valeurs retenues après filtre plausibilité`);
 
   const result: ScrapedResult = {
     source: "seloger_bc",
@@ -143,11 +151,10 @@ async function scrapeType(
     result.prixM2Bas = Math.round(percentile(prixM2Values, 0.25));
     result.prixM2Haut = Math.round(percentile(prixM2Values, 0.75));
   } else {
-    const isAnnual = prixM2Values.every((v) => v > 50);
-    const divisor = isAnnual ? 12 : 1;
-    result.loyerM2MensuelMedian = Math.round((median(prixM2Values) / divisor) * 100) / 100;
-    result.loyerM2MensuelBas = Math.round((percentile(prixM2Values, 0.25) / divisor) * 100) / 100;
-    result.loyerM2MensuelHaut = Math.round((percentile(prixM2Values, 0.75) / divisor) * 100) / 100;
+    // Les valeurs sont déjà en mensuel grâce à filterPlausiblePrixM2
+    result.loyerM2MensuelMedian = Math.round(median(prixM2Values) * 100) / 100;
+    result.loyerM2MensuelBas = Math.round(percentile(prixM2Values, 0.25) * 100) / 100;
+    result.loyerM2MensuelHaut = Math.round(percentile(prixM2Values, 0.75) * 100) / 100;
   }
 
   return result;

@@ -366,6 +366,80 @@ export function computeTauxCapi(prixM2: number, loyerM2Mensuel: number): number 
   return Math.round(((loyerM2Mensuel * 12) / prixM2) * 10000) / 100;
 }
 
+// ============================================================
+// Validation de plausibilité des prix/m²
+// ============================================================
+
+/**
+ * Plages de plausibilité prix/m² par type de transaction.
+ * Permet de filtrer les valeurs aberrantes (ex: prix de vente capturé comme loyer).
+ */
+const PLAUSIBILITY_RANGES = {
+  vente: { min: 200, max: 30000 },      // €/m² — de la campagne profonde au luxe parisien
+  location: { min: 3, max: 80 },         // €/m²/mois — loyer mensuel raisonnable
+  location_annual: { min: 30, max: 1000 }, // €/m²/an — loyer annuel (commercial)
+};
+
+/**
+ * Filtre les prix/m² selon la plausibilité pour le type de transaction.
+ * Retourne un objet avec les valeurs filtrées et les stats de rejet.
+ */
+export function filterPlausiblePrixM2(
+  prixM2Values: number[],
+  typeRecherche: "vente" | "location",
+  isCommercial: boolean = false,
+): { values: number[]; rejected: number; reason?: string } {
+  if (prixM2Values.length === 0) return { values: [], rejected: 0 };
+
+  if (typeRecherche === "vente") {
+    const range = PLAUSIBILITY_RANGES.vente;
+    const filtered = prixM2Values.filter((v) => v >= range.min && v <= range.max);
+    return {
+      values: filtered,
+      rejected: prixM2Values.length - filtered.length,
+      reason: filtered.length < prixM2Values.length
+        ? `${prixM2Values.length - filtered.length} valeur(s) hors plage vente [${range.min}-${range.max} €/m²]`
+        : undefined,
+    };
+  }
+
+  // Location : tester d'abord si c'est du mensuel, sinon annuel
+  const monthlyRange = PLAUSIBILITY_RANGES.location;
+  const monthlyFiltered = prixM2Values.filter((v) => v >= monthlyRange.min && v <= monthlyRange.max);
+
+  if (monthlyFiltered.length > 0) {
+    return {
+      values: monthlyFiltered,
+      rejected: prixM2Values.length - monthlyFiltered.length,
+      reason: monthlyFiltered.length < prixM2Values.length
+        ? `${prixM2Values.length - monthlyFiltered.length} valeur(s) hors plage loyer mensuel [${monthlyRange.min}-${monthlyRange.max} €/m²/mois]`
+        : undefined,
+    };
+  }
+
+  // Aucune valeur mensuelle plausible — tester si annuel (commercial)
+  if (isCommercial) {
+    const annualRange = PLAUSIBILITY_RANGES.location_annual;
+    const annualFiltered = prixM2Values.filter((v) => v >= annualRange.min && v <= annualRange.max);
+    if (annualFiltered.length > 0) {
+      // Convertir en mensuel
+      const monthlyValues = annualFiltered.map((v) => Math.round((v / 12) * 100) / 100);
+      return {
+        values: monthlyValues,
+        rejected: prixM2Values.length - annualFiltered.length,
+        reason: `Valeurs interprétées comme loyer annuel, converties en mensuel (÷12)`,
+      };
+    }
+  }
+
+  // Rien de plausible — tout rejeter
+  return {
+    values: [],
+    rejected: prixM2Values.length,
+    reason: `Toutes les valeurs (${prixM2Values.slice(0, 5).join(", ")}...) hors plages de plausibilité — probablement des prix de vente captés comme loyers`,
+  };
+}
+
 /**
  * Map le type d'actif Canaillou vers les types recherchés par les plateformes.
  */

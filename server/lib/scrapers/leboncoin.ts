@@ -6,7 +6,7 @@
 import {
   Scraper, ScrapedResult, ScrapingContext,
   fetchPage, getCached, setCache,
-  median, percentile, computeTauxCapi,
+  median, percentile, computeTauxCapi, filterPlausiblePrixM2,
 } from "./base";
 import { logger } from "../logger";
 
@@ -161,13 +161,18 @@ async function scrapeLBCType(
   }
 
   const allPrixM2 = listings.map((l) => l.prixM2);
-  const prixM2Values = allPrixM2.filter((v) => v > 50 && v < 100000);
-  logger.info(`LeBonCoin [${typeRecherche}]: ${prixM2Values.length}/${allPrixM2.length} prix/m² passent le filtre [50-100000]. ` +
+  const isCommercial = ["local_commercial", "bureau", "commerce"].includes(ctx.typeBien);
+  const plausibility = filterPlausiblePrixM2(allPrixM2, typeRecherche, isCommercial);
+  if (plausibility.reason) {
+    logger.info(`LeBonCoin [${typeRecherche}]: filtre plausibilité → ${plausibility.reason}`);
+  }
+  logger.info(`LeBonCoin [${typeRecherche}]: ${plausibility.values.length}/${allPrixM2.length} prix/m² plausibles. ` +
     `Valeurs brutes (5 premiers): ${allPrixM2.slice(0, 5).join(", ")}`);
-  if (prixM2Values.length < 1) {
-    logger.warn(`LeBonCoin [${typeRecherche}]: aucun prix/m² dans la plage valide — abandon`);
+  if (plausibility.values.length < 1) {
+    logger.warn(`LeBonCoin [${typeRecherche}]: aucun prix/m² plausible — abandon`);
     return null;
   }
+  const prixM2Values = plausibility.values;
 
   const result: ScrapedResult = {
     source: "leboncoin",
