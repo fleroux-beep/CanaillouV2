@@ -1,5 +1,6 @@
 /**
  * Scraper SeLoger Bureaux & Commerces — Immobilier professionnel.
+ * Site : https://www.seloger-bureaux-commerces.com/
  * Utilise Playwright pour le rendu JS complet.
  */
 import {
@@ -8,25 +9,39 @@ import {
   median, percentile, computeTauxCapi, filterPlausiblePrixM2,
 } from "./base";
 import { logger } from "../logger";
+import { getDeptInfo } from "./geo-departements";
 
-const DOMAIN = "bureauxcommerces.seloger.com";
+const DOMAIN = "www.seloger-bureaux-commerces.com";
 
+/**
+ * Mapping typeBien → slug du type de bien dans les URLs SeLoger B&C.
+ * - bureau → /achat/bureau/... ou /location/bureau/...
+ * - local_commercial / commerce → /achat/boutique/... ou /location/boutique/...
+ */
 const PROPERTY_TYPES: Record<string, string> = {
   bureau: "bureau",
-  local_commercial: "local-commercial",
-  commerce: "local-commercial",
-  appartement: "bureau",
+  local_commercial: "boutique",
+  commerce: "boutique",
 };
 
-function buildUrl(ctx: ScrapingContext, typeRecherche: "vente" | "location"): string {
+function buildUrl(ctx: ScrapingContext, typeRecherche: "vente" | "location"): string | null {
   const typePath = PROPERTY_TYPES[ctx.typeBien] || "bureau";
   const transaction = typeRecherche === "vente" ? "achat" : "location";
 
+  const deptInfo = getDeptInfo(ctx.codePostal);
+  if (!deptInfo) {
+    logger.warn(`SeLoger B&C: code postal "${ctx.codePostal}" non reconnu — impossible de construire l'URL`);
+    return null;
+  }
+
   const villePath = ctx.ville.toLowerCase()
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, "-");
+    .replace(/['']/g, "-")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
 
-  return `https://${DOMAIN}/${transaction}/${typePath}/${villePath}-${ctx.codePostal}/`;
+  // Format : /{transaction}/{type}/{region}/{departement}/{ville}-{codePostal}
+  return `https://${DOMAIN}/${transaction}/${typePath}/${deptInfo.region}/${deptInfo.dept}/${villePath}-${ctx.codePostal}`;
 }
 
 interface BCListing {
@@ -99,12 +114,13 @@ async function scrapeType(
   typeRecherche: "vente" | "location",
 ): Promise<ScrapedResult | null> {
   const url = buildUrl(ctx, typeRecherche);
+  if (!url) return null;
   logger.info(`SeLoger B&C [${typeRecherche}]: URL construite → ${url}`);
 
   const pageResult = await fetchPage(url, {
     domain: DOMAIN,
     timeoutMs: 25000,
-    waitForSelector: "[class*='card'], [class*='listing']",
+    waitForSelector: "[class*='card'], [class*='listing'], [class*='annonce']",
   });
 
   if (!pageResult) {
