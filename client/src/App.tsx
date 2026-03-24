@@ -24,7 +24,6 @@ import ReportingPage from "./pages/asset-management/Reporting";
 import SCIsAssociesPage from "./pages/asset-management/SCIsAssocies";
 import VuePatrimoinePage from "./pages/asset-management/VuePatrimoine";
 import SimulateurPage from "./pages/asset-management/Simulateur";
-import DonneesMarche from "./pages/asset-management/DonneesMarche";
 import EtudeMarchePage from "./pages/asset-management/EtudeMarche";
 // Gestion Locative
 import GLDashboard from "./pages/gestion-locative/Dashboard";
@@ -88,7 +87,6 @@ export default function App() {
         <Route path="/asset-management/calendrier" component={CalendrierAMPage} />
         <Route path="/asset-management/reporting" component={ReportingPage} />
         <Route path="/asset-management/simulateur" component={SimulateurPage} />
-        <Route path="/asset-management/donnees-marche" component={DonneesMarche} />
         <Route path="/asset-management/etude-marche" component={EtudeMarchePage} />
 
         {/* Gestion Locative */}
@@ -116,7 +114,7 @@ export default function App() {
           <div className="flex h-[60vh] items-center justify-center">
             <div className="text-center">
               <p className="text-4xl font-bold text-muted-foreground/30">404</p>
-              <p className="mt-2 text-muted-foreground">Page non trouvee</p>
+              <p className="mt-2 text-muted-foreground">Page non trouvée</p>
             </div>
           </div>
         </Route>
