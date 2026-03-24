@@ -174,12 +174,18 @@ async function withRetry<T>(fn: () => Promise<T>, label: string, retries = 5, de
   throw new Error("unreachable");
 }
 
-// Run schema setup, seed, then start listening
+// Start listening FIRST (so healthcheck passes), then run DB setup
 (async () => {
   // Log masked DATABASE_URL for debugging
   const dbUrl = process.env.DATABASE_URL || "";
   logger.info("db host: " + (dbUrl.match(/@([^:\/]+)/)?.[1] || "unknown"));
 
+  // Start HTTP server immediately so Railway healthcheck passes
+  app.listen(PORT, "0.0.0.0", () => {
+    logger.info("server started", { port: PORT, env: process.env.NODE_ENV || "development" });
+  });
+
+  // DB setup in background (non-blocking for healthcheck)
   try {
     await withRetry(() => ensureSchema(), "schema setup");
   } catch (_) {
@@ -217,12 +223,8 @@ async function withRetry<T>(fn: () => Promise<T>, label: string, retries = 5, de
     logger.warn("Default taux_capitalisation update skipped: " + (err.message || err));
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    logger.info("server started", { port: PORT, env: process.env.NODE_ENV || "development" });
-
-    // Start automatic market data sync (DVF + ANIL + taux capi)
-    startAutoSync();
-  });
+  // Start automatic market data sync (DVF + ANIL + taux capi)
+  startAutoSync();
 })();
 
 export default app;
