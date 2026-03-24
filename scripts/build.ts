@@ -24,6 +24,9 @@ await esbuild.build({
     "better-sqlite3",
     "lightningcss",
     "xlsx",
+    "playwright-core",
+    "playwright",
+    "chromium-bidi",
   ],
   define: {
     "process.env.NODE_ENV": '"production"',
