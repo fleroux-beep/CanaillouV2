@@ -131,6 +131,8 @@ export const meilleursAgentsScraper: Scraper = {
     }
 
     const { vente, location } = extractPrices(pageResult.html, ctx.typeBien);
+    logger.info(`MeilleursAgents: extraction terminée — vente: ${vente ? `prixM2=${vente.prixM2Median}` : "null"}, ` +
+      `location: ${location ? `loyerM2=${location.loyerM2MensuelMedian}` : "null"}`);
     const results: ScrapedResult[] = [];
     if (vente) results.push(vente);
     if (location) results.push(location);

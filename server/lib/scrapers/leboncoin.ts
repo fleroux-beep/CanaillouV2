@@ -137,6 +137,7 @@ async function scrapeLBCType(
   typeRecherche: "vente" | "location",
 ): Promise<ScrapedResult | null> {
   const url = buildSearchUrl(ctx, typeRecherche);
+  logger.info(`LeBonCoin [${typeRecherche}]: URL construite → ${url}`);
 
   // Playwright : charge la page avec rendu JS complet
   const pageResult = await fetchPage(url, {
@@ -145,13 +146,28 @@ async function scrapeLBCType(
     waitForSelector: "[data-test-id='adcard']",
   });
 
-  if (!pageResult) return null;
+  if (!pageResult) {
+    logger.warn(`LeBonCoin [${typeRecherche}]: fetchPage a retourné null (Playwright échoué ou navigateur indisponible)`);
+    return null;
+  }
+
+  logger.info(`LeBonCoin [${typeRecherche}]: page récupérée (${pageResult.html.length} chars), URL finale: ${pageResult.url}`);
 
   const listings = extractListings(pageResult.html);
-  if (listings.length < 1) return null;
+  logger.info(`LeBonCoin [${typeRecherche}]: ${listings.length} annonces extraites du HTML`);
+  if (listings.length < 1) {
+    logger.warn(`LeBonCoin [${typeRecherche}]: aucune annonce extraite — abandon`);
+    return null;
+  }
 
-  const prixM2Values = listings.map((l) => l.prixM2).filter((v) => v > 50 && v < 100000);
-  if (prixM2Values.length < 1) return null;
+  const allPrixM2 = listings.map((l) => l.prixM2);
+  const prixM2Values = allPrixM2.filter((v) => v > 50 && v < 100000);
+  logger.info(`LeBonCoin [${typeRecherche}]: ${prixM2Values.length}/${allPrixM2.length} prix/m² passent le filtre [50-100000]. ` +
+    `Valeurs brutes (5 premiers): ${allPrixM2.slice(0, 5).join(", ")}`);
+  if (prixM2Values.length < 1) {
+    logger.warn(`LeBonCoin [${typeRecherche}]: aucun prix/m² dans la plage valide — abandon`);
+    return null;
+  }
 
   const result: ScrapedResult = {
     source: "leboncoin",

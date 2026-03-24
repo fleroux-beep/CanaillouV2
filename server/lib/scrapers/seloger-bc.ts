@@ -99,6 +99,7 @@ async function scrapeType(
   typeRecherche: "vente" | "location",
 ): Promise<ScrapedResult | null> {
   const url = buildUrl(ctx, typeRecherche);
+  logger.info(`SeLoger B&C [${typeRecherche}]: URL construite → ${url}`);
 
   const pageResult = await fetchPage(url, {
     domain: DOMAIN,
@@ -106,13 +107,28 @@ async function scrapeType(
     waitForSelector: "[class*='card'], [class*='listing']",
   });
 
-  if (!pageResult) return null;
+  if (!pageResult) {
+    logger.warn(`SeLoger B&C [${typeRecherche}]: fetchPage a retourné null`);
+    return null;
+  }
+
+  logger.info(`SeLoger B&C [${typeRecherche}]: page récupérée (${pageResult.html.length} chars), URL finale: ${pageResult.url}`);
 
   const listings = extractListings(pageResult.html);
-  if (listings.length < 1) return null;
+  logger.info(`SeLoger B&C [${typeRecherche}]: ${listings.length} annonces extraites`);
+  if (listings.length < 1) {
+    logger.warn(`SeLoger B&C [${typeRecherche}]: aucune annonce extraite — abandon`);
+    return null;
+  }
 
-  const prixM2Values = listings.map((l) => l.prixM2).filter((v) => v > 10 && v < 100000);
-  if (prixM2Values.length < 1) return null;
+  const allPrixM2 = listings.map((l) => l.prixM2);
+  const prixM2Values = allPrixM2.filter((v) => v > 10 && v < 100000);
+  logger.info(`SeLoger B&C [${typeRecherche}]: ${prixM2Values.length}/${allPrixM2.length} prix/m² valides. ` +
+    `Valeurs brutes (5 premiers): ${allPrixM2.slice(0, 5).join(", ")}`);
+  if (prixM2Values.length < 1) {
+    logger.warn(`SeLoger B&C [${typeRecherche}]: aucun prix/m² valide — abandon`);
+    return null;
+  }
 
   const result: ScrapedResult = {
     source: "seloger_bc",

@@ -46,6 +46,12 @@ async function runScrapers(
     try {
       const scraperResults = await scraper.scrape(ctx);
 
+      const venteResults = scraperResults.filter((r) => r.typeRecherche === "vente");
+      const locationResults = scraperResults.filter((r) => r.typeRecherche === "location");
+      logger.info(`Scraper [${scraper.name}]: ${scraperResults.length} résultat(s) — ` +
+        `vente: ${venteResults.length} (${venteResults.map((r) => `prixM2=${r.prixM2Median}`).join(", ") || "aucun"}), ` +
+        `location: ${locationResults.length} (${locationResults.map((r) => `loyer=${r.loyerM2MensuelMedian}`).join(", ") || "aucun"})`);
+
       for (const r of scraperResults) {
         await db.insert(refMarcheScraping).values({
           actifId,
@@ -115,12 +121,20 @@ export async function scrapeForActif(actif: {
   await db.delete(refMarcheScraping).where(eq(refMarcheScraping.actifId, actif.id));
 
   // Premier essai avec le rayon par défaut (5 km)
+  logger.info(`scrapeForActif: début scraping pour "${actif.ville} ${actif.codePostal}" ` +
+    `(type: ${actif.type}, typeBien: ${typeBien}, rayon: ${RAYON_KM}km)`);
   let result = await runScrapers(actif.id, baseCtx, now);
+  logger.info(`scrapeForActif: premier passage terminé — ${result.results} résultat(s), ${result.errors.length} erreur(s)`);
 
   // Si aucun résultat, élargir au rayon de fallback (10 km)
   if (result.results === 0) {
     logger.info(`Scraping: 0 résultats à ${RAYON_KM}km pour ${actif.ville} — élargissement à ${RAYON_FALLBACK_KM}km`);
     result = await runScrapers(actif.id, { ...baseCtx, rayonKm: RAYON_FALLBACK_KM }, now);
+    logger.info(`scrapeForActif: second passage (${RAYON_FALLBACK_KM}km) — ${result.results} résultat(s), ${result.errors.length} erreur(s)`);
+  }
+
+  if (result.errors.length > 0) {
+    logger.warn(`scrapeForActif: erreurs rencontrées pour "${actif.ville}": ${result.errors.join(" | ")}`);
   }
 
   return result;
