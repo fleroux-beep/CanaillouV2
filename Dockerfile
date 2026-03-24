@@ -11,6 +11,18 @@ RUN npm prune --omit=dev
 
 # Stage 2: Production
 FROM node:20-alpine
+# Install Chromium + dependencies for Playwright headless scraping
+RUN apk add --no-cache \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont \
+    && rm -rf /var/cache/apk/*
+# Tell Playwright / our code where Chromium lives
+ENV CHROMIUM_PATH=/usr/bin/chromium-browser
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 WORKDIR /app
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
