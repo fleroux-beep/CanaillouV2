@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiRequest } from "../../lib/queryClient";
@@ -725,12 +725,53 @@ export default function EtudeMarche() {
     queryFn: () => apiRequest("/api/am/marche/etude"),
   });
 
+  // Phase 2 scraping — async avec polling
+  const [scrapingJob, setScrapingJob] = useState<{
+    status: "running" | "done" | "error";
+    total: number;
+    scraped: number;
+    progress: number;
+    progressTotal: number;
+    errors: string[];
+  } | null>(null);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopPolling = useCallback(() => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+  }, []);
+
+  const pollStatus = useCallback(async () => {
+    try {
+      const res = await apiRequest<{ job: typeof scrapingJob }>("/api/am/marche/sync-scraping/status");
+      if (res.job) {
+        setScrapingJob(res.job);
+        if (res.job.status !== "running") {
+          stopPolling();
+          if (res.job.status === "done") {
+            queryClient.invalidateQueries({ queryKey: ["/api/am/marche/etude"] });
+          }
+        }
+      }
+    } catch {
+      // ignore polling errors
+    }
+  }, [queryClient, stopPolling]);
+
+  useEffect(() => () => stopPolling(), [stopPolling]);
+
   const syncScrapingMutation = useMutation({
     mutationFn: () => apiRequest("/api/am/marche/sync-scraping", { method: "POST" }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/am/marche/etude"] });
+    onSuccess: (data: any) => {
+      setScrapingJob(data.job);
+      stopPolling();
+      pollingRef.current = setInterval(pollStatus, 3000);
     },
   });
+
+  const isScrapingRunning = scrapingJob?.status === "running" || syncScrapingMutation.isPending;
 
   const syncPhase1Mutation = useMutation({
     mutationFn: async () => {
@@ -748,7 +789,7 @@ export default function EtudeMarche() {
   const types = [...new Set(etudes.map((e) => e.actif.type).filter(Boolean))];
   const filtered = filter === "all" ? etudes : etudes.filter((e) => e.actif.type === filter);
 
-  const isSyncing = syncScrapingMutation.isPending || syncPhase1Mutation.isPending;
+  const isSyncing = isScrapingRunning || syncPhase1Mutation.isPending;
 
   // Summary KPIs
   const actifsWithP1 = etudes.filter((e) => e.phase1.valeurVenale || e.phase1.valeurLocative).length;
@@ -788,12 +829,12 @@ export default function EtudeMarche() {
               disabled={isSyncing}
               className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition-all hover:shadow-xl disabled:opacity-50"
             >
-              {syncScrapingMutation.isPending ? (
+              {isScrapingRunning ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <RefreshCw className="h-4 w-4" />
               )}
-              Phase 2 (scraping)
+              {isScrapingRunning ? "Scraping en cours..." : "Phase 2 (scraping)"}
             </motion.button>
           </div>
         }
@@ -809,19 +850,35 @@ export default function EtudeMarche() {
             </p>
           </motion.div>
         )}
-        {syncScrapingMutation.isSuccess && (
+        {scrapingJob?.status === "running" && (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="flex items-center gap-3 rounded-xl border border-purple-500/30 bg-purple-500/5 px-4 py-3">
-            <CheckCircle2 className="h-4 w-4 text-purple-500 shrink-0" />
+            <Loader2 className="h-4 w-4 text-purple-500 shrink-0 animate-spin" />
             <p className="text-sm font-medium text-purple-700 dark:text-purple-300">
-              Phase 2 synchronisée — {(syncScrapingMutation.data as any)?.scraped || 0} résultats collectés pour {(syncScrapingMutation.data as any)?.total || 0} actifs.
+              Scraping en cours{scrapingJob.progressTotal > 0 ? ` — actif ${scrapingJob.progress + 1}/${scrapingJob.progressTotal}` : ""}...
             </p>
           </motion.div>
         )}
-        {(syncPhase1Mutation.isError || syncScrapingMutation.isError) && (
+        {scrapingJob?.status === "done" && (
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="flex items-center gap-3 rounded-xl border border-purple-500/30 bg-purple-500/5 px-4 py-3">
+            <CheckCircle2 className="h-4 w-4 text-purple-500 shrink-0" />
+            <p className="text-sm font-medium text-purple-700 dark:text-purple-300">
+              Phase 2 synchronisée — {scrapingJob.scraped} résultats collectés pour {scrapingJob.total} actifs.
+            </p>
+          </motion.div>
+        )}
+        {scrapingJob?.status === "error" && (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="flex items-center gap-3 rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3">
             <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
             <p className="text-sm font-medium text-red-700 dark:text-red-300">
-              Erreur : {(syncPhase1Mutation.error || syncScrapingMutation.error)?.message}
+              Erreur scraping : {scrapingJob.errors.join(", ") || "Erreur inconnue"}
+            </p>
+          </motion.div>
+        )}
+        {syncPhase1Mutation.isError && (
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="flex items-center gap-3 rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3">
+            <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
+            <p className="text-sm font-medium text-red-700 dark:text-red-300">
+              Erreur : {syncPhase1Mutation.error?.message}
             </p>
           </motion.div>
         )}

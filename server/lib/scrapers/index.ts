@@ -129,7 +129,9 @@ export async function scrapeForActif(actif: {
 /**
  * Lance le scraping global pour tous les actifs actifs.
  */
-export async function scrapeAllActifs(): Promise<{
+export async function scrapeAllActifs(
+  onProgress?: (done: number, total: number) => void,
+): Promise<{
   total: number;
   scraped: number;
   errors: string[];
@@ -158,12 +160,15 @@ export async function scrapeAllActifs(): Promise<{
   let scraped = 0;
   const allErrors: string[] = [];
 
-  for (const actif of allActifs) {
-    logger.info(`Scraping market data for: ${actif.nom} (${actif.ville} ${actif.codePostal})`);
+  for (let i = 0; i < allActifs.length; i++) {
+    const actif = allActifs[i];
+    onProgress?.(i, allActifs.length);
+    logger.info(`Scraping market data for: ${actif.nom} (${actif.ville} ${actif.codePostal}) [${i + 1}/${allActifs.length}]`);
     const { results, errors } = await scrapeForActif(actif);
     scraped += results;
     allErrors.push(...errors.map((e) => `${actif.nom}: ${e}`));
   }
+  onProgress?.(allActifs.length, allActifs.length);
 
   return { total: allActifs.length, scraped, errors: allErrors };
 }

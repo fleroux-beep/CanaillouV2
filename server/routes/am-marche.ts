@@ -145,30 +145,70 @@ export function registerMarcheRoutes(app: Express) {
   });
 
   // ============================================================
-  // Étude de marché — Phase 2 (Scraping)
+  // Étude de marché — Phase 2 (Scraping) — asynchrone
   // ============================================================
 
-  // Sync global: scrape toutes les plateformes pour tous les actifs
-  // Timeout de 5 minutes pour éviter les requêtes infinies
-  app.post("/api/am/marche/sync-scraping", requireWriteAdmin, async (_req: any, res: any) => {
-    const SCRAPE_TIMEOUT_MS = 5 * 60 * 1000; // 5 min
-    const timer = setTimeout(() => {
-      if (!res.headersSent) {
-        logger.warn("sync-scraping: timeout après 5 minutes");
-        res.status(504).json({ error: "Scraping timeout après 5 minutes" });
-      }
-    }, SCRAPE_TIMEOUT_MS);
+  // État global du scraping en cours
+  let scrapingJob: {
+    status: "running" | "done" | "error";
+    startedAt: string;
+    total: number;
+    scraped: number;
+    progress: number; // nombre d'actifs traités
+    progressTotal: number; // nombre d'actifs à traiter
+    errors: string[];
+    finishedAt?: string;
+  } | null = null;
 
-    try {
-      logger.info("sync-scraping: starting global scrape");
-      const result = await scrapeAllActifs();
-      clearTimeout(timer);
-      if (!res.headersSent) res.json(result);
-    } catch (error: any) {
-      clearTimeout(timer);
-      logger.error("sync-scraping error", { error: error.message, stack: error.stack });
-      if (!res.headersSent) res.status(500).json({ error: `Erreur scraping: ${error.message}` });
+  // Lancer le scraping (fire-and-forget) — répond immédiatement
+  app.post("/api/am/marche/sync-scraping", requireWriteAdmin, async (_req: any, res: any) => {
+    if (scrapingJob?.status === "running") {
+      return res.json({ message: "Scraping déjà en cours", job: scrapingJob });
     }
+
+    scrapingJob = {
+      status: "running",
+      startedAt: new Date().toISOString(),
+      total: 0,
+      scraped: 0,
+      progress: 0,
+      progressTotal: 0,
+      errors: [],
+    };
+
+    res.json({ message: "Scraping lancé", job: scrapingJob });
+
+    // Exécuter en arrière-plan
+    (async () => {
+      try {
+        logger.info("sync-scraping: starting global scrape (async)");
+        const result = await scrapeAllActifs((progress, total) => {
+          if (scrapingJob) {
+            scrapingJob.progress = progress;
+            scrapingJob.progressTotal = total;
+          }
+        });
+        if (scrapingJob) {
+          scrapingJob.status = "done";
+          scrapingJob.total = result.total;
+          scrapingJob.scraped = result.scraped;
+          scrapingJob.errors = result.errors;
+          scrapingJob.finishedAt = new Date().toISOString();
+        }
+      } catch (error: any) {
+        logger.error("sync-scraping error", { error: error.message, stack: error.stack });
+        if (scrapingJob) {
+          scrapingJob.status = "error";
+          scrapingJob.errors = [error.message];
+          scrapingJob.finishedAt = new Date().toISOString();
+        }
+      }
+    })();
+  });
+
+  // Endpoint de statut pour le polling
+  app.get("/api/am/marche/sync-scraping/status", requireAuth, async (_req: any, res: any) => {
+    res.json({ job: scrapingJob });
   });
 
   // Sync par actif
