@@ -1,13 +1,11 @@
 /**
  * Scraper LeBonCoin — Annonces immobilières vente et location.
- * Utilise l'API publique de recherche LeBonCoin.
- *
- * LeBonCoin expose une API JSON pour les résultats de recherche
- * accessible via leur endpoint public.
+ * Utilise Playwright pour charger la page et extraire les données JSON
+ * injectées par le framework Next.js de LeBonCoin.
  */
 import {
   Scraper, ScrapedResult, ScrapingContext,
-  fetchWithRetry, getCached, setCache,
+  fetchPage, getCached, setCache,
   median, percentile, computeTauxCapi,
 } from "./base";
 import { logger } from "../logger";
@@ -16,7 +14,7 @@ const DOMAIN = "www.leboncoin.fr";
 
 // LeBonCoin category IDs
 const CATEGORY_VENTE: Record<string, number> = {
-  appartement: 9, // Ventes immobilières
+  appartement: 9,
   maison: 9,
   local_commercial: 9,
   bureau: 9,
@@ -24,18 +22,17 @@ const CATEGORY_VENTE: Record<string, number> = {
 };
 
 const CATEGORY_LOCATION: Record<string, number> = {
-  appartement: 10, // Locations
+  appartement: 10,
   maison: 10,
   local_commercial: 10,
   bureau: 10,
   commerce: 10,
 };
 
-// Real estate types for LeBonCoin search
 const REAL_ESTATE_TYPE: Record<string, number[]> = {
-  appartement: [1], // 1 = Appartement
-  maison: [2],      // 2 = Maison
-  local_commercial: [5, 6], // 5 = Commerce, 6 = Loft/Atelier
+  appartement: [1],
+  maison: [2],
+  local_commercial: [5, 6],
   bureau: [5, 6],
   commerce: [5],
 };
@@ -51,57 +48,77 @@ function buildSearchUrl(ctx: ScrapingContext, typeRecherche: "vente" | "location
     ? (CATEGORY_VENTE[ctx.typeBien] || 9)
     : (CATEGORY_LOCATION[ctx.typeBien] || 10);
 
-  // LeBonCoin search by location + radius
   const params = new URLSearchParams({
     category: String(category),
     locations: `${ctx.ville}_${ctx.codePostal}`,
     lat: String(ctx.lat),
     lng: String(ctx.lng),
-    radius: String(Math.round(ctx.rayonKm * 1000)), // in meters
+    radius: String(Math.round(ctx.rayonKm * 1000)),
     sort: "time",
     order: "desc",
     limit: "50",
   });
 
+  const reTypes = REAL_ESTATE_TYPE[ctx.typeBien];
+  if (reTypes) {
+    params.set("real_estate_type", reTypes.join(","));
+  }
+
   return `https://${DOMAIN}/recherche?${params}`;
 }
 
-function parseListingsFromHtml(html: string): LBCListing[] {
+function extractListings(html: string): LBCListing[] {
   const listings: LBCListing[] = [];
 
-  // LeBonCoin includes listing data in __NEXT_DATA__ or similar JSON blocks
+  // 1) Extraire depuis __NEXT_DATA__ (rendu côté serveur par Next.js)
   const nextDataMatch = html.match(/<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
   if (nextDataMatch) {
     try {
       const data = JSON.parse(nextDataMatch[1]);
-      const ads = data?.props?.pageProps?.searchData?.ads ||
-                  data?.props?.pageProps?.ads ||
-                  [];
+      const ads = data?.props?.pageProps?.searchData?.ads
+        || data?.props?.pageProps?.ads
+        || data?.props?.pageProps?.initialData?.ads
+        || [];
 
       for (const ad of ads) {
         const price = ad.price?.[0] || ad.price || 0;
         const attributes = ad.attributes || [];
-        const surfaceAttr = attributes.find((a: any) => a.key === "square" || a.key === "surface");
+        const surfaceAttr = attributes.find((a: any) =>
+          a.key === "square" || a.key === "surface" || a.key === "rooms_count",
+        );
         const surface = surfaceAttr ? parseFloat(surfaceAttr.value) : 0;
 
         if (price > 0 && surface > 5) {
-          listings.push({
-            price,
-            surface,
-            prixM2: Math.round(price / surface),
-          });
+          listings.push({ price, surface, prixM2: Math.round(price / surface) });
         }
       }
-    } catch { /* parse error — fallback to HTML parsing */ }
+    } catch { /* parse error */ }
   }
 
-  // Fallback: parse price and surface from HTML patterns
+  // 2) Fallback : chercher les données dans des blocs JSON intégrés
   if (listings.length === 0) {
-    // Try to find ad cards with price and surface
-    const priceMatches = [...html.matchAll(/data-test-id="price"[^>]*>([\d\s.,]+)\s*€/gi)];
+    // LeBonCoin peut intégrer les données dans un state Redux/Zustand sérialisé
+    const stateMatch = html.match(/window\.__STATE__\s*=\s*({[\s\S]*?});\s*<\/script>/i);
+    if (stateMatch) {
+      try {
+        const state = JSON.parse(stateMatch[1]);
+        const ads = state?.ads?.data || state?.search?.ads || [];
+        for (const ad of ads) {
+          const price = ad.price?.[0] || ad.price || 0;
+          const surface = ad.attributes?.find((a: any) => a.key === "square")?.value || 0;
+          if (price > 0 && Number(surface) > 5) {
+            listings.push({ price, surface: Number(surface), prixM2: Math.round(price / Number(surface)) });
+          }
+        }
+      } catch { /* ignore */ }
+    }
+  }
+
+  // 3) Dernier fallback : regex sur le HTML rendu
+  if (listings.length === 0) {
+    const priceMatches = [...html.matchAll(/(?:data-test-id="price"|class="[^"]*price[^"]*")[^>]*>([\d\s.,]+)\s*€/gi)];
     const surfaceMatches = [...html.matchAll(/([\d.,]+)\s*m[²2]/gi)];
 
-    // Pair them up (approximate — same number of each)
     const count = Math.min(priceMatches.length, surfaceMatches.length);
     for (let i = 0; i < count; i++) {
       const price = parseFloat(priceMatches[i][1].replace(/\s/g, "").replace(",", ".")) || 0;
@@ -120,11 +137,18 @@ async function scrapeLBCType(
   typeRecherche: "vente" | "location",
 ): Promise<ScrapedResult | null> {
   const url = buildSearchUrl(ctx, typeRecherche);
-  const html = await fetchWithRetry(url, { domain: DOMAIN, timeoutMs: 20000 });
-  if (!html) return null;
 
-  const listings = parseListingsFromHtml(html);
-  if (listings.length < 1) return null; // Not enough data
+  // Playwright : charge la page avec rendu JS complet
+  const pageResult = await fetchPage(url, {
+    domain: DOMAIN,
+    timeoutMs: 25000,
+    waitForSelector: "[data-test-id='adcard']",
+  });
+
+  if (!pageResult) return null;
+
+  const listings = extractListings(pageResult.html);
+  if (listings.length < 1) return null;
 
   const prixM2Values = listings.map((l) => l.prixM2).filter((v) => v > 50 && v < 100000);
   if (prixM2Values.length < 1) return null;
@@ -154,11 +178,11 @@ export const leboncoinScraper: Scraper = {
   name: "leboncoin",
 
   async scrape(ctx: ScrapingContext): Promise<ScrapedResult[]> {
-    const cacheKey = `lbc:${ctx.codePostal}:${ctx.typeBien}:${ctx.lat}:${ctx.lng}`;
+    const cacheKey = `lbc:${ctx.codePostal}:${ctx.typeBien}:${ctx.rayonKm}`;
     const cached = getCached<ScrapedResult[]>(cacheKey);
     if (cached) return cached;
 
-    logger.info(`LeBonCoin: scraping ${ctx.ville} ${ctx.codePostal} (${ctx.typeBien})`);
+    logger.info(`LeBonCoin: scraping ${ctx.ville} ${ctx.codePostal} (${ctx.typeBien}, ${ctx.rayonKm}km)`);
 
     const results: ScrapedResult[] = [];
 
@@ -168,7 +192,6 @@ export const leboncoinScraper: Scraper = {
     const location = await scrapeLBCType(ctx, "location");
     if (location) results.push(location);
 
-    // Compute taux capi si les deux données sont disponibles
     if (vente?.prixM2Median && location?.loyerM2MensuelMedian) {
       const taux = computeTauxCapi(vente.prixM2Median, location.loyerM2MensuelMedian);
       if (taux) {

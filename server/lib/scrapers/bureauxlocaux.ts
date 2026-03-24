@@ -1,10 +1,10 @@
 /**
  * Scraper BureauxLocaux — Immobilier d'entreprise.
- * Source: bureauxlocaux.com
+ * Utilise Playwright pour le rendu JS complet.
  */
 import {
   Scraper, ScrapedResult, ScrapingContext,
-  fetchWithRetry, getCached, setCache,
+  fetchPage, getCached, setCache,
   median, percentile, computeTauxCapi,
 } from "./base";
 import { logger } from "../logger";
@@ -15,7 +15,7 @@ const TYPE_MAP: Record<string, string> = {
   bureau: "bureaux",
   local_commercial: "locaux-commerciaux",
   commerce: "locaux-commerciaux",
-  appartement: "bureaux", // fallback
+  appartement: "bureaux",
 };
 
 function buildUrl(ctx: ScrapingContext, typeRecherche: "vente" | "location"): string {
@@ -31,11 +31,10 @@ interface BLListing {
   prixM2: number;
 }
 
-function parseListings(html: string): BLListing[] {
+function extractListings(html: string): BLListing[] {
   const listings: BLListing[] = [];
 
-  // BureauxLocaux typically shows listings with price and surface
-  // Try JSON data first
+  // 1) JSON structuré
   const dataMatch = html.match(/window\.__INITIAL_DATA__\s*=\s*({[\s\S]*?});?\s*<\/script>/i)
     || html.match(/<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
 
@@ -55,11 +54,9 @@ function parseListings(html: string): BLListing[] {
     } catch { /* parse error */ }
   }
 
-  // Fallback: parse from HTML
+  // 2) Blocs HTML d'annonces
   if (listings.length === 0) {
-    // Look for card-like structures
-    const cards = html.split(/class="[^"]*annonce[^"]*"|class="[^"]*listing[^"]*"/gi);
-
+    const cards = html.split(/class="[^"]*(?:annonce|listing|result-item)[^"]*"/gi);
     for (const card of cards.slice(1)) {
       const priceMatch = card.match(/([\d\s.,]+)\s*€/);
       const surfaceMatch = card.match(/([\d.,]+)\s*m[²2]/);
@@ -83,10 +80,16 @@ async function scrapeType(
   typeRecherche: "vente" | "location",
 ): Promise<ScrapedResult | null> {
   const url = buildUrl(ctx, typeRecherche);
-  const html = await fetchWithRetry(url, { domain: DOMAIN });
-  if (!html) return null;
 
-  const listings = parseListings(html);
+  const pageResult = await fetchPage(url, {
+    domain: DOMAIN,
+    timeoutMs: 25000,
+    waitForSelector: "[class*='annonce'], [class*='listing'], [class*='result']",
+  });
+
+  if (!pageResult) return null;
+
+  const listings = extractListings(pageResult.html);
   if (listings.length < 1) return null;
 
   const prixM2Values = listings.map((l) => l.prixM2).filter((v) => v > 10 && v < 100000);
@@ -105,7 +108,6 @@ async function scrapeType(
     result.prixM2Bas = Math.round(percentile(prixM2Values, 0.25));
     result.prixM2Haut = Math.round(percentile(prixM2Values, 0.75));
   } else {
-    // Loyers souvent en €/m²/an HT pour les bureaux
     const isAnnual = prixM2Values.every((v) => v > 50);
     const divisor = isAnnual ? 12 : 1;
     result.loyerM2MensuelMedian = Math.round((median(prixM2Values) / divisor) * 100) / 100;
@@ -120,12 +122,11 @@ export const bureauxLocauxScraper: Scraper = {
   name: "bureauxlocaux",
 
   async scrape(ctx: ScrapingContext): Promise<ScrapedResult[]> {
-    // Only scrape for commercial/bureau types
     if (!["bureau", "local_commercial", "commerce"].includes(ctx.typeBien)) {
       return [];
     }
 
-    const cacheKey = `bl:${ctx.codePostal}:${ctx.typeBien}`;
+    const cacheKey = `bl:${ctx.codePostal}:${ctx.typeBien}:${ctx.rayonKm}`;
     const cached = getCached<ScrapedResult[]>(cacheKey);
     if (cached) return cached;
 

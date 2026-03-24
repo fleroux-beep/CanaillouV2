@@ -1,19 +1,19 @@
 /**
  * Scraper MeilleursAgents — Estimations prix/m² et loyers par adresse.
- * Source publique: meilleursagents.com/prix-immobilier/
+ * Utilise Playwright pour le rendu JS complet.
  *
- * Récupère les prix de vente et loyers médians pour une adresse donnée.
+ * MeilleursAgents affiche des prix estimés (pas des annonces individuelles),
+ * ce qui en fait une source fiable même pour les zones à faible volume.
  */
 import {
   Scraper, ScrapedResult, ScrapingContext,
-  fetchWithRetry, getCached, setCache, computeTauxCapi,
+  fetchPage, getCached, setCache, computeTauxCapi,
 } from "./base";
 import { logger } from "../logger";
 
 const DOMAIN = "www.meilleursagents.com";
 
 function buildUrl(ctx: ScrapingContext): string {
-  // MeilleursAgents utilise un format d'URL basé sur la ville
   const ville = encodeURIComponent(
     ctx.ville.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "-"),
   );
@@ -21,7 +21,6 @@ function buildUrl(ctx: ScrapingContext): string {
 }
 
 function parsePrice(text: string): number {
-  // "12 345 €" → 12345
   const m = text.replace(/\s/g, "").match(/([\d.,]+)/);
   if (!m) return 0;
   return parseFloat(m[1].replace(",", ".")) || 0;
@@ -31,26 +30,8 @@ function extractPrices(html: string, typeBien: string): { vente: ScrapedResult |
   let vente: ScrapedResult | null = null;
   let location: ScrapedResult | null = null;
 
-  // Extract prix/m² vente — pattern: "Prix m2 moyen appartement" or similar
-  // MeilleursAgents shows prices in structured data or in visible text
-
-  // Try JSON-LD structured data first
-  const jsonLdMatches = html.match(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi);
-  if (jsonLdMatches) {
-    for (const match of jsonLdMatches) {
-      try {
-        const content = match.replace(/<script[^>]*>/, "").replace(/<\/script>/, "");
-        const data = JSON.parse(content);
-        // MeilleursAgents sometimes embeds price data in structured data
-        if (data?.["@type"] === "Place" || data?.description) {
-          // Parse from description if available
-        }
-      } catch { /* ignore parse errors */ }
-    }
-  }
-
-  // Parse visible price indicators from HTML
-  // Pattern: prix moyen au m² : X €/m²
+  // 1) Chercher les prix structurés dans des data-attributes ou micro-données
+  // MeilleursAgents affiche souvent : "Prix m² moyen : X €/m²"
   const prixVenteMatch = html.match(/prix\s+(?:moyen\s+)?(?:au\s+)?m[²2]\s*(?:pour\s+(?:un\s+)?(?:appartement|maison|local|bureau))?\s*[:\-–]\s*([\d\s.,]+)\s*€/i);
   if (prixVenteMatch) {
     const prix = parsePrice(prixVenteMatch[1]);
@@ -65,7 +46,7 @@ function extractPrices(html: string, typeBien: string): { vente: ScrapedResult |
     }
   }
 
-  // Try another pattern: "X €/m²" near "prix" context
+  // 2) Chercher les €/m² dans le HTML rendu (Playwright a exécuté le JS)
   if (!vente) {
     const allPrices = [...html.matchAll(/([\d\s]{2,8})\s*€\s*\/\s*m[²2]/gi)];
     const venteValues: number[] = [];
@@ -74,7 +55,6 @@ function extractPrices(html: string, typeBien: string): { vente: ScrapedResult |
       if (val > 500 && val < 50000) venteValues.push(val);
     }
     if (venteValues.length > 0) {
-      // Take the first value as the main price estimate
       vente = {
         source: "meilleursagents",
         typeRecherche: "vente",
@@ -88,7 +68,7 @@ function extractPrices(html: string, typeBien: string): { vente: ScrapedResult |
     }
   }
 
-  // Parse loyer indicators
+  // 3) Loyers
   const loyerMatch = html.match(/loyer\s+(?:moyen\s+)?(?:au\s+)?m[²2]\s*[:\-–]\s*([\d\s.,]+)\s*€/i);
   if (loyerMatch) {
     const loyer = parsePrice(loyerMatch[1]);
@@ -103,7 +83,6 @@ function extractPrices(html: string, typeBien: string): { vente: ScrapedResult |
     }
   }
 
-  // Try pattern "XX,X €/m²/mois" for loyers
   if (!location) {
     const loyerMatches = [...html.matchAll(/([\d,]+)\s*€\s*\/\s*m[²2]\s*\/?\s*mois/gi)];
     if (loyerMatches.length > 0) {
@@ -120,7 +99,7 @@ function extractPrices(html: string, typeBien: string): { vente: ScrapedResult |
     }
   }
 
-  // Compute taux capi if both available
+  // Taux de capitalisation si les deux sont disponibles
   if (vente?.prixM2Median && location?.loyerM2MensuelMedian) {
     vente.tauxCapiDeduit = computeTauxCapi(vente.prixM2Median, location.loyerM2MensuelMedian);
     location.tauxCapiDeduit = vente.tauxCapiDeduit;
@@ -140,13 +119,18 @@ export const meilleursAgentsScraper: Scraper = {
     const url = buildUrl(ctx);
     logger.info(`MeilleursAgents: scraping ${url}`);
 
-    const html = await fetchWithRetry(url, { domain: DOMAIN });
-    if (!html) {
-      logger.warn(`MeilleursAgents: no response for ${ctx.ville} ${ctx.codePostal}`);
+    const pageResult = await fetchPage(url, {
+      domain: DOMAIN,
+      timeoutMs: 25000,
+      waitForSelector: ".prices-summary, .price-container, [class*='price']",
+    });
+
+    if (!pageResult) {
+      logger.warn(`MeilleursAgents: pas de réponse pour ${ctx.ville} ${ctx.codePostal}`);
       return [];
     }
 
-    const { vente, location } = extractPrices(html, ctx.typeBien);
+    const { vente, location } = extractPrices(pageResult.html, ctx.typeBien);
     const results: ScrapedResult[] = [];
     if (vente) results.push(vente);
     if (location) results.push(location);

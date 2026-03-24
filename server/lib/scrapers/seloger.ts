@@ -1,17 +1,16 @@
 /**
  * Scraper SeLoger — Annonces immobilières vente et location (résidentiel).
- * Source: seloger.com
+ * Utilise Playwright pour le rendu JS complet.
  */
 import {
   Scraper, ScrapedResult, ScrapingContext,
-  fetchWithRetry, getCached, setCache,
+  fetchPage, getCached, setCache,
   median, percentile, computeTauxCapi,
 } from "./base";
 import { logger } from "../logger";
 
 const DOMAIN = "www.seloger.com";
 
-// SeLoger property type codes
 const PROPERTY_TYPES: Record<string, string> = {
   appartement: "1",
   maison: "2",
@@ -42,22 +41,22 @@ interface SLListing {
   prixM2: number;
 }
 
-function parseListings(html: string): SLListing[] {
+function extractListings(html: string): SLListing[] {
   const listings: SLListing[] = [];
 
-  // SeLoger uses __NEXT_DATA__ or window.__INITIAL_STATE__
+  // 1) __NEXT_DATA__ ou __INITIAL_STATE__
   const stateMatch = html.match(/window\.__INITIAL_STATE__\s*=\s*({[\s\S]*?});?\s*<\/script>/i)
     || html.match(/<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
 
   if (stateMatch) {
     try {
       const data = JSON.parse(stateMatch[1]);
-      const cards = data?.cards || data?.props?.pageProps?.cards ||
-                    data?.searchResults?.cards || [];
+      const cards = data?.cards || data?.props?.pageProps?.cards
+        || data?.searchResults?.cards || data?.props?.pageProps?.searchData?.cards || [];
 
       for (const card of cards) {
-        const price = card.price || card.pricing?.price || 0;
-        const surface = card.livingArea || card.surface || card.surfaceArea || 0;
+        const price = card.price || card.pricing?.price || card.listPrice || 0;
+        const surface = card.livingArea || card.surface || card.surfaceArea || card.area || 0;
 
         if (price > 0 && surface > 5) {
           listings.push({ price, surface, prixM2: Math.round(price / surface) });
@@ -66,14 +65,33 @@ function parseListings(html: string): SLListing[] {
     } catch { /* parse error */ }
   }
 
-  // Fallback: regex-based extraction
+  // 2) JSON-LD structured data
+  if (listings.length === 0) {
+    const jsonLdMatches = [...html.matchAll(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)];
+    for (const m of jsonLdMatches) {
+      try {
+        const ld = JSON.parse(m[1]);
+        if (ld?.["@type"] === "ItemList" && ld?.itemListElement) {
+          for (const item of ld.itemListElement) {
+            const offer = item?.item?.offers || item?.offers || {};
+            const price = Number(offer.price) || 0;
+            const surface = Number(item?.item?.floorSize?.value) || 0;
+            if (price > 0 && surface > 5) {
+              listings.push({ price, surface, prixM2: Math.round(price / surface) });
+            }
+          }
+        }
+      } catch { /* ignore */ }
+    }
+  }
+
+  // 3) Fallback regex : "price":123456 et "livingArea":78
   if (listings.length === 0) {
     const pricePattern = /"price"\s*:\s*(\d+)/g;
-    const surfacePattern = /"livingArea"\s*:\s*([\d.]+)/g;
+    const surfacePattern = /"(?:livingArea|surface|area)"\s*:\s*([\d.]+)/g;
 
     const prices: number[] = [];
     const surfaces: number[] = [];
-
     let m;
     while ((m = pricePattern.exec(html)) !== null) prices.push(Number(m[1]));
     while ((m = surfacePattern.exec(html)) !== null) surfaces.push(Number(m[1]));
@@ -94,10 +112,16 @@ async function scrapeType(
   typeRecherche: "vente" | "location",
 ): Promise<ScrapedResult | null> {
   const url = buildSearchUrl(ctx, typeRecherche);
-  const html = await fetchWithRetry(url, { domain: DOMAIN });
-  if (!html) return null;
 
-  const listings = parseListings(html);
+  const pageResult = await fetchPage(url, {
+    domain: DOMAIN,
+    timeoutMs: 25000,
+    waitForSelector: "[data-test='sl.card-container']",
+  });
+
+  if (!pageResult) return null;
+
+  const listings = extractListings(pageResult.html);
   if (listings.length < 1) return null;
 
   const prixM2Values = listings.map((l) => l.prixM2).filter((v) => v > 50 && v < 100000);
@@ -128,7 +152,7 @@ export const selogerScraper: Scraper = {
   name: "seloger",
 
   async scrape(ctx: ScrapingContext): Promise<ScrapedResult[]> {
-    const cacheKey = `sl:${ctx.codePostal}:${ctx.typeBien}`;
+    const cacheKey = `sl:${ctx.codePostal}:${ctx.typeBien}:${ctx.rayonKm}`;
     const cached = getCached<ScrapedResult[]>(cacheKey);
     if (cached) return cached;
 

@@ -1,7 +1,14 @@
 /**
  * Infrastructure commune pour les scrapers immobiliers.
- * Rate-limiting, cache mémoire, user-agent rotation, helpers HTTP.
+ *
+ * Utilise Playwright (headless Chromium) pour exécuter le JavaScript
+ * des SPA (LeBonCoin, SeLoger, etc.) et extraire les données réelles.
+ *
+ * Le chemin vers Chromium est configurable via CHROMIUM_PATH.
+ * Si aucun navigateur n'est disponible, les scrapers sont désactivés
+ * et retournent un tableau vide (fail gracieux, pas de crash).
  */
+import { chromium, type Browser, type Page, type BrowserContext } from "playwright-core";
 import { logger } from "../logger";
 
 // ============================================================
@@ -29,10 +36,93 @@ export interface ScrapingContext {
   lng: number;
   codePostal: string;
   ville: string;
-  typeBien: string; // résidentiel → appartement, commercial → local_commercial, bureau → bureau, etc.
+  typeBien: string;
   rayonKm: number;
-  surface?: number; // surface de l'actif pour affiner
+  surface?: number;
 }
+
+// ============================================================
+// Playwright browser pool (singleton)
+// ============================================================
+
+const CHROMIUM_PATH = process.env.CHROMIUM_PATH || process.env.PLAYWRIGHT_CHROMIUM_PATH || "";
+
+let browserInstance: Browser | null = null;
+let browserAvailable: boolean | null = null; // null = not checked yet
+
+/**
+ * Retourne une instance partagée du navigateur Chromium.
+ * Retourne null si Chromium n'est pas disponible.
+ */
+async function getBrowser(): Promise<Browser | null> {
+  if (browserAvailable === false) return null;
+
+  if (browserInstance?.isConnected()) return browserInstance;
+
+  // Trouver le chemin Chromium
+  let executablePath = CHROMIUM_PATH;
+
+  if (!executablePath) {
+    // Essayer les chemins courants
+    const { existsSync } = await import("fs");
+    const candidates = [
+      "/usr/bin/chromium",
+      "/usr/bin/chromium-browser",
+      "/usr/bin/google-chrome-stable",
+      "/usr/bin/google-chrome",
+      "/snap/bin/chromium",
+      "/usr/local/bin/chromium",
+    ];
+    executablePath = candidates.find((p) => existsSync(p)) || "";
+  }
+
+  if (!executablePath) {
+    // Essayer le lancement sans chemin explicite (Playwright cherche tout seul)
+    try {
+      browserInstance = await chromium.launch({
+        headless: true,
+        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+      });
+      browserAvailable = true;
+      logger.info("Playwright: navigateur Chromium lancé (auto-détecté)");
+      return browserInstance;
+    } catch {
+      browserAvailable = false;
+      logger.warn("Playwright: aucun navigateur Chromium trouvé — scrapers Phase 2 désactivés. " +
+        "Installez Chromium ou définissez CHROMIUM_PATH.");
+      return null;
+    }
+  }
+
+  try {
+    browserInstance = await chromium.launch({
+      headless: true,
+      executablePath,
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+    });
+    browserAvailable = true;
+    logger.info(`Playwright: navigateur Chromium lancé (${executablePath})`);
+    return browserInstance;
+  } catch (err: any) {
+    browserAvailable = false;
+    logger.warn(`Playwright: impossible de lancer Chromium (${executablePath}): ${err.message}`);
+    return null;
+  }
+}
+
+/**
+ * Ferme proprement le navigateur (appelé à l'arrêt du serveur).
+ */
+export async function closeBrowser(): Promise<void> {
+  if (browserInstance) {
+    await browserInstance.close().catch(() => {});
+    browserInstance = null;
+  }
+}
+
+// Nettoyage à l'arrêt
+process.on("SIGTERM", closeBrowser);
+process.on("SIGINT", closeBrowser);
 
 // ============================================================
 // User-Agent rotation
@@ -46,7 +136,7 @@ const USER_AGENTS = [
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
 ];
 
-export function randomUserAgent(): string {
+function randomUserAgent(): string {
   return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
 }
 
@@ -65,7 +155,7 @@ const MIN_DELAY_MS: Record<string, number> = {
   default: 2000,
 };
 
-export async function rateLimitedWait(domain: string): Promise<void> {
+async function rateLimitedWait(domain: string): Promise<void> {
   const delay = MIN_DELAY_MS[domain] || MIN_DELAY_MS.default;
   const last = lastRequestTime.get(domain) || 0;
   const elapsed = Date.now() - last;
@@ -102,9 +192,89 @@ export function setCache(key: string, data: any): void {
 }
 
 // ============================================================
-// Fetch helper avec retry + rate-limiting
+// Page Playwright avec navigation
 // ============================================================
 
+export interface PageResult {
+  html: string;
+  url: string;
+}
+
+/**
+ * Ouvre une page Playwright, navigue vers l'URL et attend le rendu JS.
+ * Retourne le HTML complet après rendu, ou null si indisponible.
+ *
+ * @param url URL à charger
+ * @param options Configuration de la navigation
+ */
+export async function fetchPage(
+  url: string,
+  options: {
+    domain: string;
+    timeoutMs?: number;
+    waitForSelector?: string;     // Attendre qu'un sélecteur soit visible
+    waitForNetworkIdle?: boolean; // Attendre que le réseau soit calme
+  },
+): Promise<PageResult | null> {
+  const { domain, timeoutMs = 30000, waitForSelector, waitForNetworkIdle = true } = options;
+
+  const browser = await getBrowser();
+  if (!browser) return null;
+
+  await rateLimitedWait(domain);
+
+  let context: BrowserContext | null = null;
+  let page: Page | null = null;
+
+  try {
+    context = await browser.newContext({
+      userAgent: randomUserAgent(),
+      locale: "fr-FR",
+      viewport: { width: 1920, height: 1080 },
+      // Bloquer les ressources lourdes non nécessaires
+      bypassCSP: true,
+    });
+
+    page = await context.newPage();
+
+    // Bloquer les images, fonts, médias pour accélérer
+    await page.route("**/*", (route) => {
+      const type = route.request().resourceType();
+      if (["image", "media", "font", "stylesheet"].includes(type)) {
+        return route.abort();
+      }
+      return route.continue();
+    });
+
+    // Navigation
+    const waitUntil = waitForNetworkIdle ? "networkidle" : "domcontentloaded";
+    await page.goto(url, { waitUntil, timeout: timeoutMs });
+
+    // Attendre un sélecteur spécifique si demandé
+    if (waitForSelector) {
+      await page.waitForSelector(waitForSelector, { timeout: 10000 }).catch(() => {
+        // Le sélecteur n'est pas apparu — on continue avec ce qu'on a
+      });
+    }
+
+    // Petit délai pour laisser les derniers rendus JS se terminer
+    await page.waitForTimeout(1500);
+
+    const html = await page.content();
+    const finalUrl = page.url();
+
+    return { html, url: finalUrl };
+  } catch (err: any) {
+    logger.warn(`Playwright fetch failed for ${domain}: ${err.message}`);
+    return null;
+  } finally {
+    if (context) await context.close().catch(() => {});
+  }
+}
+
+/**
+ * Fallback : simple fetch HTTP (pour les pages SSR qui n'ont pas besoin de JS).
+ */
 export async function fetchWithRetry(
   url: string,
   options: {
@@ -124,7 +294,7 @@ export async function fetchWithRetry(
         signal: AbortSignal.timeout(timeoutMs),
         headers: {
           "User-Agent": randomUserAgent(),
-          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
           "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.5",
           "Accept-Encoding": "gzip, deflate",
           ...headers,
@@ -133,7 +303,6 @@ export async function fetchWithRetry(
       });
 
       if (response.status === 429) {
-        // Rate limited — wait exponentially
         const waitMs = Math.min(2000 * Math.pow(2, attempt), 16000);
         logger.warn(`Rate limited by ${domain}, waiting ${waitMs}ms`);
         await new Promise((r) => setTimeout(r, waitMs));
@@ -190,11 +359,6 @@ export function computeTauxCapi(prixM2: number, loyerM2Mensuel: number): number 
 
 /**
  * Map le type d'actif Canaillou vers les types recherchés par les plateformes.
- *
- * IMPORTANT : certains types d'actifs (crèche, bureau) n'ont PAS d'équivalent
- * fiable dans les données DVF/ANIL. Pour ces types, `dvfCompatible` est false
- * et la Phase 1 ne doit PAS retourner de données (mieux vaut "pas de données"
- * que de fausses données issues d'un type de bien différent).
  */
 export function mapActifTypeToSearch(type: string): {
   typeBien: string;
@@ -210,18 +374,12 @@ export function mapActifTypeToSearch(type: string): {
     return { typeBien: "local_commercial", searchTypes: ["local_commercial", "commerce"], dvfCompatible: true, anilCompatible: false };
   }
   if (t === "bureau") {
-    // DVF ne catégorise pas les bureaux séparément ; ANIL ne couvre que le résidentiel.
-    // Phase 2 (scraping) peut trouver des données pertinentes via les plateformes spécialisées.
     return { typeBien: "bureau", searchTypes: ["bureau"], dvfCompatible: false, anilCompatible: false };
   }
   if (t === "mixte") {
-    // Actif mixte : on cherche des données résidentielles (le plus courant), mais on signale
-    // que les données ne couvrent pas la partie commerciale.
     return { typeBien: "appartement", searchTypes: ["appartement", "local_commercial"], dvfCompatible: true, anilCompatible: true };
   }
   if (t === "crèche" || t === "creche") {
-    // Les crèches sont assimilées à des locaux commerciaux pour les données de marché.
-    // DVF pertinent (transactions de locaux commerciaux comparables), ANIL non (résidentiel uniquement).
     return { typeBien: "local_commercial", searchTypes: ["local_commercial"], dvfCompatible: true, anilCompatible: false };
   }
   return { typeBien: "appartement", searchTypes: ["appartement"], dvfCompatible: true, anilCompatible: true };

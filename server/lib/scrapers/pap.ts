@@ -1,17 +1,16 @@
 /**
  * Scraper PAP.fr — Annonces entre particuliers (vente et location).
- * Source: pap.fr
+ * Utilise Playwright pour le rendu JS complet.
  */
 import {
   Scraper, ScrapedResult, ScrapingContext,
-  fetchWithRetry, getCached, setCache,
+  fetchPage, getCached, setCache,
   median, percentile, computeTauxCapi,
 } from "./base";
 import { logger } from "../logger";
 
 const DOMAIN = "www.pap.fr";
 
-// PAP URL patterns
 const TYPE_VENTE: Record<string, string> = {
   appartement: "appartement",
   maison: "maison",
@@ -31,7 +30,6 @@ const TYPE_LOCATION: Record<string, string> = {
 function buildUrl(ctx: ScrapingContext, typeRecherche: "vente" | "location"): string {
   const typeMap = typeRecherche === "vente" ? TYPE_VENTE : TYPE_LOCATION;
   const typePath = typeMap[ctx.typeBien] || "appartement";
-  const section = typeRecherche === "vente" ? "annonce" : "annonce";
   const transaction = typeRecherche === "vente" ? "vente" : "location";
 
   const villePath = ctx.ville.toLowerCase()
@@ -47,14 +45,12 @@ interface PAPListing {
   prixM2: number;
 }
 
-function parseListings(html: string): PAPListing[] {
+function extractListings(html: string): PAPListing[] {
   const listings: PAPListing[] = [];
 
-  // PAP uses structured markup for listings
-  // Look for price and surface patterns
+  // 1) Blocs d'annonces PAP (class="search-list-item" ou similaire)
   const adBlocks = html.split(/class="[^"]*search-list-item[^"]*"/gi);
-
-  for (const block of adBlocks.slice(1)) { // skip first (before first ad)
+  for (const block of adBlocks.slice(1)) {
     const priceMatch = block.match(/([\d\s.,]+)\s*€/);
     const surfaceMatch = block.match(/([\d.,]+)\s*m[²2]/);
 
@@ -68,7 +64,25 @@ function parseListings(html: string): PAPListing[] {
     }
   }
 
-  // Fallback: global regex
+  // 2) Fallback : JSON-LD ou __NEXT_DATA__
+  if (listings.length === 0) {
+    const nextDataMatch = html.match(/<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
+    if (nextDataMatch) {
+      try {
+        const data = JSON.parse(nextDataMatch[1]);
+        const ads = data?.props?.pageProps?.ads || data?.props?.pageProps?.results || [];
+        for (const ad of ads) {
+          const price = ad.price || ad.prix || 0;
+          const surface = ad.surface || ad.area || ad.living_area || 0;
+          if (price > 0 && surface > 5) {
+            listings.push({ price, surface, prixM2: Math.round(price / surface) });
+          }
+        }
+      } catch { /* ignore */ }
+    }
+  }
+
+  // 3) Fallback regex sur le HTML rendu
   if (listings.length === 0) {
     const prices = [...html.matchAll(/class="[^"]*price[^"]*"[^>]*>([\d\s.,]+)\s*€/gi)];
     const surfaces = [...html.matchAll(/([\d.,]+)\s*m[²2]/gi)];
@@ -91,10 +105,16 @@ async function scrapeType(
   typeRecherche: "vente" | "location",
 ): Promise<ScrapedResult | null> {
   const url = buildUrl(ctx, typeRecherche);
-  const html = await fetchWithRetry(url, { domain: DOMAIN });
-  if (!html) return null;
 
-  const listings = parseListings(html);
+  const pageResult = await fetchPage(url, {
+    domain: DOMAIN,
+    timeoutMs: 25000,
+    waitForSelector: ".search-list-item",
+  });
+
+  if (!pageResult) return null;
+
+  const listings = extractListings(pageResult.html);
   if (listings.length < 1) return null;
 
   const prixM2Values = listings.map((l) => l.prixM2).filter((v) => v > 50 && v < 100000);
@@ -125,7 +145,7 @@ export const papScraper: Scraper = {
   name: "pap",
 
   async scrape(ctx: ScrapingContext): Promise<ScrapedResult[]> {
-    const cacheKey = `pap:${ctx.codePostal}:${ctx.typeBien}`;
+    const cacheKey = `pap:${ctx.codePostal}:${ctx.typeBien}:${ctx.rayonKm}`;
     const cached = getCached<ScrapedResult[]>(cacheKey);
     if (cached) return cached;
 
