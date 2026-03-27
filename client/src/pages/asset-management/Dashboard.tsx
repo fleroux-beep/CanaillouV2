@@ -82,7 +82,7 @@ export default function AMDashboard() {
   const serviceDette = useMemo(() => getServiceDette(empruntsActifs), [empruntsActifs]);
   const cashFlowNet = noi - serviceDette;
   const fondsPropreNets = valorisation - crd;
-  const rendementBrut = getRendementBrut(loyerAnnuel, valorisation);
+  const rendementBrut = getRendementBrut(loyerAnnuel, totalAcquisition);
   const rendementNet = getRendementNet(loyerAnnuel, charges, totalAcquisition);
   const ltv = getLTV(crd, valorisation);
   const dscr = getDSCR(noi, serviceDette);

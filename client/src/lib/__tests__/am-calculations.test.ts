@@ -282,7 +282,7 @@ describe("getRendementBrut", () => {
     expect(getRendementBrut(12000, 200000)).toBeCloseTo(6, 2);
   });
 
-  it("returns 0 when valeur <= 0", () => {
+  it("returns 0 when prixAcquisition <= 0", () => {
     expect(getRendementBrut(12000, 0)).toBe(0);
     expect(getRendementBrut(12000, -1)).toBe(0);
   });
@@ -566,7 +566,7 @@ describe("computeMultiYearProjection", () => {
 // ============================================================
 
 describe("Division by zero protection", () => {
-  it("getRendementBrut with valeur=0", () => {
+  it("getRendementBrut with prixAcquisition=0", () => {
     expect(getRendementBrut(12000, 0)).toBe(0);
   });
 

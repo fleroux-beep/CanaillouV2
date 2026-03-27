@@ -81,7 +81,7 @@ export default function ArbitragesPage() {
     const crd = getTotalCRD(actifEmprunts) + getTotalCRD(sciEmprunts) / nbActifsInSci;
     const serviceDette = getServiceDette(actifEmprunts) + getServiceDette(sciEmprunts) / nbActifsInSci;
 
-    const rendementBrut = getRendementBrut(loyerAnnuel, valeurEstimee);
+    const rendementBrut = getRendementBrut(loyerAnnuel, prixAcquisition);
     const rendementNet = getRendementNet(loyerAnnuel, charges, prixAcquisition);
     const ltv = getLTV(crd, valeurEstimee);
     const dscr = getDSCR(noi, serviceDette);

@@ -253,17 +253,13 @@ export function getTotalCRD(emprunts: AMEmprunt[]): number {
 // Rendements
 // ============================================================
 
-/** Rendement brut = loyer annuel / valeur */
-export function getRendementBrut(loyerAnnuel: number, valeur: number): number {
-  if (valeur <= 0) return 0;
-  return (loyerAnnuel / valeur) * 100;
+/** Rendement brut = loyer annuel / prix d'acquisition */
+export function getRendementBrut(loyerAnnuel: number, prixAcquisition: number): number {
+  if (prixAcquisition <= 0) return 0;
+  return (loyerAnnuel / prixAcquisition) * 100;
 }
 
-/**
- * Rendement net = (loyer - charges) / prix d'acquisition.
- * Utilise le prix d'acquisition (coût réel) et non la valorisation estimée,
- * pour éviter la tautologie rendement = taux de capitalisation.
- */
+/** Rendement net = (loyer - charges) / prix d'acquisition */
 export function getRendementNet(loyerAnnuel: number, charges: number, prixAcquisition: number): number {
   if (prixAcquisition <= 0) return 0;
   return ((loyerAnnuel - charges) / prixAcquisition) * 100;
@@ -757,7 +753,7 @@ export function computeSciKpis(
     crd,
     serviceDette,
     cashFlowNet,
-    rendementBrut: getRendementBrut(loyerAnnuel, valorisation),
+    rendementBrut: getRendementBrut(loyerAnnuel, totalPrixAcq),
     rendementNet: getRendementNet(loyerAnnuel, charges, totalPrixAcq),
     ltv: getLTV(crd, valorisation),
     dscr: getDSCR(noi, serviceDette),

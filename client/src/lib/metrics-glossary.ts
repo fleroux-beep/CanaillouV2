@@ -56,8 +56,8 @@ const glossary: Record<string, MetricDef> = {
   },
   rendementBrut: {
     label: "Rendement brut",
-    description: "Ratio entre les loyers annuels et la valeur du bien, sans déduction des charges.",
-    formula: "(Loyers annuels / Valorisation) × 100",
+    description: "Ratio entre les loyers annuels et le prix d'acquisition total, sans déduction des charges.",
+    formula: "(Loyers annuels / Prix d'acquisition) × 100",
   },
   rendementNet: {
     label: "Rendement net",

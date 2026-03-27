@@ -160,15 +160,15 @@ NOI = Loyers_annuels - Charges_annuelles
 ### Rendement brut
 
 ```
-Rendement_brut = (Loyers_annuels / Valorisation) * 100
+Rendement_brut = (Loyers_annuels / Prix_acquisition) * 100
 ```
 
-> Denominateur = **valorisation estimee** (pas prix d'acquisition).
+> Denominateur = **prix d'acquisition total** (même base que le rendement net).
 
 ### Rendement net
 
 ```
-Rendement_net = ((Loyers_annuels - Charges_annuelles) / Valorisation) * 100
+Rendement_net = ((Loyers_annuels - Charges_annuelles) / Prix_acquisition) * 100
 ```
 
 ### Cash-flow net
