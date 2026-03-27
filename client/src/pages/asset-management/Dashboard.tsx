@@ -134,6 +134,21 @@ export default function AMDashboard() {
     return { serviceDetteN, capitalRembourseN, interetsN };
   }, [empruntsActifs]);
 
+  // Total restant à rembourser : CRD + intérêts restants + assurance restante
+  const totalRestantARembourser = useMemo(() => {
+    let total = 0;
+    for (const emp of empruntsActifs) {
+      const schedule = computeAmortSchedule(emp as unknown as AMEmprunt);
+      if (schedule.length === 0) continue;
+      const currentIdx = schedule.findIndex((r) => r.isCurrent);
+      const startIdx = currentIdx >= 0 ? currentIdx : 0;
+      for (let i = startIdx; i < schedule.length; i++) {
+        total += schedule[i].capitalAmorti + schedule[i].interets + schedule[i].assurance;
+      }
+    }
+    return total;
+  }, [empruntsActifs]);
+
   // Early returns AFTER all hooks
   if (isLoading) {
     return (
@@ -291,7 +306,7 @@ export default function AMDashboard() {
 
         {/* Décomposition dette année N */}
         {detteAnneeN.serviceDetteN > 0 && (
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <KpiCard
               label="Service dette (année N)"
               value={detteAnneeN.serviceDetteN}
@@ -323,6 +338,15 @@ export default function AMDashboard() {
               subtitle={detteAnneeN.serviceDetteN > 0
                 ? `${((detteAnneeN.interetsN / detteAnneeN.serviceDetteN) * 100).toFixed(0)}% de l'annuité`
                 : undefined}
+            />
+            <KpiCard
+              label="Reste à rembourser"
+              value={totalRestantARembourser}
+              formatFn={formatCurrency}
+              icon={Wallet}
+              variant="warning"
+              delay={5}
+              subtitle="CRD + intérêts + assurance"
             />
           </div>
         )}
