@@ -15,6 +15,11 @@ import { registerMarcheRoutes } from "./routes/am-marche";
 import { registerGLRoutes } from "./routes/gl";
 import { registerImportRoutes } from "./routes/import";
 import { registerChatRoutes } from "./routes/chat";
+import { registerAlertesProactivesRoutes } from "./routes/alertes-proactives";
+import { registerIndexationAutoRoutes } from "./routes/indexation-auto";
+import { registerScoreSanteRoutes } from "./routes/score-sante";
+import { registerBailPDFRoutes } from "./routes/bail-pdf";
+import { registerProjectionsPredictivesRoutes } from "./routes/projections-predictives";
 import { logger, requestLogger } from "./lib/logger";
 import { requireAdmin } from "./middleware/auth";
 import { startAutoSync } from "./lib/auto-sync-marche";
@@ -87,6 +92,11 @@ registerMarcheRoutes(app);
 registerGLRoutes(app);
 registerImportRoutes(app);
 registerChatRoutes(app);
+registerAlertesProactivesRoutes(app);
+registerIndexationAutoRoutes(app);
+registerScoreSanteRoutes(app);
+registerBailPDFRoutes(app);
+registerProjectionsPredictivesRoutes(app);
 
 // Admin: import Excel SCI data (one-time migration)
 app.post("/api/admin/import-excel", requireAdmin, async (_req, res) => {

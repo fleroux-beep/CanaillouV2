@@ -11,6 +11,7 @@ import {
   AlertTriangle, DollarSign, FolderOpen, ShieldCheck,
   TreePine, Hammer, ArrowLeftRight, FlaskConical, ClipboardList,
   ArrowUpDown, FileBarChart, Menu, X, Settings, Activity, Search,
+  Bell, Heart, FileUp, Zap, Brain,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { ChatPanel } from "./ui/chat-panel";
@@ -48,6 +49,7 @@ const amNavGroups: NavGroup[] = [
       { label: "Valorisation", href: "/asset-management/valorisation", icon: BarChart3 },
       { label: "Contrôle de gestion", href: "/asset-management/controle-gestion", icon: ClipboardList },
       { label: "Arbitrages", href: "/asset-management/arbitrages", icon: ArrowUpDown },
+      { label: "Score de santé", href: "/asset-management/score-sante", icon: Heart },
       { label: "Étude de marché", href: "/asset-management/etude-marche", icon: Search },
     ],
   },
@@ -55,6 +57,7 @@ const amNavGroups: NavGroup[] = [
     label: "Simulation",
     items: [
       { label: "Simulateur SCPI", href: "/asset-management/simulateur", icon: FlaskConical },
+      { label: "Projections", href: "/asset-management/projections-predictives", icon: Brain },
       { label: "Reporting", href: "/asset-management/reporting", icon: FileBarChart },
     ],
   },
@@ -62,8 +65,16 @@ const amNavGroups: NavGroup[] = [
     label: "Suivi",
     items: [
       { label: "Travaux", href: "/asset-management/travaux", icon: Hammer },
+      { label: "Alertes", href: "/asset-management/alertes", icon: Bell },
       { label: "Calendrier", href: "/asset-management/calendrier", icon: Calendar },
       { label: "Carte", href: "/asset-management/carte", icon: Map },
+    ],
+  },
+  {
+    label: "Outils",
+    items: [
+      { label: "Extraction bail PDF", href: "/asset-management/extraction-bail", icon: FileUp },
+      { label: "Indexation auto", href: "/asset-management/indexation-auto", icon: Zap },
     ],
   },
 ];

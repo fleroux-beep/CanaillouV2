@@ -25,6 +25,11 @@ import SCIsAssociesPage from "./pages/asset-management/SCIsAssocies";
 import VuePatrimoinePage from "./pages/asset-management/VuePatrimoine";
 import SimulateurPage from "./pages/asset-management/Simulateur";
 import EtudeMarchePage from "./pages/asset-management/EtudeMarche";
+import AlertesAMPage from "./pages/asset-management/AlertesAM";
+import IndexationAutoPage from "./pages/asset-management/IndexationAuto";
+import ScoreSantePage from "./pages/asset-management/ScoreSante";
+import ExtractionBailPDFPage from "./pages/asset-management/ExtractionBailPDF";
+import ProjectionsPredictivesPage from "./pages/asset-management/ProjectionsPredictives";
 // Gestion Locative
 import GLDashboard from "./pages/gestion-locative/Dashboard";
 import BauxGLPage from "./pages/gestion-locative/Baux";
@@ -88,6 +93,11 @@ export default function App() {
         <Route path="/asset-management/reporting" component={ReportingPage} />
         <Route path="/asset-management/simulateur" component={SimulateurPage} />
         <Route path="/asset-management/etude-marche" component={EtudeMarchePage} />
+        <Route path="/asset-management/alertes" component={AlertesAMPage} />
+        <Route path="/asset-management/indexation-auto" component={IndexationAutoPage} />
+        <Route path="/asset-management/score-sante" component={ScoreSantePage} />
+        <Route path="/asset-management/extraction-bail" component={ExtractionBailPDFPage} />
+        <Route path="/asset-management/projections-predictives" component={ProjectionsPredictivesPage} />
 
         {/* Gestion Locative */}
         <Route path="/gestion-locative" component={GLDashboard} />

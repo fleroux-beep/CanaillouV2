@@ -18,6 +18,8 @@ import { syncDVF } from "./sync-dvf";
 import { syncANIL } from "./sync-anil";
 import { computeTauxCapiFromRefs } from "./compute-taux-capi";
 import { scrapeAllActifs } from "./scrapers";
+import { syncIndicesINSEE, autoIndexBaux } from "./sync-insee";
+import { computeAndStoreAlerts } from "../routes/alertes-proactives";
 
 const STARTUP_DELAY_MS = 30 * 1000; // 30 seconds after server starts
 
@@ -125,7 +127,34 @@ async function runFullSync(): Promise<void> {
     logger.error("auto-sync: scraping Phase 2 failed", { error: err.message });
   }
 
-  logger.info("auto-sync: synchronisation complète terminée (Phase 1 + Phase 2)");
+  // 5. Sync indices INSEE
+  try {
+    logger.info("auto-sync: sync indices INSEE");
+    const inseeResult = await syncIndicesINSEE();
+    logger.info("auto-sync: indices INSEE terminé", { synced: inseeResult.synced });
+  } catch (err: any) {
+    logger.error("auto-sync: sync INSEE failed", { error: err.message });
+  }
+
+  // 6. Auto-indexation des baux GL
+  try {
+    logger.info("auto-sync: indexation automatique baux GL");
+    const indexResult = await autoIndexBaux();
+    logger.info("auto-sync: indexation terminée", { indexed: indexResult.indexed });
+  } catch (err: any) {
+    logger.error("auto-sync: auto-index baux failed", { error: err.message });
+  }
+
+  // 7. Recalcul alertes proactives
+  try {
+    logger.info("auto-sync: recalcul alertes proactives");
+    const alertResult = await computeAndStoreAlerts();
+    logger.info("auto-sync: alertes recalculées", alertResult);
+  } catch (err: any) {
+    logger.error("auto-sync: alertes failed", { error: err.message });
+  }
+
+  logger.info("auto-sync: synchronisation complète terminée (Phase 1 + Phase 2 + INSEE + Alertes)");
 }
 
 /**

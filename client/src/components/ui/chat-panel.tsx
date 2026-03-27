@@ -28,13 +28,21 @@ const TOOL_LABELS: Record<string, string> = {
   update_sci: "Modification d'une SCI",
   update_bail_am: "Modification d'un bail AM",
   update_bail_gl: "Modification d'un bail GL",
+  create_actif: "Création d'un actif",
+  create_lot: "Création d'un lot",
+  create_emprunt: "Création d'un emprunt",
+  create_bail_am: "Création d'un bail AM",
+  delete_entity: "Suppression d'une entité",
+  get_alertes: "Consultation des alertes",
+  get_travaux: "Consultation des travaux",
 };
 
 const SUGGESTIONS = [
   "Quel est l'état de mon portefeuille ?",
-  "Quels baux expirent dans les 12 prochains mois ?",
+  "Montre-moi les alertes urgentes",
   "Calcule le DSCR global de mon portefeuille",
-  "Change le taux de capitalisation de [actif] à 5,5%",
+  "Crée un nouvel actif à Paris 75008",
+  "Quels baux expirent dans les 6 prochains mois ?",
 ];
 
 export function ChatPanel() {

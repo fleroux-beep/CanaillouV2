@@ -8,8 +8,9 @@ const chatLimiter = rateLimit(30, 60 * 1000); // 30 messages per minute
 import {
   scis, actifs, emprunts, lots, bauxAM, associes, participations,
   bauxGL, bailleurs, paiementsGL, indices, locatairesGL,
+  locatairesAM, travaux, alertes,
 } from "@shared/schema";
-import { eq, sql, and, isNull } from "drizzle-orm";
+import { eq, sql, and, isNull, desc } from "drizzle-orm";
 
 // ─── Types ──────────────────────────────────────────────────
 interface ChatMessage {
@@ -248,6 +249,80 @@ async function updateBailGL(id: string, data: Record<string, unknown>): Promise<
   return { success: true, updated: { id: updated[0].id, nom: (updated[0] as any).nom, ...fields } };
 }
 
+// ─── Axe 3: Extended write/create tools ─────────────────────
+
+async function createActif(data: Record<string, unknown>): Promise<unknown> {
+  const fields = filterFields(data, ACTIF_FIELDS);
+  const nom = data.nom as string;
+  if (!nom) return { error: "Le champ 'nom' est requis" };
+  const result = await db.insert(actifs).values({ nom, ...fields }).returning();
+  return { success: true, created: { id: result[0].id, nom: (result[0] as any).nom } };
+}
+
+async function createLot(data: Record<string, unknown>): Promise<unknown> {
+  const actifId = data.actifId as string;
+  const designation = data.designation as string;
+  if (!actifId || !designation) return { error: "Les champs 'actifId' et 'designation' sont requis" };
+  const fields = filterFields(data, LOT_FIELDS);
+  const result = await db.insert(lots).values({ actifId, designation, ...fields }).returning();
+  return { success: true, created: { id: result[0].id, designation: (result[0] as any).designation } };
+}
+
+async function createEmprunt(data: Record<string, unknown>): Promise<unknown> {
+  const fields = filterFields(data, EMPRUNT_FIELDS);
+  const sciId = data.sciId as string;
+  const actifId = data.actifId as string;
+  const result = await db.insert(emprunts).values({ sciId, actifId, ...fields }).returning();
+  return { success: true, created: { id: result[0].id } };
+}
+
+async function createBailAM(data: Record<string, unknown>): Promise<unknown> {
+  const fields = filterFields(data, BAIL_AM_FIELDS);
+  const actifId = data.actifId as string;
+  const lotId = data.lotId as string;
+  const result = await db.insert(bauxAM).values({ actifId, lotId, ...fields }).returning();
+  return { success: true, created: { id: result[0].id } };
+}
+
+async function fetchAlertes(): Promise<unknown> {
+  const rows = await db.select().from(alertes)
+    .where(eq(alertes.dismissed, false))
+    .orderBy(desc(alertes.createdAt))
+    .limit(30);
+  return rows.map((a: any) => ({
+    module: a.module, type: a.type, title: a.title, message: a.message,
+    priority: a.priority, entityType: a.entityType,
+  }));
+}
+
+async function fetchTravaux(): Promise<unknown> {
+  const rows = await db.select().from(travaux);
+  return rows.map((t: any) => ({
+    id: t.id, actifId: t.actifId, titre: t.titre, budget: t.budget,
+    montantReel: t.montantReel, statut: t.statut, dateDebut: t.dateDebut, dateFin: t.dateFin,
+  }));
+}
+
+async function deleteEntity(entityType: string, id: string): Promise<unknown> {
+  try {
+    switch (entityType) {
+      case "actif":
+        await db.update(actifs).set({ deletedAt: new Date() }).where(eq(actifs.id, id));
+        return { success: true, message: `Actif ${id} supprimé (soft delete)` };
+      case "lot":
+        await db.update(lots).set({ deletedAt: new Date() }).where(eq(lots.id, id));
+        return { success: true, message: `Lot ${id} supprimé (soft delete)` };
+      case "emprunt":
+        await db.update(emprunts).set({ deletedAt: new Date() }).where(eq(emprunts.id, id));
+        return { success: true, message: `Emprunt ${id} supprimé (soft delete)` };
+      default:
+        return { error: `Type d'entité non supporté: ${entityType}` };
+    }
+  } catch (err: any) {
+    return { error: `Erreur suppression: ${err.message}` };
+  }
+}
+
 // ─── Tool definitions for Claude ────────────────────────────
 const toolDefinitions = [
   {
@@ -372,6 +447,73 @@ const toolDefinitions = [
       required: ["id", "fields"],
     },
   },
+  // ─── Axe 3: Create & Delete tools ────────────────
+  {
+    name: "create_actif",
+    description: "Crée un nouvel actif immobilier. Champ obligatoire: nom. Champs optionnels: adresse, ville, codePostal, type, surface, prixAcquisition, etc.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        fields: { type: "object", description: "Objet contenant les champs du nouvel actif. 'nom' est obligatoire." },
+      },
+      required: ["fields"],
+    },
+  },
+  {
+    name: "create_lot",
+    description: "Crée un nouveau lot dans un actif. Champs obligatoires: actifId, designation. Optionnels: type, surface, loyerMensuel, etc.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        fields: { type: "object", description: "Objet contenant les champs du nouveau lot. 'actifId' et 'designation' sont obligatoires." },
+      },
+      required: ["fields"],
+    },
+  },
+  {
+    name: "create_emprunt",
+    description: "Crée un nouvel emprunt. Champs: sciId, actifId, banque, montantEmprunte, tauxAnnuel, dureeAns, mensualite, etc.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        fields: { type: "object", description: "Objet contenant les champs du nouvel emprunt." },
+      },
+      required: ["fields"],
+    },
+  },
+  {
+    name: "create_bail_am",
+    description: "Crée un nouveau bail en asset management. Champs: actifId, lotId, typeBail, dateDebut, dateFin, loyerMensuel, loyerAnnuel, etc.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        fields: { type: "object", description: "Objet contenant les champs du nouveau bail AM." },
+      },
+      required: ["fields"],
+    },
+  },
+  {
+    name: "delete_entity",
+    description: "Supprime (soft delete) une entité. Types supportés: actif, lot, emprunt.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        entity_type: { type: "string", description: "Type d'entité: actif, lot, ou emprunt" },
+        id: { type: "string", description: "ID de l'entité à supprimer" },
+      },
+      required: ["entity_type", "id"],
+    },
+  },
+  {
+    name: "get_alertes",
+    description: "Récupère les alertes proactives actives (AM + GL) : LTV, DSCR, échéances, vacance, indexation manquante.",
+    input_schema: { type: "object" as const, properties: {}, required: [] as string[] },
+  },
+  {
+    name: "get_travaux",
+    description: "Récupère la liste des travaux planifiés et en cours.",
+    input_schema: { type: "object" as const, properties: {}, required: [] as string[] },
+  },
 ];
 
 // ─── Tool executor ──────────────────────────────────────────
@@ -392,6 +534,13 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
       case "update_sci": return await updateSCI(input.id as string, (input.fields || {}) as Record<string, unknown>);
       case "update_bail_am": return await updateBailAM(input.id as string, (input.fields || {}) as Record<string, unknown>);
       case "update_bail_gl": return await updateBailGL(input.id as string, (input.fields || {}) as Record<string, unknown>);
+      case "create_actif": return await createActif((input.fields || {}) as Record<string, unknown>);
+      case "create_lot": return await createLot((input.fields || {}) as Record<string, unknown>);
+      case "create_emprunt": return await createEmprunt((input.fields || {}) as Record<string, unknown>);
+      case "create_bail_am": return await createBailAM((input.fields || {}) as Record<string, unknown>);
+      case "delete_entity": return await deleteEntity(input.entity_type as string, input.id as string);
+      case "get_alertes": return await fetchAlertes();
+      case "get_travaux": return await fetchTravaux();
       default: return { error: `Outil inconnu : ${name}` };
     }
   } catch (err: any) {
@@ -415,6 +564,10 @@ Tu es un expert en asset management immobilier, gestion locative, et finance imm
 - Fiscalité immobilière (TVA, CRL, amortissement)
 - Gestion locative (vacance, recouvrement, WALT)
 - **Modification des données** : tu peux modifier les actifs, lots, emprunts, SCIs, baux AM et baux GL
+- **Création de données** : tu peux créer de nouveaux actifs, lots, emprunts, et baux AM
+- **Suppression** : tu peux supprimer (soft delete) des actifs, lots, emprunts
+- **Alertes** : tu peux consulter les alertes proactives (LTV, DSCR, échéances, etc.)
+- **Travaux** : tu peux consulter la liste des travaux en cours
 
 **Règles** :
 - Utilise TOUJOURS les outils pour obtenir les données avant de répondre à une question sur le portefeuille
