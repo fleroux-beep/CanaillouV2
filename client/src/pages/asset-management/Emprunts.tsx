@@ -13,7 +13,7 @@ import { GlassCard } from "../../components/ui/glass-card";
 import { Section } from "../../components/ui/section";
 import { Badge } from "../../components/ui/badge";
 import { formatCurrency, formatPercent } from "../../lib/utils";
-import { Plus, Pencil, Trash2, TrendingDown, Calculator, RefreshCw, Landmark, Percent, TableIcon, Search, Download, ChevronDown, ChevronRight, Inbox, Calendar, Banknote, ShieldCheck, PiggyBank, ArrowRight, Clock, Building2 } from "lucide-react";
+import { Plus, Pencil, Trash2, TrendingDown, TrendingUp, Calculator, RefreshCw, Landmark, Percent, TableIcon, Search, Download, ChevronDown, ChevronRight, Inbox, Calendar, Banknote, ShieldCheck, PiggyBank, ArrowRight, ArrowDownRight, Clock, Building2, Target, Scale, CheckCircle2, AlertTriangle, Minus } from "lucide-react";
 import { getAnnuiteEmprunt, computeAmortSchedule, type AMEmprunt, type AmortRow } from "../../lib/am-calculations";
 import { findRefTauxEmprunt, compareTauxEmprunt, badgeVariant, type RefTauxEmprunt } from "../../lib/market-utils";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area, ComposedChart, Line } from "recharts";
