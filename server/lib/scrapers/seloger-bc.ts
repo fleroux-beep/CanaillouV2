@@ -6,7 +6,7 @@
 import {
   Scraper, ScrapedResult, ScrapingContext,
   fetchPage, getCached, setCache,
-  median, percentile, computeTauxCapi, filterPlausiblePrixM2,
+  median, percentile, computeTauxCapi, filterPlausiblePrixM2, slugifyVille,
 } from "./base";
 import { logger } from "../logger";
 import { getDeptInfo } from "./geo-departements";
@@ -34,11 +34,7 @@ function buildUrl(ctx: ScrapingContext, typeRecherche: "vente" | "location"): st
     return null;
   }
 
-  const villePath = ctx.ville.toLowerCase()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/['']/g, "-")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-");
+  const villePath = slugifyVille(ctx.ville);
 
   // Format : /{transaction}/{type}/{region}/{departement}/{ville}-{codePostal}
   return `https://${DOMAIN}/${transaction}/${typePath}/${deptInfo.region}/${deptInfo.dept}/${villePath}-${ctx.codePostal}`;

@@ -469,6 +469,32 @@ export function mapActifTypeToSearch(type: string): {
 }
 
 // ============================================================
+// Utilitaire : slugification des noms de ville pour URL
+// ============================================================
+
+/**
+ * Transforme un nom de ville français en slug URL valide.
+ * Gère les accents, apostrophes, espaces et caractères spéciaux.
+ *
+ * Exemples :
+ *  - "Paris"           → "paris"
+ *  - "Saint-Étienne"   → "saint-etienne"
+ *  - "L'Isle-Adam"     → "l-isle-adam"
+ *  - "Aix en Provence" → "aix-en-provence"
+ *  - "Château-d'Oléron"→ "chateau-d-oleron"
+ */
+export function slugifyVille(ville: string): string {
+  return ville
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")  // supprimer les diacritiques
+    .replace(/[''`]/g, "-")            // apostrophes → tirets
+    .replace(/[^a-z0-9-]/g, "-")       // tout caractère non-alphanum → tiret
+    .replace(/-{2,}/g, "-")            // tirets multiples → un seul
+    .replace(/^-|-$/g, "");            // pas de tiret en début/fin
+}
+
+// ============================================================
 // Interface scraper
 // ============================================================
 

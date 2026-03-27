@@ -7,16 +7,14 @@
  */
 import {
   Scraper, ScrapedResult, ScrapingContext,
-  fetchPage, getCached, setCache, computeTauxCapi,
+  fetchPage, getCached, setCache, computeTauxCapi, slugifyVille,
 } from "./base";
 import { logger } from "../logger";
 
 const DOMAIN = "www.meilleursagents.com";
 
 function buildUrl(ctx: ScrapingContext): string {
-  const ville = encodeURIComponent(
-    ctx.ville.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "-"),
-  );
+  const ville = slugifyVille(ctx.ville);
   return `https://${DOMAIN}/prix-immobilier/${ville}-${ctx.codePostal}/`;
 }
 

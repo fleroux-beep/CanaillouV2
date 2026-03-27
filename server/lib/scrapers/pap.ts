@@ -5,7 +5,7 @@
 import {
   Scraper, ScrapedResult, ScrapingContext,
   fetchPage, getCached, setCache,
-  median, percentile, computeTauxCapi, filterPlausiblePrixM2,
+  median, percentile, computeTauxCapi, filterPlausiblePrixM2, slugifyVille,
 } from "./base";
 import { logger } from "../logger";
 
@@ -32,9 +32,7 @@ function buildUrl(ctx: ScrapingContext, typeRecherche: "vente" | "location"): st
   const typePath = typeMap[ctx.typeBien] || "appartement";
   const transaction = typeRecherche === "vente" ? "vente" : "location";
 
-  const villePath = ctx.ville.toLowerCase()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, "-");
+  const villePath = slugifyVille(ctx.ville);
 
   return `https://${DOMAIN}/annonces/${transaction}-${typePath}-${villePath}-${ctx.codePostal}`;
 }

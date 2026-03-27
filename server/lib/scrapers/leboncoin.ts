@@ -6,7 +6,7 @@
 import {
   Scraper, ScrapedResult, ScrapingContext,
   fetchPage, getCached, setCache,
-  median, percentile, computeTauxCapi, filterPlausiblePrixM2,
+  median, percentile, computeTauxCapi, filterPlausiblePrixM2, slugifyVille,
 } from "./base";
 import { logger } from "../logger";
 
@@ -50,7 +50,7 @@ function buildSearchUrl(ctx: ScrapingContext, typeRecherche: "vente" | "location
 
   const params = new URLSearchParams({
     category: String(category),
-    locations: `${ctx.ville}_${ctx.codePostal}`,
+    locations: `${slugifyVille(ctx.ville)}_${ctx.codePostal}`,
     lat: String(ctx.lat),
     lng: String(ctx.lng),
     radius: String(Math.round(ctx.rayonKm * 1000)),
