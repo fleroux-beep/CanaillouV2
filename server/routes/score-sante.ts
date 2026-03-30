@@ -96,11 +96,30 @@ export function registerScoreSanteRoutes(app: Express) {
         const tauxCapi = Number(actif.tauxCapitalisation || 0);
         if (tauxCapi > 0 && noi > 0) valeur = noi / (tauxCapi / 100);
 
+        // Helper: calcul actuariel de la mensualité (même logique que la page Emprunts)
+        function computeMensualite(e: any): number {
+          let mens = Number(e.mensualite || 0);
+          if (mens > 0) return mens;
+          const montant = Number(e.montantEmprunte || 0);
+          const duree = Number(e.dureeMois || 0) || (Number(e.dureeAns || 0) * 12);
+          if (montant > 0 && duree > 0) {
+            const tauxAnnuel = Number(e.tauxAnnuel || 0) / 100;
+            if (tauxAnnuel > 0) {
+              const rm = tauxAnnuel / 12;
+              const factor = Math.pow(1 + rm, duree);
+              mens = montant * (rm * factor) / (factor - 1);
+            } else {
+              mens = montant / duree;
+            }
+          }
+          return mens;
+        }
+
         const crd = actifEmprunts.reduce((s, e: any) => s + Number(e.capitalRestantDu || e.montantEmprunte || 0), 0)
           + sciEmprunts.reduce((s, e: any) => s + Number(e.capitalRestantDu || e.montantEmprunte || 0), 0) / nbActifsInSci;
 
-        const serviceDette = actifEmprunts.reduce((s, e: any) => s + Number(e.mensualite || 0) * 12, 0)
-          + sciEmprunts.reduce((s, e: any) => s + Number(e.mensualite || 0) * 12, 0) / nbActifsInSci;
+        const serviceDette = actifEmprunts.reduce((s, e: any) => s + computeMensualite(e) * 12, 0)
+          + sciEmprunts.reduce((s, e: any) => s + computeMensualite(e) * 12, 0) / nbActifsInSci;
 
         const ltv = valeur > 0 ? (crd / valeur) * 100 : 0;
         const dscr = serviceDette > 0 ? noi / serviceDette : 999;
