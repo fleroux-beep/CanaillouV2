@@ -633,6 +633,28 @@ export const refMarcheScraping = pgTable("ref_marche_scraping", {
 });
 
 // ============================================================
+// MARCHÉ — Études de marché IA
+// ============================================================
+
+export const etudesIA = pgTable("am_etudes_ia", {
+  id: varchar("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  actifId: varchar("actif_id").notNull().references(() => actifs.id, { onDelete: "cascade" }),
+  // Phase 1 context used for analysis
+  phase1Data: jsonb("phase1_data"), // DVF/ANIL data snapshot
+  // AI analysis result (structured JSON)
+  positionnement: jsonb("positionnement"),   // { loyerVsMarche, prixVsMarche, commentaire }
+  potentiel: jsonb("potentiel"),             // { margeLoyer, plusValue, commentaire }
+  risques: jsonb("risques"),                 // [{ type, niveau, description }]
+  recommandations: jsonb("recommandations"), // [{ action, priorite, impact, detail }]
+  comparables: jsonb("comparables"),         // [{ description, prix, surface, distance }]
+  synthese: text("synthese"),                // résumé global texte
+  // Meta
+  confidence: varchar("confidence"),         // A, B, C, D, E
+  model: varchar("model"),                   // claude model used
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ============================================================
 // RELATIONS (for Drizzle relational queries)
 // ============================================================
 

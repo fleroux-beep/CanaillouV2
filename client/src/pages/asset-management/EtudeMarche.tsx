@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiRequest } from "../../lib/queryClient";
@@ -11,9 +11,10 @@ import { Section } from "../../components/ui/section";
 import {
   RefreshCw, Building2, MapPin, TrendingUp, TrendingDown,
   Database, Search, ChevronDown, AlertTriangle,
-  Home, Store, Briefcase, Loader2, BarChart3,
-  Globe, Eye, Layers, ArrowRight, CheckCircle2, XCircle,
-  ShieldCheck, ShieldAlert, Info, Target,
+  Home, Store, Briefcase, Loader2, Sparkles,
+  Eye, ShieldCheck, ShieldAlert, Target,
+  ArrowUpRight, ArrowDownRight, Minus, Zap, Shield, Clock,
+  CheckCircle2, XCircle,
 } from "lucide-react";
 
 // ============================================================
@@ -45,56 +46,37 @@ interface Phase1Data {
   } | null;
 }
 
-interface Phase2Entry {
-  source: string;
-  prixM2Median?: number | null;
-  prixM2Bas?: number | null;
-  prixM2Haut?: number | null;
-  loyerM2Median?: number | null;
-  loyerM2Bas?: number | null;
-  loyerM2Haut?: number | null;
-  nbAnnonces: number | null;
-  tauxCapiDeduit?: number | null;
-  notes: string | null;
-  dateReleve: string | null;
-}
-
-interface Phase2Data {
-  vente: Phase2Entry[];
-  location: Phase2Entry[];
-  tauxCapiMoyen: number | null;
-  dateReleve: string | null;
-}
-
-type NoteConfiance = "A" | "B" | "C" | "D" | "E";
-
-interface SourceAnalysee {
-  source: string;
-  valeur: number;
-  nbAnnonces: number;
-  poids: number;
-  outlier: boolean;
-  rayonKm: number;
-}
-
-interface EstimationAnalyse {
-  valeurConsolidee: number;
-  valeurBasse: number;
-  valeurHaute: number;
-  nbSources: number;
-  nbAnnoncesTotal: number;
-  scoreConfiance: number;
-  noteConfiance: NoteConfiance;
-  explicationConfiance: string;
-  sources: SourceAnalysee[];
-}
-
-interface AnalyseData {
-  vente: EstimationAnalyse | null;
-  location: EstimationAnalyse | null;
-  tauxCapiConsolide: number | null;
-  tauxCapiConfiance: number | null;
-  tauxCapiNote: NoteConfiance | null;
+interface AnalyseIA {
+  id: string;
+  positionnement: {
+    loyerVsMarche: string;
+    ecartLoyerPct: number;
+    prixVsMarche: string;
+    ecartPrixPct: number;
+    commentaire: string;
+  };
+  potentiel: {
+    margeLoyer: number;
+    plusValue: number;
+    horizonAns: number;
+    commentaire: string;
+  };
+  risques: Array<{
+    type: string;
+    niveau: "faible" | "modéré" | "élevé";
+    description: string;
+  }>;
+  recommandations: Array<{
+    action: string;
+    priorite: "haute" | "moyenne" | "basse";
+    impact: string;
+    detail: string;
+  }>;
+  comparables: string;
+  synthese: string;
+  confidence: "A" | "B" | "C" | "D" | "E";
+  model: string;
+  createdAt: string;
 }
 
 interface ActifInfo {
@@ -106,46 +88,18 @@ interface ActifInfo {
   type: string | null;
   surface: string | null;
   surfaceCarrez: string | null;
-  lat: number | null;
-  lng: number | null;
-  tauxCapitalisation: string | null;
-  prixM2Marche: string | null;
 }
 
 interface EtudeActif {
   actif: ActifInfo;
   avertissements?: string[];
   phase1: Phase1Data;
-  phase2: Phase2Data;
-  analyse?: AnalyseData;
+  analyseIA: AnalyseIA | null;
 }
 
 // ============================================================
 // Helpers
 // ============================================================
-
-const SOURCE_META: Record<string, { label: string; color: string; dot: string }> = {
-  meilleursagents: { label: "MeilleursAgents", color: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/20", dot: "bg-indigo-500" },
-  leboncoin: { label: "LeBonCoin", color: "bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/20", dot: "bg-orange-500" },
-  seloger: { label: "SeLoger", color: "bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/20", dot: "bg-red-500" },
-  seloger_bc: { label: "SeLoger B&C", color: "bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/20", dot: "bg-rose-500" },
-  pap: { label: "PAP", color: "bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/20", dot: "bg-sky-500" },
-  bureauxlocaux: { label: "BureauxLocaux", color: "bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-500/20", dot: "bg-teal-500" },
-};
-
-function sourceLabel(source: string): string {
-  return SOURCE_META[source]?.label || source;
-}
-
-function sourceBadge(source: string) {
-  const meta = SOURCE_META[source] || { color: "bg-muted text-muted-foreground border-border", dot: "bg-muted-foreground" };
-  return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border ${meta.color}`}>
-      <span className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />
-      {sourceLabel(source)}
-    </span>
-  );
-}
 
 function typeIcon(type: string | null) {
   const t = (type || "").toLowerCase();
@@ -179,6 +133,35 @@ function fmtTaux(v: number | null | undefined): string {
   return v.toFixed(2) + "%";
 }
 
+const CONFIDENCE_STYLES: Record<string, { bg: string; text: string; label: string }> = {
+  A: { bg: "bg-emerald-500/10 border-emerald-500/30", text: "text-emerald-600 dark:text-emerald-400", label: "Très fiable" },
+  B: { bg: "bg-blue-500/10 border-blue-500/30", text: "text-blue-600 dark:text-blue-400", label: "Fiable" },
+  C: { bg: "bg-amber-500/10 border-amber-500/30", text: "text-amber-600 dark:text-amber-400", label: "Indicatif" },
+  D: { bg: "bg-orange-500/10 border-orange-500/30", text: "text-orange-600 dark:text-orange-400", label: "Fragile" },
+  E: { bg: "bg-red-500/10 border-red-500/30", text: "text-red-600 dark:text-red-400", label: "Insuffisant" },
+};
+
+const RISQUE_ICONS: Record<string, typeof Shield> = {
+  vacance: Building2,
+  obsolescence_energetique: Zap,
+  marche: TrendingDown,
+  reglementaire: Shield,
+  structural: AlertTriangle,
+  fiscal: Target,
+};
+
+const RISQUE_COLORS: Record<string, string> = {
+  faible: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20",
+  "modéré": "text-amber-500 bg-amber-500/10 border-amber-500/20",
+  "élevé": "text-red-500 bg-red-500/10 border-red-500/20",
+};
+
+const PRIORITE_COLORS: Record<string, string> = {
+  haute: "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20",
+  moyenne: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+  basse: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
+};
+
 // ============================================================
 // Sub-components
 // ============================================================
@@ -198,6 +181,16 @@ function DataMetric({ label, value, sub, accent }: { label: string; value: strin
       <p className="text-xl font-bold tracking-tight">{value}</p>
       {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
     </div>
+  );
+}
+
+function ConfidenceBadge({ confidence }: { confidence: string }) {
+  const style = CONFIDENCE_STYLES[confidence] || CONFIDENCE_STYLES.E;
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border ${style.bg} ${style.text}`}>
+      <ShieldCheck className="h-3 w-3" />
+      {confidence} — {style.label}
+    </span>
   );
 }
 
@@ -250,361 +243,167 @@ function Phase1Block({ data }: { data: Phase1Data }) {
   );
 }
 
-function Phase2Table({ entries, mode }: { entries: Phase2Entry[]; mode: "vente" | "location" }) {
-  if (entries.length === 0) return null;
-
-  return (
-    <div className="overflow-hidden rounded-xl border border-border/40">
-      <div className="bg-muted/30 px-4 py-2.5 border-b border-border/30">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-          {mode === "vente" ? "Annonces en vente" : "Annonces en location"}
-        </p>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border/30 bg-muted/10">
-              <th className="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Plateforme</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Médian</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Fourchette</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Annonces</th>
-              {mode === "vente" && (
-                <th className="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Taux capi</th>
-              )}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border/20">
-            {entries.map((entry, i) => (
-              <tr key={i} className="hover:bg-muted/10 transition-colors">
-                <td className="px-4 py-3">{sourceBadge(entry.source)}</td>
-                <td className="px-4 py-3 text-right font-bold tabular-nums">
-                  {mode === "vente" ? fmtPrix(entry.prixM2Median) : fmtLoyer(entry.loyerM2Median)}
-                </td>
-                <td className="px-4 py-3 text-right text-muted-foreground text-xs tabular-nums">
-                  {mode === "vente"
-                    ? `${fmtPrix(entry.prixM2Bas)} — ${fmtPrix(entry.prixM2Haut)}`
-                    : `${fmtLoyer(entry.loyerM2Bas)} — ${fmtLoyer(entry.loyerM2Haut)}`}
-                </td>
-                <td className="px-4 py-3 text-right tabular-nums">{entry.nbAnnonces || "—"}</td>
-                {mode === "vente" && (
-                  <td className="px-4 py-3 text-right font-semibold tabular-nums">{fmtTaux(entry.tauxCapiDeduit)}</td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// Analyse / Confiance components
-// ============================================================
-
-const NOTE_STYLES: Record<NoteConfiance, { bg: string; text: string; border: string; ring: string }> = {
-  A: { bg: "bg-emerald-500/10", text: "text-emerald-600 dark:text-emerald-400", border: "border-emerald-500/30", ring: "ring-emerald-500/20" },
-  B: { bg: "bg-blue-500/10", text: "text-blue-600 dark:text-blue-400", border: "border-blue-500/30", ring: "ring-blue-500/20" },
-  C: { bg: "bg-amber-500/10", text: "text-amber-600 dark:text-amber-400", border: "border-amber-500/30", ring: "ring-amber-500/20" },
-  D: { bg: "bg-orange-500/10", text: "text-orange-600 dark:text-orange-400", border: "border-orange-500/30", ring: "ring-orange-500/20" },
-  E: { bg: "bg-red-500/10", text: "text-red-600 dark:text-red-400", border: "border-red-500/30", ring: "ring-red-500/20" },
-};
-
-function ConfidenceBadge({ note, score }: { note: NoteConfiance; score: number }) {
-  const style = NOTE_STYLES[note];
-  return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border ${style.bg} ${style.text} ${style.border}`}>
-      {note === "A" || note === "B" ? (
-        <ShieldCheck className="h-3.5 w-3.5" />
-      ) : (
-        <ShieldAlert className="h-3.5 w-3.5" />
-      )}
-      {note} · {score}/100
-    </span>
-  );
-}
-
-function ConfidenceBar({ score }: { score: number }) {
-  const color = score >= 80 ? "bg-emerald-500" : score >= 60 ? "bg-blue-500" : score >= 40 ? "bg-amber-500" : score >= 20 ? "bg-orange-500" : "bg-red-500";
-  return (
-    <div className="flex items-center gap-2 w-full">
-      <div className="flex-1 h-1.5 rounded-full bg-muted/50 overflow-hidden">
-        <div className={`h-full rounded-full ${color} transition-all duration-500`} style={{ width: `${score}%` }} />
-      </div>
-      <span className="text-[10px] font-bold tabular-nums text-muted-foreground w-8 text-right">{score}%</span>
-    </div>
-  );
-}
-
-function AnalyseBlock({ analyse, mode }: { analyse: EstimationAnalyse; mode: "vente" | "location" }) {
-  const isVente = mode === "vente";
-  const fmt = isVente ? fmtPrix : fmtLoyer;
-  const style = NOTE_STYLES[analyse.noteConfiance];
-
-  return (
-    <div className={`rounded-xl border ${style.border} ${style.bg} p-4 space-y-3`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <Target className={`h-4 w-4 ${style.text}`} />
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              Estimation consolidée {isVente ? "vente" : "location"}
-            </p>
-            <p className="text-xl font-bold tracking-tight mt-0.5">{fmt(analyse.valeurConsolidee)}</p>
-          </div>
-        </div>
-        <ConfidenceBadge note={analyse.noteConfiance} score={analyse.scoreConfiance} />
-      </div>
-
-      {/* Fourchette + stats */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-lg bg-card/50 border border-border/30 px-3 py-2">
-          <p className="text-[10px] font-medium text-muted-foreground">Fourchette</p>
-          <p className="text-xs font-bold mt-0.5">{fmt(analyse.valeurBasse)} — {fmt(analyse.valeurHaute)}</p>
-        </div>
-        <div className="rounded-lg bg-card/50 border border-border/30 px-3 py-2">
-          <p className="text-[10px] font-medium text-muted-foreground">Sources valides</p>
-          <p className="text-xs font-bold mt-0.5">{analyse.nbSources} source{analyse.nbSources > 1 ? "s" : ""}</p>
-        </div>
-        <div className="rounded-lg bg-card/50 border border-border/30 px-3 py-2">
-          <p className="text-[10px] font-medium text-muted-foreground">Annonces</p>
-          <p className="text-xs font-bold mt-0.5">{analyse.nbAnnoncesTotal} annonce{analyse.nbAnnoncesTotal > 1 ? "s" : ""}</p>
-        </div>
-      </div>
-
-      {/* Barre de confiance */}
-      <ConfidenceBar score={analyse.scoreConfiance} />
-
-      {/* Explication */}
-      <div className="flex items-start gap-2 text-xs text-muted-foreground">
-        <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-        <p>{analyse.explicationConfiance}</p>
-      </div>
-
-      {/* Sources avec poids et outliers */}
-      {analyse.sources.length > 0 && (
-        <div className="space-y-1.5">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Détail des sources</p>
-          {analyse.sources.map((s, i) => (
-            <div key={i} className={`flex items-center gap-2 text-xs ${s.outlier ? "opacity-40 line-through" : ""}`}>
-              {sourceBadge(s.source)}
-              <span className="font-bold tabular-nums">{fmt(s.valeur)}</span>
-              <span className="text-muted-foreground">· {s.nbAnnonces} ann.</span>
-              <span className="text-muted-foreground">· poids {Math.round(s.poids * 100)}%</span>
-              {s.outlier && (
-                <span className="text-red-500 text-[10px] font-medium no-underline">outlier exclu</span>
-              )}
-              {s.rayonKm > 5 && !s.outlier && (
-                <span className="text-amber-500 text-[10px]">rayon {s.rayonKm}km</span>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Phase2Block({ data }: { data: Phase2Data }) {
-  const hasData = data.vente.length > 0 || data.location.length > 0;
-
-  if (!hasData) {
-    return (
-      <div className="flex items-center gap-3 rounded-xl border border-dashed border-border/50 bg-muted/20 p-5">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-500/10">
-          <Globe className="h-5 w-5 text-purple-500" />
-        </div>
-        <div>
-          <p className="text-sm font-medium">Aucune donnée de marché collectée</p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Lancez la synchronisation Phase 2 pour scraper les plateformes immobilières.
-          </p>
-        </div>
-      </div>
-    );
-  }
+function PositionnementBlock({ data }: { data: AnalyseIA["positionnement"] }) {
+  const loyerIcon = data.ecartLoyerPct > 2 ? ArrowUpRight : data.ecartLoyerPct < -2 ? ArrowDownRight : Minus;
+  const prixIcon = data.ecartPrixPct > 2 ? ArrowUpRight : data.ecartPrixPct < -2 ? ArrowDownRight : Minus;
+  const loyerColor = data.ecartLoyerPct > 2 ? "text-emerald-500" : data.ecartLoyerPct < -2 ? "text-red-500" : "text-muted-foreground";
+  const prixColor = data.ecartPrixPct > 2 ? "text-emerald-500" : data.ecartPrixPct < -2 ? "text-red-500" : "text-muted-foreground";
+  const LoyerIcon = loyerIcon;
+  const PrixIcon = prixIcon;
 
   return (
     <div className="space-y-3">
-      <Phase2Table entries={data.vente} mode="vente" />
-      <Phase2Table entries={data.location} mode="location" />
-      {data.tauxCapiMoyen != null && (
-        <div className="inline-flex items-center gap-2 rounded-xl border border-purple-500/20 bg-purple-500/5 px-4 py-2.5">
-          <BarChart3 className="h-4 w-4 text-purple-500" />
-          <span className="text-xs font-medium text-muted-foreground">Taux capi. moyen Phase 2 :</span>
-          <span className="text-sm font-bold">{fmtTaux(data.tauxCapiMoyen)}</span>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="flex items-center gap-3 rounded-xl border border-border/40 bg-card p-4">
+          <LoyerIcon className={`h-5 w-5 ${loyerColor}`} />
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Loyer vs marché</p>
+            <p className="text-sm font-semibold capitalize">{data.loyerVsMarche}</p>
+            <p className={`text-xs font-bold ${loyerColor}`}>{data.ecartLoyerPct > 0 ? "+" : ""}{data.ecartLoyerPct}%</p>
+          </div>
         </div>
-      )}
+        <div className="flex items-center gap-3 rounded-xl border border-border/40 bg-card p-4">
+          <PrixIcon className={`h-5 w-5 ${prixColor}`} />
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Prix vs marché</p>
+            <p className="text-sm font-semibold capitalize">{data.prixVsMarche}</p>
+            <p className={`text-xs font-bold ${prixColor}`}>{data.ecartPrixPct > 0 ? "+" : ""}{data.ecartPrixPct}%</p>
+          </div>
+        </div>
+      </div>
+      <p className="text-sm text-muted-foreground leading-relaxed">{data.commentaire}</p>
     </div>
   );
 }
 
-function SyntheseBlock({ phase1, phase2, analyse }: { phase1: Phase1Data; phase2: Phase2Data; analyse?: AnalyseData }) {
-  const p1Prix = phase1.valeurVenale?.prixM2Median;
-  const p1Loyer = phase1.valeurLocative?.loyerM2Median;
-  const p1Taux = phase1.tauxCapi?.taux;
-
-  // Utiliser les valeurs consolidées de l'analyse si disponible, sinon fallback sur la moyenne simple
-  const p2Prix = analyse?.vente?.valeurConsolidee ?? (
-    phase2.vente.filter((v) => v.prixM2Median).length > 0
-      ? Math.round(phase2.vente.filter((v) => v.prixM2Median).reduce((sum, v) => sum + (v.prixM2Median || 0), 0) / phase2.vente.filter((v) => v.prixM2Median).length)
-      : null
+function PotentielBlock({ data }: { data: AnalyseIA["potentiel"] }) {
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <DataMetric label="Marge loyer" value={`+${data.margeLoyer}%`} accent="emerald" />
+        <DataMetric label="Plus-value potentielle" value={`+${data.plusValue}%`} accent="blue" />
+        <DataMetric label="Horizon recommandé" value={`${data.horizonAns} ans`} accent="purple" />
+      </div>
+      <p className="text-sm text-muted-foreground leading-relaxed">{data.commentaire}</p>
+    </div>
   );
+}
 
-  const p2Loyer = analyse?.location?.valeurConsolidee ?? (
-    phase2.location.filter((l) => l.loyerM2Median).length > 0
-      ? Math.round(phase2.location.filter((l) => l.loyerM2Median).reduce((sum, l) => sum + (l.loyerM2Median || 0), 0) / phase2.location.filter((l) => l.loyerM2Median).length * 100) / 100
-      : null
-  );
-
-  const p2Taux = analyse?.tauxCapiConsolide ?? phase2.tauxCapiMoyen;
-
-  const comparisons = [
-    { label: "Valeur vénale", p1: p1Prix, p2: p2Prix, fmt: fmtPrix, icon: Building2 },
-    { label: "Valeur locative", p1: p1Loyer, p2: p2Loyer, fmt: fmtLoyer, icon: Home },
-    { label: "Taux de capitalisation", p1: p1Taux, p2: p2Taux, fmt: fmtTaux, icon: BarChart3, suffix: " pts" },
-  ].filter((c) => c.p1 && c.p2);
-
-  if (comparisons.length === 0) return null;
+function RisquesBlock({ risques }: { risques: AnalyseIA["risques"] }) {
+  if (!risques || risques.length === 0) return null;
 
   return (
-    <div className="rounded-xl border border-border/40 bg-gradient-to-br from-muted/30 to-muted/10 overflow-hidden">
-      <div className="px-5 py-3 border-b border-border/30 bg-muted/20">
-        <div className="flex items-center gap-2">
-          <Layers className="h-4 w-4 text-orange-500" />
-          <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            Synthèse — Écart Phase 1 vs Phase 2
-          </h4>
-        </div>
-      </div>
-      <div className="p-5">
-        <div className={`grid grid-cols-1 gap-4 ${comparisons.length >= 3 ? "sm:grid-cols-3" : comparisons.length === 2 ? "sm:grid-cols-2" : ""}`}>
-          {comparisons.map((c, i) => {
-            const diff = c.suffix
-              ? (c.p2! - c.p1!)
-              : ((c.p2! - c.p1!) / c.p1!) * 100;
-            const diffLabel = c.suffix
-              ? `${diff >= 0 ? "+" : ""}${diff.toFixed(2)}${c.suffix}`
-              : `${diff >= 0 ? "+" : ""}${diff.toFixed(1)}%`;
-            const isUp = diff > 0;
-            const isSmall = Math.abs(diff) < 5;
-
-            return (
-              <div key={i} className="flex items-center gap-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-card border border-border/40">
-                  <c.icon className="h-4 w-4 text-muted-foreground" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs text-muted-foreground truncate">{c.label}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-sm font-medium text-muted-foreground">{c.fmt(c.p1)}</span>
-                    <ArrowRight className="h-3 w-3 text-muted-foreground/50 shrink-0" />
-                    <span className="text-sm font-bold">{c.fmt(c.p2)}</span>
-                  </div>
-                </div>
-                <div className={`shrink-0 inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold ${
-                  isSmall ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                    : isUp ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                    : "bg-red-500/10 text-red-600 dark:text-red-400"
-                }`}>
-                  {isUp ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                  {diffLabel}
-                </div>
+    <div className="space-y-2">
+      {risques.map((r, i) => {
+        const Icon = RISQUE_ICONS[r.type] || AlertTriangle;
+        const colorClass = RISQUE_COLORS[r.niveau] || RISQUE_COLORS["modéré"];
+        return (
+          <div key={i} className={`flex items-start gap-3 rounded-xl border p-3.5 ${colorClass}`}>
+            <Icon className="h-4 w-4 mt-0.5 shrink-0" />
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider">{r.type.replace(/_/g, " ")}</span>
+                <Badge variant="outline" className={`text-[10px] py-0 ${colorClass}`}>{r.niveau}</Badge>
               </div>
-            );
-          })}
-        </div>
-      </div>
+              <p className="text-xs mt-1 opacity-90">{r.description}</p>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function ActifCard({ etude, index }: { etude: EtudeActif; index: number }) {
+function RecommandationsBlock({ recommandations }: { recommandations: AnalyseIA["recommandations"] }) {
+  if (!recommandations || recommandations.length === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      {recommandations.map((r, i) => (
+        <div key={i} className="rounded-xl border border-border/40 bg-card p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Target className="h-4 w-4 text-primary" />
+            <span className="text-sm font-bold">{r.action}</span>
+            <Badge variant="outline" className={`text-[10px] py-0 ml-auto ${PRIORITE_COLORS[r.priorite] || ""}`}>
+              {r.priorite}
+            </Badge>
+          </div>
+          {r.impact && (
+            <p className="text-xs font-semibold text-primary mb-1">{r.impact}</p>
+          )}
+          <p className="text-xs text-muted-foreground leading-relaxed">{r.detail}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ============================================================
+// Actif Card
+// ============================================================
+
+function ActifCard({ etude, index, onAnalyse, isAnalysing }: {
+  etude: EtudeActif;
+  index: number;
+  onAnalyse: (actifId: string) => void;
+  isAnalysing: boolean;
+}) {
   const [expanded, setExpanded] = useState(false);
-  const { actif, phase1, phase2, analyse } = etude;
+  const { actif, phase1, analyseIA } = etude;
   const Icon = typeIcon(actif.type);
   const gradient = typeGradient(actif.type);
-
-  const hasP1 = !!(phase1.valeurVenale || phase1.valeurLocative || phase1.tauxCapi);
-  const hasP2 = phase2.vente.length > 0 || phase2.location.length > 0;
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: index * 0.04 }}
+      transition={{ delay: index * 0.04 }}
     >
-      <GlassCard hover={false} className="overflow-hidden !p-0">
+      <GlassCard className="overflow-hidden">
         {/* Header */}
         <button
           onClick={() => setExpanded(!expanded)}
-          className="flex w-full items-center gap-4 p-5 text-left hover:bg-muted/20 transition-colors"
+          className="flex w-full items-center gap-4 p-4 text-left transition-colors hover:bg-muted/30"
         >
-          {/* Icon with gradient */}
-          <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${gradient} shadow-lg`}>
+          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${gradient} shadow-lg`}>
             <Icon className="h-5 w-5 text-white" />
           </div>
 
-          {/* Info */}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-bold truncate">{actif.nom}</h3>
+              <h3 className="text-sm font-bold truncate">{actif.nom}</h3>
               {actif.type && (
-                <Badge variant="outline" className="text-[10px] py-0 shrink-0 capitalize">
-                  {actif.type}
-                </Badge>
+                <Badge variant="outline" className="text-[10px] py-0 capitalize shrink-0">{actif.type}</Badge>
               )}
             </div>
-            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <MapPin className="h-3 w-3" />
-                {[actif.adresse, actif.ville, actif.codePostal].filter(Boolean).join(", ") || "—"}
-              </span>
-              {actif.surface && (
-                <span className="text-muted-foreground/60">·</span>
+            <div className="flex items-center gap-2 mt-0.5">
+              {actif.ville && (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <MapPin className="h-3 w-3" /> {actif.ville} {actif.codePostal}
+                </span>
               )}
               {actif.surface && (
-                <span>{Number(actif.surface).toFixed(0)} m²</span>
+                <span className="text-xs text-muted-foreground">· {actif.surface} m²</span>
               )}
             </div>
           </div>
 
-          {/* Status indicators + Quick KPIs */}
-          <div className="hidden sm:flex items-center gap-4 shrink-0">
+          {/* Quick info chips */}
+          <div className="hidden sm:flex items-center gap-2">
             {/* Phase 1 status */}
-            <div className="flex items-center gap-1.5">
-              {hasP1 ? (
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-              ) : (
-                <XCircle className="h-3.5 w-3.5 text-muted-foreground/40" />
-              )}
-              <span className="text-[10px] font-medium text-muted-foreground">P1</span>
-            </div>
-            {/* Phase 2 status */}
-            <div className="flex items-center gap-1.5">
-              {hasP2 ? (
-                <CheckCircle2 className="h-3.5 w-3.5 text-purple-500" />
-              ) : (
-                <XCircle className="h-3.5 w-3.5 text-muted-foreground/40" />
-              )}
-              <span className="text-[10px] font-medium text-muted-foreground">P2</span>
-            </div>
+            {phase1.valeurVenale || phase1.valeurLocative ? (
+              <Badge variant="outline" className="text-[10px] py-0 bg-blue-500/5 text-blue-600 dark:text-blue-400 border-blue-500/20">
+                <Database className="h-2.5 w-2.5 mr-1" /> DVF/ANIL
+              </Badge>
+            ) : null}
 
-            {/* Quick taux capi */}
-            {(phase1.tauxCapi || phase2.tauxCapiMoyen || analyse?.tauxCapiConsolide) && (
-              <div className="border-l border-border/40 pl-4">
-                <p className="text-[10px] text-muted-foreground">Taux capi</p>
-                <div className="flex items-center gap-1.5">
-                  <p className="text-sm font-bold tabular-nums">
-                    {fmtTaux(phase1.tauxCapi?.taux || analyse?.tauxCapiConsolide || phase2.tauxCapiMoyen)}
-                  </p>
-                  {analyse?.tauxCapiNote && (
-                    <span className={`text-[10px] font-bold ${NOTE_STYLES[analyse.tauxCapiNote].text}`}>
-                      {analyse.tauxCapiNote}
-                    </span>
-                  )}
-                </div>
-              </div>
+            {/* AI analysis status */}
+            {analyseIA ? (
+              <ConfidenceBadge confidence={analyseIA.confidence} />
+            ) : (
+              <Badge variant="outline" className="text-[10px] py-0 bg-muted text-muted-foreground border-border/50">
+                Pas d'analyse IA
+              </Badge>
             )}
           </div>
 
@@ -628,7 +427,7 @@ function ActifCard({ etude, index }: { etude: EtudeActif; index: number }) {
               transition={{ duration: 0.25 }}
             >
               <div className="border-t border-border/30 p-5 space-y-6">
-                {/* Avertissements sur la compatibilité des données */}
+                {/* Avertissements */}
                 {etude.avertissements && etude.avertissements.length > 0 && (
                   <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
                     <div className="flex items-start gap-2.5">
@@ -642,13 +441,13 @@ function ActifCard({ etude, index }: { etude: EtudeActif; index: number }) {
                   </div>
                 )}
 
-                {/* Phase 1 */}
+                {/* Phase 1 — Données officielles */}
                 <div>
                   <div className="flex items-center gap-2.5 mb-4">
                     <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-500/10">
                       <Database className="h-3.5 w-3.5 text-blue-500" />
                     </div>
-                    <h4 className="text-sm font-bold">Phase 1 — Données officielles</h4>
+                    <h4 className="text-sm font-bold">Données officielles</h4>
                     <Badge variant="outline" className="text-[10px] py-0 bg-blue-500/5 text-blue-600 dark:text-blue-400 border-blue-500/20">
                       DVF + ANIL
                     </Badge>
@@ -656,53 +455,88 @@ function ActifCard({ etude, index }: { etude: EtudeActif; index: number }) {
                   <Phase1Block data={phase1} />
                 </div>
 
-                {/* Phase 2 */}
-                <div>
-                  <div className="flex items-center gap-2.5 mb-4">
-                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-purple-500/10">
-                      <Globe className="h-3.5 w-3.5 text-purple-500" />
-                    </div>
-                    <h4 className="text-sm font-bold">Phase 2 — Plateformes immobilières</h4>
-                    <Badge variant="outline" className="text-[10px] py-0 bg-purple-500/5 text-purple-600 dark:text-purple-400 border-purple-500/20">
-                      6 sources
-                    </Badge>
-                    {phase2.dateReleve && (
+                {/* Analyse IA */}
+                {analyseIA ? (
+                  <div className="space-y-6">
+                    {/* Header Analyse IA */}
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500/20 to-indigo-500/20">
+                        <Sparkles className="h-3.5 w-3.5 text-purple-500" />
+                      </div>
+                      <h4 className="text-sm font-bold">Analyse IA</h4>
+                      <ConfidenceBadge confidence={analyseIA.confidence} />
                       <span className="text-[10px] text-muted-foreground ml-auto">
-                        Relevé du {new Date(phase2.dateReleve).toLocaleDateString("fr-FR")}
+                        {new Date(analyseIA.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}
                       </span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onAnalyse(actif.id); }}
+                        disabled={isAnalysing}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-border/50 bg-card px-2.5 py-1.5 text-[10px] font-semibold hover:bg-muted transition-all disabled:opacity-50"
+                      >
+                        {isAnalysing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                        Rafraîchir
+                      </button>
+                    </div>
+
+                    {/* Synthèse */}
+                    <div className="rounded-xl border border-purple-500/20 bg-gradient-to-br from-purple-500/5 to-indigo-500/5 p-4">
+                      <p className="text-sm leading-relaxed">{analyseIA.synthese}</p>
+                    </div>
+
+                    {/* Positionnement marché */}
+                    <div>
+                      <h5 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Positionnement marché</h5>
+                      <PositionnementBlock data={analyseIA.positionnement} />
+                    </div>
+
+                    {/* Potentiel */}
+                    <div>
+                      <h5 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Potentiel de revalorisation</h5>
+                      <PotentielBlock data={analyseIA.potentiel} />
+                    </div>
+
+                    {/* Risques */}
+                    <div>
+                      <h5 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Risques identifiés</h5>
+                      <RisquesBlock risques={analyseIA.risques} />
+                    </div>
+
+                    {/* Recommandations */}
+                    <div>
+                      <h5 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Recommandations</h5>
+                      <RecommandationsBlock recommandations={analyseIA.recommandations} />
+                    </div>
+
+                    {/* Comparables */}
+                    {analyseIA.comparables && (
+                      <div>
+                        <h5 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Marché local & comparables</h5>
+                        <div className="rounded-xl border border-border/40 bg-card p-4">
+                          <p className="text-sm text-muted-foreground leading-relaxed">{analyseIA.comparables}</p>
+                        </div>
+                      </div>
                     )}
                   </div>
-                  <Phase2Block data={phase2} />
-                </div>
-
-                {/* Analyse intelligente */}
-                {analyse && (analyse.vente || analyse.location) && (
-                  <div>
-                    <div className="flex items-center gap-2.5 mb-4">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10">
-                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-                      </div>
-                      <h4 className="text-sm font-bold">Analyse consolidée</h4>
-                      <Badge variant="outline" className="text-[10px] py-0 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">
-                        Pondération intelligente
-                      </Badge>
-                      {analyse.tauxCapiConsolide != null && analyse.tauxCapiNote && (
-                        <div className="ml-auto flex items-center gap-2">
-                          <span className="text-xs text-muted-foreground">Taux capi consolidé :</span>
-                          <span className="text-sm font-bold">{fmtTaux(analyse.tauxCapiConsolide)}</span>
-                          <ConfidenceBadge note={analyse.tauxCapiNote} score={analyse.tauxCapiConfiance!} />
-                        </div>
-                      )}
+                ) : (
+                  /* No AI analysis yet — CTA */
+                  <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-purple-500/30 bg-purple-500/5 p-8">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg mb-4">
+                      <Sparkles className="h-6 w-6 text-white" />
                     </div>
-                    <div className="space-y-3">
-                      {analyse.vente && <AnalyseBlock analyse={analyse.vente} mode="vente" />}
-                      {analyse.location && <AnalyseBlock analyse={analyse.location} mode="location" />}
-                    </div>
+                    <h4 className="text-sm font-bold mb-1">Aucune analyse IA</h4>
+                    <p className="text-xs text-muted-foreground text-center max-w-sm mb-4">
+                      Lancez l'analyse IA pour obtenir un positionnement marché, des recommandations et une évaluation des risques.
+                    </p>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onAnalyse(actif.id); }}
+                      disabled={isAnalysing}
+                      className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition-all hover:shadow-xl disabled:opacity-50"
+                    >
+                      {isAnalysing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                      Analyser cet actif
+                    </button>
                   </div>
                 )}
-
-                {/* Synthèse */}
-                <SyntheseBlock phase1={phase1} phase2={phase2} analyse={analyse} />
               </div>
             </motion.div>
           )}
@@ -719,60 +553,14 @@ function ActifCard({ etude, index }: { etude: EtudeActif; index: number }) {
 export default function EtudeMarche() {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<string>("all");
+  const [analysingId, setAnalysingId] = useState<string | null>(null);
 
   const { data: etudes = [], isLoading, isError, error } = useQuery<EtudeActif[]>({
     queryKey: ["/api/am/marche/etude"],
     queryFn: () => apiRequest("/api/am/marche/etude"),
   });
 
-  // Phase 2 scraping — async avec polling
-  const [scrapingJob, setScrapingJob] = useState<{
-    status: "running" | "done" | "error";
-    total: number;
-    scraped: number;
-    progress: number;
-    progressTotal: number;
-    errors: string[];
-  } | null>(null);
-  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const stopPolling = useCallback(() => {
-    if (pollingRef.current) {
-      clearInterval(pollingRef.current);
-      pollingRef.current = null;
-    }
-  }, []);
-
-  const pollStatus = useCallback(async () => {
-    try {
-      const res = await apiRequest<{ job: typeof scrapingJob }>("/api/am/marche/sync-scraping/status");
-      if (res.job) {
-        setScrapingJob(res.job);
-        if (res.job.status !== "running") {
-          stopPolling();
-          if (res.job.status === "done") {
-            queryClient.invalidateQueries({ queryKey: ["/api/am/marche/etude"] });
-          }
-        }
-      }
-    } catch {
-      // ignore polling errors
-    }
-  }, [queryClient, stopPolling]);
-
-  useEffect(() => () => stopPolling(), [stopPolling]);
-
-  const syncScrapingMutation = useMutation({
-    mutationFn: () => apiRequest("/api/am/marche/sync-scraping", { method: "POST" }),
-    onSuccess: (data: any) => {
-      setScrapingJob(data.job);
-      stopPolling();
-      pollingRef.current = setInterval(pollStatus, 3000);
-    },
-  });
-
-  const isScrapingRunning = scrapingJob?.status === "running" || syncScrapingMutation.isPending;
-
+  // Phase 1 sync (DVF + ANIL + taux capi)
   const syncPhase1Mutation = useMutation({
     mutationFn: async () => {
       await apiRequest("/api/am/marche/sync-dvf", { method: "POST" });
@@ -785,19 +573,42 @@ export default function EtudeMarche() {
     },
   });
 
+  // Analyse IA — all assets
+  const analyseAllMutation = useMutation({
+    mutationFn: () => apiRequest("/api/am/marche/analyse-ia", { method: "POST" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/am/marche/etude"] });
+    },
+  });
+
+  // Analyse IA — single asset
+  const analyseSingleMutation = useMutation({
+    mutationFn: (actifId: string) => apiRequest(`/api/am/marche/analyse-ia/${actifId}`, { method: "POST" }),
+    onSuccess: () => {
+      setAnalysingId(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/am/marche/etude"] });
+    },
+    onError: () => {
+      setAnalysingId(null);
+    },
+  });
+
+  function handleAnalyseSingle(actifId: string) {
+    setAnalysingId(actifId);
+    analyseSingleMutation.mutate(actifId);
+  }
+
+  const isSyncing = syncPhase1Mutation.isPending || analyseAllMutation.isPending;
+
   // Filter
   const types = [...new Set(etudes.map((e) => e.actif.type).filter(Boolean))];
   const filtered = filter === "all" ? etudes : etudes.filter((e) => e.actif.type === filter);
 
-  const isSyncing = isScrapingRunning || syncPhase1Mutation.isPending;
-
   // Summary KPIs
   const actifsWithP1 = etudes.filter((e) => e.phase1.valeurVenale || e.phase1.valeurLocative).length;
-  const actifsWithP2 = etudes.filter((e) => e.phase2.vente.length > 0 || e.phase2.location.length > 0).length;
+  const actifsWithIA = etudes.filter((e) => e.analyseIA != null).length;
   const avgTauxCapi = (() => {
-    const vals = etudes
-      .map((e) => e.phase1.tauxCapi?.taux || e.phase2.tauxCapiMoyen)
-      .filter((v): v is number => v != null && v > 0);
+    const vals = etudes.map((e) => e.phase1.tauxCapi?.taux).filter((v): v is number => v != null && v > 0);
     return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
   })();
 
@@ -805,7 +616,7 @@ export default function EtudeMarche() {
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
       <PageHeader
         title="Étude de marché"
-        description="Analyse comparative par actif — données officielles (DVF/ANIL) et plateformes immobilières"
+        description="Analyse comparative par actif — données officielles (DVF/ANIL) et analyse IA"
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <motion.button
@@ -820,21 +631,21 @@ export default function EtudeMarche() {
               ) : (
                 <Database className="h-4 w-4 text-blue-500" />
               )}
-              Phase 1 (DVF + ANIL)
+              Sync DVF + ANIL
             </motion.button>
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              onClick={() => syncScrapingMutation.mutate()}
+              onClick={() => analyseAllMutation.mutate()}
               disabled={isSyncing}
               className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-purple-500/20 transition-all hover:shadow-xl disabled:opacity-50"
             >
-              {isScrapingRunning ? (
+              {analyseAllMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <RefreshCw className="h-4 w-4" />
+                <Sparkles className="h-4 w-4" />
               )}
-              {isScrapingRunning ? "Scraping en cours..." : "Phase 2 (scraping)"}
+              {analyseAllMutation.isPending ? "Analyse en cours..." : "Analyser tous les actifs"}
             </motion.button>
           </div>
         }
@@ -846,39 +657,23 @@ export default function EtudeMarche() {
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-3">
             <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
             <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
-              Phase 1 synchronisée avec succès — données DVF, ANIL et taux de capitalisation mis à jour.
+              Données officielles synchronisées avec succès — DVF, ANIL et taux de capitalisation mis à jour.
             </p>
           </motion.div>
         )}
-        {scrapingJob?.status === "running" && (
-          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="flex items-center gap-3 rounded-xl border border-purple-500/30 bg-purple-500/5 px-4 py-3">
-            <Loader2 className="h-4 w-4 text-purple-500 shrink-0 animate-spin" />
-            <p className="text-sm font-medium text-purple-700 dark:text-purple-300">
-              Scraping en cours{scrapingJob.progressTotal > 0 ? ` — actif ${scrapingJob.progress + 1}/${scrapingJob.progressTotal}` : ""}...
-            </p>
-          </motion.div>
-        )}
-        {scrapingJob?.status === "done" && (
+        {analyseAllMutation.isSuccess && (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="flex items-center gap-3 rounded-xl border border-purple-500/30 bg-purple-500/5 px-4 py-3">
             <CheckCircle2 className="h-4 w-4 text-purple-500 shrink-0" />
             <p className="text-sm font-medium text-purple-700 dark:text-purple-300">
-              Phase 2 synchronisée — {scrapingJob.scraped} résultats collectés pour {scrapingJob.total} actifs.
+              Analyse IA terminée pour tous les actifs.
             </p>
           </motion.div>
         )}
-        {scrapingJob?.status === "error" && (
+        {(syncPhase1Mutation.isError || analyseAllMutation.isError) && (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="flex items-center gap-3 rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3">
             <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
             <p className="text-sm font-medium text-red-700 dark:text-red-300">
-              Erreur scraping : {scrapingJob.errors.join(", ") || "Erreur inconnue"}
-            </p>
-          </motion.div>
-        )}
-        {syncPhase1Mutation.isError && (
-          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="flex items-center gap-3 rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3">
-            <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
-            <p className="text-sm font-medium text-red-700 dark:text-red-300">
-              Erreur : {syncPhase1Mutation.error?.message}
+              Erreur : {(syncPhase1Mutation.error as Error)?.message || (analyseAllMutation.error as Error)?.message}
             </p>
           </motion.div>
         )}
@@ -890,7 +685,7 @@ export default function EtudeMarche() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <KpiCard label="Actifs analysés" value={etudes.length} icon={Building2} variant="primary" gradient delay={0} />
             <KpiCard
-              label="Couverture Phase 1"
+              label="Couverture DVF/ANIL"
               value={actifsWithP1}
               icon={Database}
               variant={actifsWithP1 > 0 ? "success" : "danger"}
@@ -898,12 +693,12 @@ export default function EtudeMarche() {
               subtitle={etudes.length > 0 ? `${Math.round((actifsWithP1 / etudes.length) * 100)}% du portefeuille` : undefined}
             />
             <KpiCard
-              label="Couverture Phase 2"
-              value={actifsWithP2}
-              icon={Globe}
-              variant={actifsWithP2 > 0 ? "success" : "danger"}
+              label="Analyses IA"
+              value={actifsWithIA}
+              icon={Sparkles}
+              variant={actifsWithIA > 0 ? "success" : "danger"}
               delay={2}
-              subtitle={etudes.length > 0 ? `${Math.round((actifsWithP2 / etudes.length) * 100)}% du portefeuille` : undefined}
+              subtitle={etudes.length > 0 ? `${Math.round((actifsWithIA / etudes.length) * 100)}% du portefeuille` : undefined}
             />
             <KpiCard
               label="Taux capi moyen"
@@ -952,7 +747,7 @@ export default function EtudeMarche() {
       {isLoading && (
         <div className="flex flex-col items-center justify-center py-20">
           <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
-          <p className="text-sm text-muted-foreground">Chargement des études de marché…</p>
+          <p className="text-sm text-muted-foreground">Chargement des études de marché...</p>
         </div>
       )}
 
@@ -986,7 +781,7 @@ export default function EtudeMarche() {
             </div>
             <h3 className="text-lg font-bold">Aucun actif à analyser</h3>
             <p className="text-sm text-muted-foreground mt-2 max-w-md">
-              Ajoutez des actifs avec une adresse, un code postal et des coordonnées GPS pour lancer l'étude de marché.
+              Ajoutez des actifs avec une adresse et un code postal pour lancer l'étude de marché.
             </p>
           </div>
         </GlassCard>
@@ -995,7 +790,13 @@ export default function EtudeMarche() {
       {/* Actif cards */}
       <div className="space-y-3">
         {filtered.map((etude, i) => (
-          <ActifCard key={etude.actif.id} etude={etude} index={i} />
+          <ActifCard
+            key={etude.actif.id}
+            etude={etude}
+            index={i}
+            onAnalyse={handleAnalyseSingle}
+            isAnalysing={analysingId === etude.actif.id && analyseSingleMutation.isPending}
+          />
         ))}
       </div>
     </motion.div>

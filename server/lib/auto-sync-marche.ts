@@ -8,7 +8,6 @@
  *  1. Sync DVF (valeurs vénales)
  *  2. Sync ANIL (valeurs locatives)
  *  3. Calcul des taux de capitalisation
- *  4. Scraping Phase 2 (plateformes immobilières)
  */
 import { db } from "../db";
 import { actifs, refValeursVenales, refValeursLocatives } from "@shared/schema";
@@ -17,7 +16,6 @@ import { logger } from "./logger";
 import { syncDVF } from "./sync-dvf";
 import { syncANIL } from "./sync-anil";
 import { computeTauxCapiFromRefs } from "./compute-taux-capi";
-import { scrapeAllActifs } from "./scrapers";
 import { syncIndicesINSEE, autoIndexBaux } from "./sync-insee";
 import { computeAndStoreAlerts } from "../routes/alertes-proactives";
 
@@ -111,23 +109,7 @@ async function runFullSync(): Promise<void> {
     logger.error("auto-sync: compute taux capi failed", { error: err.message });
   }
 
-  // 4. Scraping Phase 2 (plateformes immobilières)
-  try {
-    logger.info("auto-sync: lancement scraping Phase 2");
-    const scrapingResult = await scrapeAllActifs();
-    logger.info("auto-sync: scraping Phase 2 terminé", {
-      total: scrapingResult.total,
-      scraped: scrapingResult.scraped,
-      errors: scrapingResult.errors.length,
-    });
-    if (scrapingResult.errors.length > 0) {
-      logger.warn("auto-sync: scraping errors", { errors: scrapingResult.errors.slice(0, 10) });
-    }
-  } catch (err: any) {
-    logger.error("auto-sync: scraping Phase 2 failed", { error: err.message });
-  }
-
-  // 5. Sync indices INSEE
+  // 4. Sync indices INSEE
   try {
     logger.info("auto-sync: sync indices INSEE");
     const inseeResult = await syncIndicesINSEE();
@@ -136,7 +118,7 @@ async function runFullSync(): Promise<void> {
     logger.error("auto-sync: sync INSEE failed", { error: err.message });
   }
 
-  // 6. Auto-indexation des baux GL
+  // 5. Auto-indexation des baux GL
   try {
     logger.info("auto-sync: indexation automatique baux GL");
     const indexResult = await autoIndexBaux();
@@ -145,7 +127,7 @@ async function runFullSync(): Promise<void> {
     logger.error("auto-sync: auto-index baux failed", { error: err.message });
   }
 
-  // 7. Recalcul alertes proactives
+  // 6. Recalcul alertes proactives
   try {
     logger.info("auto-sync: recalcul alertes proactives");
     const alertResult = await computeAndStoreAlerts();
@@ -154,7 +136,7 @@ async function runFullSync(): Promise<void> {
     logger.error("auto-sync: alertes failed", { error: err.message });
   }
 
-  logger.info("auto-sync: synchronisation complète terminée (Phase 1 + Phase 2 + INSEE + Alertes)");
+  logger.info("auto-sync: synchronisation complète terminée (Phase 1 + INSEE + Alertes)");
 }
 
 /**
