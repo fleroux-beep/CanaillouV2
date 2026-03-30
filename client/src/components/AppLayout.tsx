@@ -11,7 +11,7 @@ import {
   AlertTriangle, DollarSign, FolderOpen, ShieldCheck,
   TreePine, Hammer, ArrowLeftRight, FlaskConical, ClipboardList,
   ArrowUpDown, FileBarChart, Menu, X, Settings, Activity, Search,
-  Bell, Heart, FileUp, Zap, Brain,
+  Bell, Heart, FileUp, Zap, Brain, Layers,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { ChatPanel } from "./ui/chat-panel";
@@ -40,6 +40,7 @@ const amNavGroups: NavGroup[] = [
       { label: "Tableau de bord", href: "/asset-management/dashboard", icon: LayoutDashboard },
       { label: "Patrimoine", href: "/asset-management/patrimoine", icon: TreePine },
       { label: "SCI & Associes", href: "/asset-management/scis-associes", icon: Landmark },
+      { label: "Vue Parc", href: "/asset-management/vue-parc", icon: Layers },
     ],
   },
   {
