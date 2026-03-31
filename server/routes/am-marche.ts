@@ -99,7 +99,7 @@ export function registerMarcheRoutes(app: Express) {
       res.json(result);
     } catch (error: any) {
       logger.error("sync-dvf error", { error: error.message, stack: error.stack });
-      res.status(500).json({ error: `Erreur sync DVF: ${error.message}` });
+      res.status(500).json({ error: "Erreur sync DVF" });
     }
   });
 
@@ -127,7 +127,7 @@ export function registerMarcheRoutes(app: Express) {
       res.json(result);
     } catch (error: any) {
       logger.error("sync-anil error", { error: error.message, stack: error.stack });
-      res.status(500).json({ error: `Erreur sync ANIL: ${error.message}` });
+      res.status(500).json({ error: "Erreur sync ANIL" });
     }
   });
 
@@ -140,7 +140,7 @@ export function registerMarcheRoutes(app: Express) {
       res.json(result);
     } catch (error: any) {
       logger.error("compute-taux-capi error", { error: error.message, stack: error.stack });
-      res.status(500).json({ error: `Erreur calcul taux capi: ${error.message}` });
+      res.status(500).json({ error: "Erreur calcul taux capi" });
     }
   });
 
@@ -346,7 +346,7 @@ Règles :
       res.json(row);
     } catch (error: any) {
       logger.error("analyse-ia error", { error: error.message, stack: error.stack });
-      res.status(500).json({ error: `Erreur analyse IA: ${error.message}` });
+      res.status(500).json({ error: "Erreur analyse IA" });
     }
   });
 
@@ -388,7 +388,7 @@ Règles :
       res.json({ total: allActifs.length, analysed: results.filter((r) => r.status === "ok").length, results });
     } catch (error: any) {
       logger.error("analyse-ia-all error", { error: error.message, stack: error.stack });
-      res.status(500).json({ error: `Erreur analyse IA: ${error.message}` });
+      res.status(500).json({ error: "Erreur analyse IA" });
     }
   });
 

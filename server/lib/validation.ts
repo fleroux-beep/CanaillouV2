@@ -44,14 +44,14 @@ export const loginSchema = z.object({
 
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, "Mot de passe actuel requis"),
-  newPassword: z.string().min(6, "Le nouveau mot de passe doit faire au moins 6 caractères"),
+  newPassword: z.string().min(8, "Le nouveau mot de passe doit faire au moins 8 caractères"),
 });
 
 const emptyToNull = z.string().transform((v) => v.trim() === "" ? null : v.trim()).optional().nullable();
 
 export const createUserSchema = z.object({
   email: z.string().email("Email invalide"),
-  password: z.string().min(6, "Le mot de passe doit faire au moins 6 caractères"),
+  password: z.string().min(8, "Le mot de passe doit faire au moins 8 caractères"),
   firstName: emptyToNull,
   lastName: emptyToNull,
   role: z.enum(["user", "admin"]).optional().default("user"),

@@ -66,6 +66,9 @@ export interface AMEmprunt {
   tauxAnnuel?: string | null;
   dureeAns?: number | null;
   mensualite?: string | null;
+  tauxAssurance?: string | null;
+  assuranceMensuelle?: string | null;
+  dateDebut?: string | null;
   archived?: boolean | null;
   [key: string]: unknown;
 }
@@ -183,8 +186,9 @@ export function getValeurEstimee(actif: AMActif, baux: AMBail[], lots?: AMLot[],
   // Priorité : taux capi saisi > taux capi marché
   const loyerAnnuel = getLoyerAnnuelActif(actif, baux, lots);
   const charges = getChargesAnnuelles(actif);
-  const loyerNet = Math.max(0, loyerAnnuel - charges);
+  const loyerNet = loyerAnnuel - charges;
   const tauxCapi = Number(actif.tauxCapitalisation || 0) || (marketRefs?.tauxCapi || 0);
+  // If NOI <= 0, capitalization value is 0 — do not mask negative cash flow
   const valeurCapitalisation =
     tauxCapi > 0 && loyerNet > 0 ? loyerNet / (tauxCapi / 100) : 0;
 
@@ -298,14 +302,20 @@ export function computeIRR(cashFlows: number[], maxIterations = 100, tolerance =
       npv += cashFlows[t] / factor;
       if (t > 0) dnpv -= (t * cashFlows[t]) / Math.pow(1 + rate, t + 1);
     }
-    if (Math.abs(dnpv) < 1e-12) break;
+    if (Math.abs(dnpv) < 1e-12) return null; // derivative too small — non-convergence
     const newRate = rate - npv / dnpv;
     if (Math.abs(newRate - rate) < tolerance) return newRate * 100;
     rate = newRate;
     if (rate < -0.99) rate = -0.5;
-    if (!Number.isFinite(rate)) return 0;
+    if (!Number.isFinite(rate)) return null;
   }
-  return Number.isFinite(rate) ? rate * 100 : 0;
+  // Exhausted iterations without converging — check if we're close enough
+  let finalNpv = 0;
+  for (let t = 0; t < cashFlows.length; t++) {
+    finalNpv += cashFlows[t] / Math.pow(1 + rate, t);
+  }
+  if (Number.isFinite(rate) && Math.abs(finalNpv) < 1) return rate * 100;
+  return null;
 }
 
 // ============================================================
@@ -406,8 +416,8 @@ export function computeAmortSchedule(emprunt: AMEmprunt): AmortRow[] {
   const taux = Number(emprunt?.tauxAnnuel || 0) / 100;
   const duree = Number(emprunt?.dureeAns || 0);
   const mensualite = Number(emprunt?.mensualite || 0);
-  const tauxAssurance = Number((emprunt as any)?.tauxAssurance || 0) / 100;
-  let assuranceMensuelle = Number((emprunt as any)?.assuranceMensuelle || 0);
+  const tauxAssurance = Number(emprunt?.tauxAssurance || 0) / 100;
+  let assuranceMensuelle = Number(emprunt?.assuranceMensuelle || 0);
 
   // Si assurance mensuelle non saisie, calculer à partir du taux d'assurance
   if (assuranceMensuelle === 0 && montant > 0 && tauxAssurance > 0) {
@@ -437,7 +447,7 @@ export function computeAmortSchedule(emprunt: AMEmprunt): AmortRow[] {
   const tauxMensuel = taux / 12;
 
   // Déterminer l'année de début pour afficher les années réelles
-  const dateDebutStr = (emprunt as any)?.dateDebut;
+  const dateDebutStr = emprunt?.dateDebut;
   const dateDebut = dateDebutStr ? new Date(dateDebutStr) : null;
   const startYear = dateDebut && !isNaN(dateDebut.getTime()) ? dateDebut.getFullYear() : null;
   const now = new Date();
@@ -674,7 +684,7 @@ export function computeMultiYearProjection(
     // Service de la dette diminue proportionnellement au capital restant
     const ratioDetteRestante = detteBase > 0 ? dette / detteBase : 0;
     const serviceDette = dette > 0 ? serviceDetteBase * ratioDetteRestante : 0;
-    const remboursementCapital = dette > 0 ? Math.min(amortissementAnnuel, dette + amortissementAnnuel) : 0;
+    const remboursementCapital = dette > 0 ? Math.min(amortissementAnnuel, dette) : 0;
     const noi = loyers - charges;
     const cf = noi - serviceDette;
     result.push({

@@ -28,29 +28,40 @@ import helmet from "helmet";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
-// Security headers
+// Security headers — enable CSP in production
 app.use(helmet({
-  contentSecurityPolicy: false, // Disabled to allow inline scripts from Vite in dev
+  contentSecurityPolicy: process.env.NODE_ENV === "production" ? {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https://*.tile.openstreetmap.org"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'"],
+    },
+  } : false,
 }));
 const PORT = Number(process.env.PORT) || 5000;
 
 // Logging
 app.use(requestLogger);
 
-// CORS — allow same-origin + dev proxy
+// CORS — allow same-origin + localhost in dev only
 app.use((_req, res, next) => {
-  const origin = _req.headers.origin;
-  if (origin) {
-    try {
-      const { hostname } = new URL(origin);
-      if (hostname === "localhost" || hostname === "127.0.0.1") {
-        res.header("Access-Control-Allow-Origin", origin);
-        res.header("Access-Control-Allow-Credentials", "true");
-        res.header("Access-Control-Allow-Methods", "GET,POST,PATCH,PUT,DELETE,OPTIONS");
-        res.header("Access-Control-Allow-Headers", "Content-Type,Authorization");
+  if (process.env.NODE_ENV !== "production") {
+    const origin = _req.headers.origin;
+    if (origin) {
+      try {
+        const { hostname } = new URL(origin);
+        if (hostname === "localhost" || hostname === "127.0.0.1") {
+          res.header("Access-Control-Allow-Origin", origin);
+          res.header("Access-Control-Allow-Credentials", "true");
+          res.header("Access-Control-Allow-Methods", "GET,POST,PATCH,PUT,DELETE,OPTIONS");
+          res.header("Access-Control-Allow-Headers", "Content-Type,Authorization");
+        }
+      } catch {
+        // Invalid origin URL — ignore
       }
-    } catch {
-      // Invalid origin URL — ignore
     }
   }
   if (_req.method === "OPTIONS") return res.sendStatus(204);
@@ -109,11 +120,20 @@ app.post("/api/admin/import-excel", requireAdmin, async (_req, res) => {
   }
 });
 
-// Health check (no DB dependency)
-app.get("/api/health", (_req, res) => {
-  res.json({
-    status: "ok",
+// Health check with DB ping
+app.get("/api/health", async (_req, res) => {
+  let dbOk = false;
+  try {
+    await pool.query("SELECT 1");
+    dbOk = true;
+  } catch {
+    // DB not reachable
+  }
+  const status = dbOk ? "ok" : "degraded";
+  res.status(dbOk ? 200 : 503).json({
+    status,
     timestamp: new Date().toISOString(),
+    db: dbOk ? "connected" : "unreachable",
   });
 });
 
@@ -191,7 +211,7 @@ async function withRetry<T>(fn: () => Promise<T>, label: string, retries = 5, de
   logger.info("db host: " + (dbUrl.match(/@([^:\/]+)/)?.[1] || "unknown"));
 
   // Start HTTP server immediately so Railway healthcheck passes
-  app.listen(PORT, "0.0.0.0", () => {
+  server = app.listen(PORT, "0.0.0.0", () => {
     logger.info("server started", { port: PORT, env: process.env.NODE_ENV || "development" });
   });
 
@@ -221,20 +241,33 @@ async function withRetry<T>(fn: () => Promise<T>, label: string, retries = 5, de
     logger.warn("Auto-import Excel skipped: " + (err.message || err));
   }
 
-  // Set default taux de capitalisation (6%) for actifs where it's null
-  try {
-    const result = await db.update(actifs)
-      .set({ tauxCapitalisation: "6" })
-      .where(isNull(actifs.tauxCapitalisation));
-    if (result.rowCount && result.rowCount > 0) {
-      logger.info(`Set default taux_capitalisation=6% on ${result.rowCount} actifs`);
-    }
-  } catch (err: any) {
-    logger.warn("Default taux_capitalisation update skipped: " + (err.message || err));
-  }
-
   // Start automatic market data sync (DVF + ANIL + taux capi)
   startAutoSync();
 })();
+
+// ─── Graceful shutdown ─────────────────────────────────────
+function gracefulShutdown(signal: string) {
+  logger.info(`${signal} received — shutting down gracefully`);
+  server?.close(() => {
+    pool.end().then(() => {
+      logger.info("Database pool closed");
+      process.exit(0);
+    }).catch(() => process.exit(1));
+  });
+  // Force exit after 10s
+  setTimeout(() => process.exit(1), 10_000);
+}
+
+let server: ReturnType<typeof app.listen> | undefined;
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+process.on("unhandledRejection", (reason) => {
+  logger.error("unhandledRejection", { error: String(reason) });
+});
+process.on("uncaughtException", (err) => {
+  logger.error("uncaughtException", { error: err.message, stack: err.stack });
+  process.exit(1);
+});
 
 export default app;

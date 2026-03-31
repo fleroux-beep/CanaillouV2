@@ -79,11 +79,14 @@ export function registerScoreSanteRoutes(app: Express) {
         const nbActifsInSci = allActifs.filter((a: any) => a.sciId === actif.sciId).length || 1;
         const actifTravaux = allTravaux.filter((t: any) => t.actifId === actif.id);
 
-        // Calculate financials
-        const loyerAnnuel = actifBaux.reduce((s, b: any) => {
-          return s + Number(b.loyerAnnuel || 0) + Number(b.loyerMensuel || 0) * 12;
-        }, 0) || actifLots.reduce((s, l: any) => {
-          return s + Number(l.loyerAnnuel || 0) + Number(l.loyerMensuel || 0) * 12;
+        // Calculate financials (use loyerAnnuel OR loyerMensuel*12, not both)
+        const loyerFromBaux = actifBaux.reduce((s, b: any) => {
+          const annuel = Number(b.loyerAnnuel || 0);
+          return s + (annuel > 0 ? annuel : Number(b.loyerMensuel || 0) * 12);
+        }, 0);
+        const loyerAnnuel = loyerFromBaux > 0 ? loyerFromBaux : actifLots.reduce((s, l: any) => {
+          const annuel = Number(l.loyerAnnuel || 0);
+          return s + (annuel > 0 ? annuel : Number(l.loyerMensuel || 0) * 12);
         }, 0);
 
         const chargesTotal = Number(actif.chargesCopropriete || actif.chargesAnnuelles || 0)
@@ -94,7 +97,10 @@ export function registerScoreSanteRoutes(app: Express) {
 
         let valeur = prixAcq;
         const tauxCapi = Number(actif.tauxCapitalisation || 0);
-        if (tauxCapi > 0 && noi > 0) valeur = noi / (tauxCapi / 100);
+        if (tauxCapi > 0) {
+          // If NOI <= 0, estimated value is 0 — do not mask the problem with prixAcq
+          valeur = noi > 0 ? noi / (tauxCapi / 100) : 0;
+        }
 
         // Helper: calcul actuariel de la mensualité (même logique que la page Emprunts)
         function computeMensualite(e: any): number {

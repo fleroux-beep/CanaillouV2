@@ -649,6 +649,53 @@ export async function ensureSchema() {
       )
     `);
 
+    // Études IA
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "am_etudes_ia" (
+        "id" varchar PRIMARY KEY NOT NULL,
+        "actif_id" varchar NOT NULL REFERENCES "am_actifs"("id") ON DELETE cascade,
+        "phase1_data" jsonb,
+        "positionnement" jsonb,
+        "potentiel" jsonb,
+        "risques" jsonb,
+        "recommandations" jsonb,
+        "comparables" jsonb,
+        "synthese" text,
+        "confidence" varchar,
+        "model" varchar,
+        "created_at" timestamp DEFAULT now()
+      )
+    `);
+
+    // ─── Indexes on foreign keys ───
+    const indexes = [
+      `CREATE INDEX IF NOT EXISTS "idx_actifs_sci_id" ON "am_actifs" ("sci_id")`,
+      `CREATE INDEX IF NOT EXISTS "idx_lots_actif_id" ON "am_lots" ("actif_id")`,
+      `CREATE INDEX IF NOT EXISTS "idx_lots_sci_id" ON "am_lots" ("sci_id")`,
+      `CREATE INDEX IF NOT EXISTS "idx_lots_locataire_id" ON "am_lots" ("locataire_id")`,
+      `CREATE INDEX IF NOT EXISTS "idx_baux_am_lot_id" ON "am_baux" ("lot_id")`,
+      `CREATE INDEX IF NOT EXISTS "idx_baux_am_actif_id" ON "am_baux" ("actif_id")`,
+      `CREATE INDEX IF NOT EXISTS "idx_baux_am_sci_id" ON "am_baux" ("sci_id")`,
+      `CREATE INDEX IF NOT EXISTS "idx_baux_am_locataire_id" ON "am_baux" ("locataire_id")`,
+      `CREATE INDEX IF NOT EXISTS "idx_emprunts_sci_id" ON "am_emprunts" ("sci_id")`,
+      `CREATE INDEX IF NOT EXISTS "idx_emprunts_actif_id" ON "am_emprunts" ("actif_id")`,
+      `CREATE INDEX IF NOT EXISTS "idx_travaux_actif_id" ON "am_travaux" ("actif_id")`,
+      `CREATE INDEX IF NOT EXISTS "idx_travaux_sci_id" ON "am_travaux" ("sci_id")`,
+      `CREATE INDEX IF NOT EXISTS "idx_participations_associe_id" ON "am_participations" ("associe_id")`,
+      `CREATE INDEX IF NOT EXISTS "idx_participations_sci_id" ON "am_participations" ("sci_id")`,
+      `CREATE INDEX IF NOT EXISTS "idx_gestionnaires_bailleur_id" ON "gl_gestionnaires" ("bailleur_id")`,
+      `CREATE INDEX IF NOT EXISTS "idx_baux_gl_locataire_id" ON "gl_baux" ("locataire_id")`,
+      `CREATE INDEX IF NOT EXISTS "idx_baux_gl_bailleur_id" ON "gl_baux" ("bailleur_id")`,
+      `CREATE INDEX IF NOT EXISTS "idx_baux_gl_gestionnaire_id" ON "gl_baux" ("gestionnaire_id")`,
+      `CREATE INDEX IF NOT EXISTS "idx_paiements_gl_bail_id" ON "gl_paiements" ("bail_id")`,
+      `CREATE INDEX IF NOT EXISTS "idx_factures_gl_bail_id" ON "gl_factures" ("bail_id")`,
+      `CREATE INDEX IF NOT EXISTS "idx_quittances_gl_bail_id" ON "gl_quittances" ("bail_id")`,
+      `CREATE INDEX IF NOT EXISTS "idx_indexations_gl_bail_id" ON "gl_indexations" ("bail_id")`,
+    ];
+    for (const idx of indexes) {
+      await client.query(idx);
+    }
+
     // Foreign keys (use DO blocks to skip if already exist)
     const fks = [
       `ALTER TABLE "am_actifs" ADD CONSTRAINT "am_actifs_sci_id_am_scis_id_fk" FOREIGN KEY ("sci_id") REFERENCES "am_scis"("id") ON DELETE set null ON UPDATE no action`,

@@ -1,6 +1,6 @@
 /**
- * Simple in-memory rate limiter for login attempts.
- * Tracks attempts per IP with a sliding window.
+ * Simple in-memory rate limiter with per-route key prefix.
+ * Tracks attempts per (prefix + IP) with a sliding window.
  */
 
 interface RateLimitEntry {
@@ -22,16 +22,18 @@ setInterval(() => {
  * Express middleware factory for rate limiting.
  * @param maxAttempts Maximum attempts within the window
  * @param windowMs Time window in milliseconds
+ * @param prefix Optional key prefix to isolate rate limits per route
  */
-export function rateLimit(maxAttempts: number, windowMs: number) {
+export function rateLimit(maxAttempts: number, windowMs: number, prefix = "global") {
   return (req: any, res: any, next: any) => {
     const ip = req.ip || req.connection?.remoteAddress || "unknown";
+    const key = `${prefix}:${ip}`;
     const now = Date.now();
 
-    let entry = store.get(ip);
+    let entry = store.get(key);
     if (!entry || entry.resetAt <= now) {
       entry = { attempts: 0, resetAt: now + windowMs };
-      store.set(ip, entry);
+      store.set(key, entry);
     }
 
     entry.attempts++;

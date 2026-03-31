@@ -6,7 +6,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /** Safely convert to a finite number, defaulting to 0 */
-function toSafeNumber(value: number | string | null | undefined): number {
+export function toSafeNumber(value: number | string | null | undefined): number {
   const num = Number(value || 0);
   return Number.isFinite(num) ? num : 0;
 }

@@ -23,10 +23,16 @@ RUN apk add --no-cache \
 # Tell Playwright / our code where Chromium lives
 ENV CHROMIUM_PATH=/usr/bin/chromium-browser
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+
+# Create non-root user for security
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /app
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
+RUN chown -R appuser:appgroup /app
+USER appuser
+
 EXPOSE 5000
 ENV NODE_ENV=production
 CMD ["node", "dist/index.mjs"]
