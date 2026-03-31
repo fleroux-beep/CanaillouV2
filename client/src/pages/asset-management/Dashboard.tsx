@@ -1,9 +1,10 @@
-import { useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, AreaChart, Area, Legend,
+  RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
 } from "recharts";
 import { apiRequest } from "../../lib/queryClient";
 import { formatCurrency, formatPercent } from "../../lib/utils";
@@ -14,6 +15,7 @@ import {
   getLTV, getDSCR, getPrixAcquisition,
   type AMEmprunt,
 } from "../../lib/am-calculations";
+import { useSortableTable, SortHeader } from "../../hooks/useSortableTable";
 import { KpiCard } from "../../components/ui/kpi-card";
 import { InfoTooltip } from "../../components/ui/info-tooltip";
 import { GlassCard } from "../../components/ui/glass-card";
@@ -24,7 +26,7 @@ import { SkeletonKpi, SkeletonCard, SkeletonTable } from "../../components/ui/sk
 import {
   Building2, Landmark, Users, FileText, PiggyBank, TrendingUp,
   BarChart3, Shield, Wallet, CircleDollarSign, Activity,
-  Target, Gauge, AlertTriangle, ArrowDownUp, Banknote, Percent,
+  Target, Gauge, AlertTriangle, ArrowDownUp, Banknote, Percent, Layers, Eye,
 } from "lucide-react";
 
 const COLORS = ["#3b82f6", "#8b5cf6", "#06b6d4", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#6366f1"];
@@ -41,7 +43,167 @@ const chartTooltipStyle = {
 
 const toArray = (v: unknown): any[] => Array.isArray(v) ? v : [];
 
+type DashboardView = "sci" | "actif" | "parc";
+
+interface ParcKpiSet {
+  label: string;
+  id: string;
+  valorisation: number;
+  prixAcquisition: number;
+  loyerAnnuel: number;
+  charges: number;
+  noi: number;
+  crd: number;
+  serviceDette: number;
+  cashFlowNet: number;
+  rendementBrut: number;
+  rendementNet: number;
+  ltv: number;
+  dscr: number;
+  fondsPropreNets: number;
+  nbActifs: number;
+  nbLots: number;
+  nbLotsLoues: number;
+  tauxOccupation: number;
+  plusValue: number;
+  plusValuePct: number;
+}
+
+function computeActifKpiRow(actif: any, allBaux: any[], allLots: any[], allEmprunts: any[], allActifs: any[]): ParcKpiSet {
+  const actifLots = allLots.filter((l: any) => l.actifId === actif.id && !l.archived);
+  const actifEmprunts = allEmprunts.filter((e: any) => e.actifId === actif.id && !e.archived);
+  const sciEmprunts = allEmprunts.filter((e: any) => e.sciId === actif.sciId && !e.actifId && !e.archived);
+  const nbActifsInSci = allActifs.filter((a: any) => a.sciId === actif.sciId && !a.archived).length || 1;
+
+  const loyerAnnuel = getLoyerAnnuelActif(actif, allBaux, allLots);
+  const charges = getChargesAnnuelles(actif);
+  const noi = loyerAnnuel - charges;
+  const prixAcq = getPrixAcquisition(actif);
+  const valorisation = getValeurEstimee(actif, allBaux, allLots);
+  const crd = getTotalCRD(actifEmprunts) + getTotalCRD(sciEmprunts) / nbActifsInSci;
+  const serviceDette = getServiceDette(actifEmprunts) + getServiceDette(sciEmprunts) / nbActifsInSci;
+  const cashFlowNet = noi - serviceDette;
+  const lotsLoues = actifLots.filter((l: any) => l.statut?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === "loue").length;
+  const actifBaux = allBaux.filter((b: any) => b.actifId === actif.id && !b.archived && b.statut !== "résilié");
+
+  return {
+    label: actif.nom || actif.adresse || "—",
+    id: actif.id,
+    valorisation,
+    prixAcquisition: prixAcq,
+    loyerAnnuel,
+    charges,
+    noi,
+    crd,
+    serviceDette,
+    cashFlowNet,
+    rendementBrut: getRendementBrut(loyerAnnuel, prixAcq),
+    rendementNet: getRendementNet(loyerAnnuel, charges, prixAcq),
+    ltv: getLTV(crd, valorisation),
+    dscr: getDSCR(noi, serviceDette),
+    fondsPropreNets: valorisation - crd,
+    nbActifs: 1,
+    nbLots: actifLots.length,
+    nbLotsLoues: lotsLoues,
+    tauxOccupation: actifLots.length > 0 ? (lotsLoues / actifLots.length) * 100 : (actifBaux.length > 0 ? 100 : 0),
+    plusValue: valorisation - prixAcq,
+    plusValuePct: prixAcq > 0 ? ((valorisation - prixAcq) / prixAcq) * 100 : 0,
+  };
+}
+
+function computeSciKpiRow(sci: any, allActifs: any[], allBaux: any[], allLots: any[], allEmprunts: any[]): ParcKpiSet {
+  const sciActifs = allActifs.filter((a: any) => a.sciId === sci.id && !a.archived);
+  const sciLots = allLots.filter((l: any) => sciActifs.some((a: any) => a.id === l.actifId) && !l.archived);
+  const sciEmprunts = allEmprunts.filter((e: any) => e.sciId === sci.id && !e.archived);
+
+  let valorisation = 0, loyerAnnuel = 0, charges = 0, prixAcq = 0;
+  for (const a of sciActifs) {
+    valorisation += getValeurEstimee(a, allBaux, allLots);
+    loyerAnnuel += getLoyerAnnuelActif(a, allBaux, allLots);
+    charges += getChargesAnnuelles(a);
+    prixAcq += getPrixAcquisition(a);
+  }
+
+  const noi = loyerAnnuel - charges;
+  const crd = getTotalCRD(sciEmprunts);
+  const serviceDette = getServiceDette(sciEmprunts);
+  const cashFlowNet = noi - serviceDette;
+  const lotsLoues = sciLots.filter((l: any) => l.statut?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === "loue").length;
+
+  return {
+    label: sci.nom,
+    id: sci.id,
+    valorisation,
+    prixAcquisition: prixAcq,
+    loyerAnnuel,
+    charges,
+    noi,
+    crd,
+    serviceDette,
+    cashFlowNet,
+    rendementBrut: getRendementBrut(loyerAnnuel, prixAcq),
+    rendementNet: getRendementNet(loyerAnnuel, charges, prixAcq),
+    ltv: getLTV(crd, valorisation),
+    dscr: getDSCR(noi, serviceDette),
+    fondsPropreNets: valorisation - crd,
+    nbActifs: sciActifs.length,
+    nbLots: sciLots.length,
+    nbLotsLoues: lotsLoues,
+    tauxOccupation: sciLots.length > 0 ? (lotsLoues / sciLots.length) * 100 : 0,
+    plusValue: valorisation - prixAcq,
+    plusValuePct: prixAcq > 0 ? ((valorisation - prixAcq) / prixAcq) * 100 : 0,
+  };
+}
+
+function computeParcKpiRow(allActifs: any[], allBaux: any[], allLots: any[], allEmprunts: any[]): ParcKpiSet {
+  const actifs = allActifs.filter((a: any) => !a.archived);
+  const lots = allLots.filter((l: any) => !l.archived);
+  const empruntsActifs = allEmprunts.filter((e: any) => !e.archived);
+
+  let valorisation = 0, loyerAnnuel = 0, charges = 0, prixAcq = 0;
+  for (const a of actifs) {
+    valorisation += getValeurEstimee(a, allBaux, allLots);
+    loyerAnnuel += getLoyerAnnuelActif(a, allBaux, allLots);
+    charges += getChargesAnnuelles(a);
+    prixAcq += getPrixAcquisition(a);
+  }
+
+  const noi = loyerAnnuel - charges;
+  const crd = getTotalCRD(empruntsActifs);
+  const serviceDette = getServiceDette(empruntsActifs);
+  const cashFlowNet = noi - serviceDette;
+  const lotsLoues = lots.filter((l: any) => l.statut?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === "loue").length;
+
+  return {
+    label: "Ensemble du parc",
+    id: "parc",
+    valorisation,
+    prixAcquisition: prixAcq,
+    loyerAnnuel,
+    charges,
+    noi,
+    crd,
+    serviceDette,
+    cashFlowNet,
+    rendementBrut: getRendementBrut(loyerAnnuel, prixAcq),
+    rendementNet: getRendementNet(loyerAnnuel, charges, prixAcq),
+    ltv: getLTV(crd, valorisation),
+    dscr: getDSCR(noi, serviceDette),
+    fondsPropreNets: valorisation - crd,
+    nbActifs: actifs.length,
+    nbLots: lots.length,
+    nbLotsLoues: lotsLoues,
+    tauxOccupation: lots.length > 0 ? (lotsLoues / lots.length) * 100 : 0,
+    plusValue: valorisation - prixAcq,
+    plusValuePct: prixAcq > 0 ? ((valorisation - prixAcq) / prixAcq) * 100 : 0,
+  };
+}
+
 export default function AMDashboard() {
+  const [dashboardView, setDashboardView] = useState<DashboardView>("sci");
+  const [parcSelectedSciId, setParcSelectedSciId] = useState<string | null>(null);
+  const [parcChartType, setParcChartType] = useState<"bar" | "pie" | "radar">("bar");
+
   const { data: rawScis, isLoading: l1, isError: e1, error: err1 } = useQuery({ queryKey: ["/api/am/scis"], queryFn: () => apiRequest("/api/am/scis") });
   const { data: rawActifs, isLoading: l2, isError: e2, error: err2 } = useQuery({ queryKey: ["/api/am/actifs"], queryFn: () => apiRequest("/api/am/actifs") });
   const { data: rawLots, isLoading: l3, isError: e3, error: err3 } = useQuery({ queryKey: ["/api/am/lots"], queryFn: () => apiRequest("/api/am/lots") });
@@ -109,6 +271,38 @@ export default function AMDashboard() {
 
   const sciKpis = useMemo(() => scis.map((sci: any) => computeSciKpis(sci, actifs, baux, lots, emprunts)), [scis, actifs, baux, lots, emprunts]);
 
+  // Parc view: per-actif and per-SCI KPI rows
+  const parcSciKpiRows = useMemo(() =>
+    scis.filter((s: any) => !s.deletedAt).map((sci: any) => computeSciKpiRow(sci, actifs, baux, lots, emprunts)),
+    [scis, actifs, baux, lots, emprunts]
+  );
+
+  const parcActifKpiRows = useMemo(() => {
+    const base = actifsActifs;
+    const filtered = parcSelectedSciId ? base.filter((a: any) => a.sciId === parcSelectedSciId) : base;
+    return filtered.map((a: any) => computeActifKpiRow(a, baux, lots, emprunts, actifs));
+  }, [actifsActifs, baux, lots, emprunts, actifs, parcSelectedSciId]);
+
+  const parcGlobalKpi = useMemo(() => computeParcKpiRow(actifs, baux, lots, emprunts), [actifs, baux, lots, emprunts]);
+
+  // Determine parc focus KPI and table rows based on dashboardView
+  const parcFocusKpi = useMemo((): ParcKpiSet => {
+    if (dashboardView === "sci" && parcSelectedSciId) {
+      return parcSciKpiRows.find((s) => s.id === parcSelectedSciId) || parcGlobalKpi;
+    }
+    return parcGlobalKpi;
+  }, [dashboardView, parcSelectedSciId, parcSciKpiRows, parcGlobalKpi]);
+
+  const parcTableRows: ParcKpiSet[] = useMemo(() => {
+    if (dashboardView === "actif") return parcActifKpiRows;
+    if (dashboardView === "sci") return parcSciKpiRows;
+    // parc: show SCIs in table by default
+    return parcSciKpiRows;
+  }, [dashboardView, parcSciKpiRows, parcActifKpiRows]);
+
+  const { sortKey, sortDir, handleSort, sortData } = useSortableTable();
+  const parcSorted = sortData(parcTableRows);
+
   // Sparkline data: distribution across SCIs (sorted by valorisation)
   const sparkValoByScis = useMemo(() => sciKpis.map((k: any) => k.valorisation).sort((a: number, b: number) => a - b), [sciKpis]);
   const sparkLoyerByScis = useMemo(() => sciKpis.map((k: any) => k.loyerAnnuel).sort((a: number, b: number) => a - b), [sciKpis]);
@@ -148,6 +342,47 @@ export default function AMDashboard() {
     }
     return total;
   }, [empruntsActifs]);
+
+  // Parc view chart data
+  const parcChartData = useMemo(() =>
+    parcSorted.map((k, i) => ({
+      nom: k.label.length > 18 ? k.label.slice(0, 18) + "…" : k.label,
+      valorisation: k.valorisation,
+      crd: k.crd,
+      noi: k.noi,
+      loyerAnnuel: k.loyerAnnuel,
+      cashFlowNet: k.cashFlowNet,
+      rendementBrut: k.rendementBrut,
+      ltv: k.ltv,
+      color: COLORS[i % COLORS.length],
+    })),
+    [parcSorted]
+  );
+
+  const parcRadarEntities = useMemo(() => parcSorted.slice(0, 5), [parcSorted]);
+  const parcRadarData = useMemo(() => {
+    const dims = ["Rendement", "Endettement", "DSCR", "Occupation", "Cash-flow"] as const;
+    const computeDim = (k: ParcKpiSet, dim: string) => {
+      if (dim === "Rendement") return Math.min(k.rendementBrut * 10, 100);
+      if (dim === "Endettement") return Math.max(0, 100 - k.ltv);
+      if (dim === "DSCR") return Math.min(k.dscr * 40, 100);
+      if (dim === "Occupation") return k.tauxOccupation;
+      return k.cashFlowNet > 0 ? Math.min(100, (k.cashFlowNet / (k.noi || 1)) * 100) : 0;
+    };
+    return dims.map((dim) => {
+      const row: Record<string, any> = { dimension: dim };
+      parcRadarEntities.forEach((e) => { row[e.label] = computeDim(e, dim); });
+      return row;
+    });
+  }, [parcSorted, parcRadarEntities]);
+
+  const parcWaterfallData = useMemo(() => [
+    { name: "Loyers", value: parcFocusKpi.loyerAnnuel, fill: "#10b981" },
+    { name: "Charges", value: -parcFocusKpi.charges, fill: "#ef4444" },
+    { name: "NOI", value: parcFocusKpi.noi, fill: "#3b82f6" },
+    { name: "Svc dette", value: -parcFocusKpi.serviceDette, fill: "#f59e0b" },
+    { name: "Cash-flow", value: parcFocusKpi.cashFlowNet, fill: parcFocusKpi.cashFlowNet >= 0 ? "#10b981" : "#ef4444" },
+  ], [parcFocusKpi]);
 
   // Early returns AFTER all hooks
   if (isLoading) {
@@ -214,13 +449,60 @@ export default function AMDashboard() {
     { name: "Cash-flow", value: cashFlowNet, fill: cashFlowNet >= 0 ? "#10b981" : "#ef4444" },
   ];
 
+  const viewDescription = dashboardView === "sci"
+    ? "Vue d'ensemble du patrimoine immobilier — Niveau SCI"
+    : dashboardView === "actif"
+    ? "Vue d'ensemble du patrimoine immobilier — Niveau Actif"
+    : "Vue d'ensemble du patrimoine immobilier — Niveau Parc";
+
   return (
     <AnimatePresence>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
         <PageHeader
           title="Asset Management"
-          description="Vue d'ensemble du patrimoine immobilier — Niveau SCPI"
+          description={viewDescription}
         />
+
+        {/* View switcher */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1 rounded-xl bg-muted/50 p-1">
+            {([
+              { key: "actif" as DashboardView, label: "Actif", icon: Building2 },
+              { key: "sci" as DashboardView, label: "SCI", icon: Landmark },
+              { key: "parc" as DashboardView, label: "Parc", icon: Layers },
+            ]).map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                onClick={() => { setDashboardView(key); if (key !== "parc") setParcSelectedSciId(null); }}
+                className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-medium transition-all ${
+                  dashboardView === key
+                    ? "bg-gradient-to-r from-orange-500 to-rose-600 text-white shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* SCI filter for Parc & Actif views */}
+          {(dashboardView === "actif" || dashboardView === "parc") && (
+            <select
+              value={parcSelectedSciId || ""}
+              onChange={(e) => setParcSelectedSciId(e.target.value || null)}
+              className="rounded-lg border border-border/60 bg-background px-3 py-2 text-xs font-medium"
+            >
+              <option value="">Toutes les SCIs</option>
+              {scis.filter((s: any) => !s.deletedAt).map((sci: any) => (
+                <option key={sci.id} value={sci.id}>{sci.nom}</option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        {/* ─── SCI VIEW (current dashboard) ─── */}
+        {dashboardView === "sci" && (<>
 
         {/* Hero KPIs */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -575,6 +857,314 @@ export default function AMDashboard() {
             </motion.div>
           </Section>
         )}
+
+        </>)}
+
+        {/* ─── ACTIF VIEW ─── */}
+        {dashboardView === "actif" && (<>
+
+        {/* Actif KPIs */}
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard label="Valorisation" value={Math.round(parcFocusKpi.valorisation)} formatFn={formatCurrency} icon={Target} variant="primary" gradient delay={0} metricKey="valorisation" />
+          <KpiCard label="Loyers annuels" value={Math.round(parcFocusKpi.loyerAnnuel)} formatFn={formatCurrency} icon={CircleDollarSign} variant="primary" gradient delay={1} metricKey="loyerHT" />
+          <KpiCard label="NOI" value={Math.round(parcFocusKpi.noi)} formatFn={formatCurrency} icon={TrendingUp} variant={parcFocusKpi.noi > 0 ? "success" : "danger"} gradient delay={2} metricKey="noi" />
+          <KpiCard label="Fonds propres nets" value={Math.round(parcFocusKpi.fondsPropreNets)} formatFn={formatCurrency} icon={Wallet} variant="primary" gradient delay={3} metricKey="fondsPropres" />
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard label="Cash-flow net" value={Math.round(parcFocusKpi.cashFlowNet)} formatFn={formatCurrency} icon={Activity} variant={parcFocusKpi.cashFlowNet >= 0 ? "success" : "danger"} delay={4} metricKey="cashFlowNet" />
+          <KpiCard label="CRD (dette)" value={Math.round(parcFocusKpi.crd)} formatFn={formatCurrency} icon={PiggyBank} variant="warning" delay={5} metricKey="crd" />
+          <KpiCard label="Plus-value" value={Math.round(parcFocusKpi.plusValue)} formatFn={formatCurrency} icon={TrendingUp} variant={parcFocusKpi.plusValue >= 0 ? "success" : "danger"} delay={6} />
+          <KpiCard label="Service dette" value={Math.round(parcFocusKpi.serviceDette)} formatFn={formatCurrency} icon={PiggyBank} delay={7} metricKey="serviceDette" />
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <KpiCard label="Rendement brut" value={Math.round(parcFocusKpi.rendementBrut * 10) / 10} subtitle="%" icon={Percent} variant={parcFocusKpi.rendementBrut >= 5 ? "success" : parcFocusKpi.rendementBrut >= 3 ? "warning" : "danger"} delay={8} metricKey="rendementBrut" />
+          <KpiCard label="Rendement net" value={Math.round(parcFocusKpi.rendementNet * 10) / 10} subtitle="%" icon={Percent} variant={parcFocusKpi.rendementNet >= 4 ? "success" : "warning"} delay={9} metricKey="rendementNet" />
+          <KpiCard label="LTV" value={Math.round(parcFocusKpi.ltv * 10) / 10} subtitle="%" icon={Shield} variant={parcFocusKpi.ltv <= 60 ? "success" : parcFocusKpi.ltv <= 80 ? "warning" : "danger"} delay={10} metricKey="ltv" />
+          <KpiCard label="DSCR" value={Math.round(parcFocusKpi.dscr * 100) / 100} subtitle="x" icon={Gauge} variant={parcFocusKpi.dscr >= 1.2 ? "success" : parcFocusKpi.dscr >= 1 ? "warning" : "danger"} delay={11} metricKey="dscr" />
+          <KpiCard label="Taux occupation" value={Math.round(parcFocusKpi.tauxOccupation)} subtitle="%" icon={Building2} variant={parcFocusKpi.tauxOccupation >= 80 ? "success" : "warning"} delay={12} metricKey="tauxOccupation" />
+        </div>
+
+        {/* Actif detail table */}
+        <Section title="Détail par Actif">
+          <GlassCard>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b bg-muted/30">
+                    <SortHeader label="Actif" sortKey="label" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold" />
+                    <SortHeader label="Lots" sortKey="nbLots" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-3 text-right font-semibold" />
+                    <SortHeader label="Valorisation" sortKey="valorisation" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-3 text-right font-semibold" />
+                    <SortHeader label="Loyers/an" sortKey="loyerAnnuel" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-3 text-right font-semibold" />
+                    <SortHeader label="Charges" sortKey="charges" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-3 text-right font-semibold" />
+                    <SortHeader label="NOI" sortKey="noi" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-3 text-right font-semibold" />
+                    <SortHeader label="CRD" sortKey="crd" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-3 text-right font-semibold" />
+                    <SortHeader label="Cash-flow" sortKey="cashFlowNet" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-3 text-right font-semibold" />
+                    <SortHeader label="Rdt brut" sortKey="rendementBrut" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-3 text-right font-semibold" />
+                    <SortHeader label="LTV" sortKey="ltv" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-3 text-right font-semibold" />
+                    <SortHeader label="DSCR" sortKey="dscr" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-3 text-right font-semibold" />
+                    <SortHeader label="Occup." sortKey="tauxOccupation" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-3 text-right font-semibold" />
+                    <th className="px-3 py-3 text-right font-semibold">+/- Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {parcSorted.map((row: ParcKpiSet, i: number) => (
+                    <tr key={row.id} className="border-b border-border/20 hover:bg-muted/20 transition-colors">
+                      <td className="px-4 py-3 font-medium whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 w-2 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                          {row.label}
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 text-right">{row.nbLotsLoues}/{row.nbLots}</td>
+                      <td className="px-3 py-3 text-right font-semibold">{formatCurrency(row.valorisation)}</td>
+                      <td className="px-3 py-3 text-right">{formatCurrency(row.loyerAnnuel)}</td>
+                      <td className="px-3 py-3 text-right text-muted-foreground">{formatCurrency(row.charges)}</td>
+                      <td className={`px-3 py-3 text-right font-semibold ${row.noi < 0 ? "text-red-500" : ""}`}>{formatCurrency(row.noi)}</td>
+                      <td className="px-3 py-3 text-right text-muted-foreground">{formatCurrency(row.crd)}</td>
+                      <td className={`px-3 py-3 text-right font-semibold ${row.cashFlowNet < 0 ? "text-red-500" : "text-green-600 dark:text-green-400"}`}>{formatCurrency(row.cashFlowNet)}</td>
+                      <td className={`px-3 py-3 text-right ${row.rendementBrut < 5 ? "text-amber-600" : "text-green-600"}`}>{formatPercent(row.rendementBrut)}</td>
+                      <td className={`px-3 py-3 text-right ${row.ltv > 60 ? "text-red-500" : row.ltv > 40 ? "text-amber-600" : "text-green-600"}`}>{formatPercent(row.ltv)}</td>
+                      <td className={`px-3 py-3 text-right ${row.dscr > 0 && row.dscr < 1.2 ? "text-amber-600" : row.dscr >= 1.2 ? "text-green-600" : "text-red-500"}`}>
+                        {row.dscr > 0 ? `${row.dscr.toFixed(2)}x` : "—"}
+                      </td>
+                      <td className={`px-3 py-3 text-right ${row.tauxOccupation < 80 ? "text-amber-600" : "text-green-600"}`}>{row.tauxOccupation.toFixed(0)}%</td>
+                      <td className={`px-3 py-3 text-right font-semibold ${row.plusValue >= 0 ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>
+                        {row.plusValue >= 0 ? "+" : ""}{formatCurrency(row.plusValue)}
+                        <span className="text-[10px] text-muted-foreground ml-1">({row.plusValuePct >= 0 ? "+" : ""}{row.plusValuePct.toFixed(1)}%)</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-muted/40 font-semibold border-t-2">
+                    <td className="px-4 py-3">TOTAL</td>
+                    <td className="px-3 py-3 text-right">{parcSorted.reduce((s, r) => s + r.nbLotsLoues, 0)}/{parcSorted.reduce((s, r) => s + r.nbLots, 0)}</td>
+                    <td className="px-3 py-3 text-right">{formatCurrency(parcSorted.reduce((s, r) => s + r.valorisation, 0))}</td>
+                    <td className="px-3 py-3 text-right">{formatCurrency(parcSorted.reduce((s, r) => s + r.loyerAnnuel, 0))}</td>
+                    <td className="px-3 py-3 text-right">{formatCurrency(parcSorted.reduce((s, r) => s + r.charges, 0))}</td>
+                    <td className="px-3 py-3 text-right">{formatCurrency(parcSorted.reduce((s, r) => s + r.noi, 0))}</td>
+                    <td className="px-3 py-3 text-right">{formatCurrency(parcSorted.reduce((s, r) => s + r.crd, 0))}</td>
+                    <td className={`px-3 py-3 text-right ${parcFocusKpi.cashFlowNet < 0 ? "text-red-500" : "text-green-600"}`}>{formatCurrency(parcSorted.reduce((s, r) => s + r.cashFlowNet, 0))}</td>
+                    <td className="px-3 py-3 text-right">{formatPercent(parcFocusKpi.rendementBrut)}</td>
+                    <td className="px-3 py-3 text-right">{formatPercent(parcFocusKpi.ltv)}</td>
+                    <td className="px-3 py-3 text-right">{parcFocusKpi.dscr > 0 ? `${parcFocusKpi.dscr.toFixed(2)}x` : "—"}</td>
+                    <td className="px-3 py-3 text-right">{parcFocusKpi.tauxOccupation.toFixed(0)}%</td>
+                    <td className={`px-3 py-3 text-right ${parcFocusKpi.plusValue >= 0 ? "text-green-600" : "text-red-500"}`}>
+                      {parcFocusKpi.plusValue >= 0 ? "+" : ""}{formatCurrency(parcFocusKpi.plusValue)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </GlassCard>
+        </Section>
+
+        </>)}
+
+        {/* ─── PARC VIEW ─── */}
+        {dashboardView === "parc" && (<>
+
+        {/* Parc KPIs */}
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard label="Valorisation" value={Math.round(parcFocusKpi.valorisation)} formatFn={formatCurrency} icon={Target} variant="primary" gradient delay={0} metricKey="valorisation" />
+          <KpiCard label="Loyers annuels" value={Math.round(parcFocusKpi.loyerAnnuel)} formatFn={formatCurrency} icon={CircleDollarSign} variant="primary" gradient delay={1} metricKey="loyerHT" />
+          <KpiCard label="NOI" value={Math.round(parcFocusKpi.noi)} formatFn={formatCurrency} icon={TrendingUp} variant={parcFocusKpi.noi > 0 ? "success" : "danger"} gradient delay={2} metricKey="noi" />
+          <KpiCard label="Fonds propres nets" value={Math.round(parcFocusKpi.fondsPropreNets)} formatFn={formatCurrency} icon={Wallet} variant="primary" gradient delay={3} metricKey="fondsPropres" />
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard label="Cash-flow net" value={Math.round(parcFocusKpi.cashFlowNet)} formatFn={formatCurrency} icon={Activity} variant={parcFocusKpi.cashFlowNet >= 0 ? "success" : "danger"} delay={4} metricKey="cashFlowNet" />
+          <KpiCard label="CRD (dette)" value={Math.round(parcFocusKpi.crd)} formatFn={formatCurrency} icon={PiggyBank} variant="warning" delay={5} metricKey="crd" />
+          <KpiCard label="Plus-value" value={Math.round(parcFocusKpi.plusValue)} formatFn={formatCurrency} icon={TrendingUp} variant={parcFocusKpi.plusValue >= 0 ? "success" : "danger"} delay={6} />
+          <KpiCard label="Service dette" value={Math.round(parcFocusKpi.serviceDette)} formatFn={formatCurrency} icon={PiggyBank} delay={7} metricKey="serviceDette" />
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <KpiCard label="Rendement brut" value={Math.round(parcFocusKpi.rendementBrut * 10) / 10} subtitle="%" icon={Percent} variant={parcFocusKpi.rendementBrut >= 5 ? "success" : parcFocusKpi.rendementBrut >= 3 ? "warning" : "danger"} delay={8} metricKey="rendementBrut" />
+          <KpiCard label="Rendement net" value={Math.round(parcFocusKpi.rendementNet * 10) / 10} subtitle="%" icon={Percent} variant={parcFocusKpi.rendementNet >= 4 ? "success" : "warning"} delay={9} metricKey="rendementNet" />
+          <KpiCard label="LTV" value={Math.round(parcFocusKpi.ltv * 10) / 10} subtitle="%" icon={Shield} variant={parcFocusKpi.ltv <= 60 ? "success" : parcFocusKpi.ltv <= 80 ? "warning" : "danger"} delay={10} metricKey="ltv" />
+          <KpiCard label="DSCR" value={Math.round(parcFocusKpi.dscr * 100) / 100} subtitle="x" icon={Gauge} variant={parcFocusKpi.dscr >= 1.2 ? "success" : parcFocusKpi.dscr >= 1 ? "warning" : "danger"} delay={11} metricKey="dscr" />
+          <KpiCard label="Taux occupation" value={Math.round(parcFocusKpi.tauxOccupation)} subtitle="%" icon={Building2} variant={parcFocusKpi.tauxOccupation >= 80 ? "success" : "warning"} delay={12} metricKey="tauxOccupation" />
+        </div>
+
+        {/* Parc Waterfall + Comparative Charts */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Section title="Cascade des revenus">
+            <GlassCard>
+              <div className="h-[300px] p-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={parcWaterfallData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                    <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1e3).toFixed(0)}k`} />
+                    <Tooltip {...chartTooltipStyle} formatter={(v: number) => formatCurrency(Math.abs(v))} />
+                    <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                      {parcWaterfallData.map((e, i) => (
+                        <Cell key={i} fill={e.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </GlassCard>
+          </Section>
+
+          <Section title="Comparatif">
+            <div className="flex gap-1 mb-3 rounded-lg bg-muted/50 p-1 w-fit">
+              {([
+                { key: "bar" as const, label: "Barres" },
+                { key: "pie" as const, label: "Répartition" },
+                { key: "radar" as const, label: "Radar" },
+              ]).map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setParcChartType(key)}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                    parcChartType === key ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <GlassCard>
+              <div className="h-[300px] p-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  {parcChartType === "bar" ? (
+                    <BarChart data={parcChartData} margin={{ bottom: 30 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                      <XAxis dataKey="nom" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" height={50} />
+                      <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${(v / 1e6).toFixed(1)}M`} />
+                      <Tooltip {...chartTooltipStyle} formatter={(v: number, name: string) => [formatCurrency(v), name === "valorisation" ? "Valorisation" : name === "crd" ? "CRD" : "NOI"]} />
+                      <Legend />
+                      <Bar dataKey="valorisation" name="Valorisation" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="crd" name="CRD" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="noi" name="NOI" fill="#10b981" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  ) : parcChartType === "pie" ? (
+                    <PieChart>
+                      <Pie
+                        data={parcChartData}
+                        cx="50%" cy="50%"
+                        outerRadius={100}
+                        dataKey="valorisation"
+                        nameKey="nom"
+                        label={({ nom, percent }: any) => `${nom} (${(percent * 100).toFixed(0)}%)`}
+                        labelLine={{ stroke: "hsl(var(--muted-foreground))", strokeWidth: 0.5 }}
+                      >
+                        {parcChartData.map((_: any, i: number) => (
+                          <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip {...chartTooltipStyle} formatter={(v: number) => formatCurrency(v)} />
+                    </PieChart>
+                  ) : (
+                    <RadarChart data={parcRadarData} cx="50%" cy="50%" outerRadius={90}>
+                      <PolarGrid stroke="hsl(var(--border))" />
+                      <PolarAngleAxis dataKey="dimension" tick={{ fontSize: 10 }} />
+                      <PolarRadiusAxis domain={[0, 100]} tick={{ fontSize: 9 }} />
+                      {parcRadarEntities.map((e, i) => (
+                        <Radar
+                          key={e.id}
+                          name={e.label}
+                          dataKey={e.label}
+                          fill={COLORS[i]}
+                          fillOpacity={0.15}
+                          stroke={COLORS[i]}
+                          strokeWidth={2}
+                        />
+                      ))}
+                    </RadarChart>
+                  )}
+                </ResponsiveContainer>
+              </div>
+            </GlassCard>
+          </Section>
+        </div>
+
+        {/* Parc detail table */}
+        <Section title="Détail par SCI">
+          <GlassCard>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b bg-muted/30">
+                    <SortHeader label="SCI" sortKey="label" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold" />
+                    <SortHeader label="Actifs" sortKey="nbActifs" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-3 text-right font-semibold" />
+                    <SortHeader label="Lots" sortKey="nbLots" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-3 text-right font-semibold" />
+                    <SortHeader label="Valorisation" sortKey="valorisation" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-3 text-right font-semibold" />
+                    <SortHeader label="Loyers/an" sortKey="loyerAnnuel" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-3 text-right font-semibold" />
+                    <SortHeader label="Charges" sortKey="charges" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-3 text-right font-semibold" />
+                    <SortHeader label="NOI" sortKey="noi" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-3 text-right font-semibold" />
+                    <SortHeader label="CRD" sortKey="crd" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-3 text-right font-semibold" />
+                    <SortHeader label="Cash-flow" sortKey="cashFlowNet" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-3 text-right font-semibold" />
+                    <SortHeader label="Rdt brut" sortKey="rendementBrut" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-3 text-right font-semibold" />
+                    <SortHeader label="LTV" sortKey="ltv" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-3 text-right font-semibold" />
+                    <SortHeader label="DSCR" sortKey="dscr" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-3 text-right font-semibold" />
+                    <SortHeader label="Occup." sortKey="tauxOccupation" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-3 text-right font-semibold" />
+                    <th className="px-3 py-3 text-right font-semibold">+/- Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {parcSorted.map((row: ParcKpiSet, i: number) => (
+                    <tr key={row.id} className="border-b border-border/20 hover:bg-muted/20 transition-colors">
+                      <td className="px-4 py-3 font-medium whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 w-2 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                          {row.label}
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 text-right">{row.nbActifs}</td>
+                      <td className="px-3 py-3 text-right">{row.nbLotsLoues}/{row.nbLots}</td>
+                      <td className="px-3 py-3 text-right font-semibold">{formatCurrency(row.valorisation)}</td>
+                      <td className="px-3 py-3 text-right">{formatCurrency(row.loyerAnnuel)}</td>
+                      <td className="px-3 py-3 text-right text-muted-foreground">{formatCurrency(row.charges)}</td>
+                      <td className={`px-3 py-3 text-right font-semibold ${row.noi < 0 ? "text-red-500" : ""}`}>{formatCurrency(row.noi)}</td>
+                      <td className="px-3 py-3 text-right text-muted-foreground">{formatCurrency(row.crd)}</td>
+                      <td className={`px-3 py-3 text-right font-semibold ${row.cashFlowNet < 0 ? "text-red-500" : "text-green-600 dark:text-green-400"}`}>{formatCurrency(row.cashFlowNet)}</td>
+                      <td className={`px-3 py-3 text-right ${row.rendementBrut < 5 ? "text-amber-600" : "text-green-600"}`}>{formatPercent(row.rendementBrut)}</td>
+                      <td className={`px-3 py-3 text-right ${row.ltv > 60 ? "text-red-500" : row.ltv > 40 ? "text-amber-600" : "text-green-600"}`}>{formatPercent(row.ltv)}</td>
+                      <td className={`px-3 py-3 text-right ${row.dscr > 0 && row.dscr < 1.2 ? "text-amber-600" : row.dscr >= 1.2 ? "text-green-600" : "text-red-500"}`}>
+                        {row.dscr > 0 ? `${row.dscr.toFixed(2)}x` : "—"}
+                      </td>
+                      <td className={`px-3 py-3 text-right ${row.tauxOccupation < 80 ? "text-amber-600" : "text-green-600"}`}>{row.tauxOccupation.toFixed(0)}%</td>
+                      <td className={`px-3 py-3 text-right font-semibold ${row.plusValue >= 0 ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>
+                        {row.plusValue >= 0 ? "+" : ""}{formatCurrency(row.plusValue)}
+                        <span className="text-[10px] text-muted-foreground ml-1">({row.plusValuePct >= 0 ? "+" : ""}{row.plusValuePct.toFixed(1)}%)</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-muted/40 font-semibold border-t-2">
+                    <td className="px-4 py-3">TOTAL</td>
+                    <td className="px-3 py-3 text-right">{parcSorted.reduce((s, r) => s + r.nbActifs, 0)}</td>
+                    <td className="px-3 py-3 text-right">{parcSorted.reduce((s, r) => s + r.nbLotsLoues, 0)}/{parcSorted.reduce((s, r) => s + r.nbLots, 0)}</td>
+                    <td className="px-3 py-3 text-right">{formatCurrency(parcSorted.reduce((s, r) => s + r.valorisation, 0))}</td>
+                    <td className="px-3 py-3 text-right">{formatCurrency(parcSorted.reduce((s, r) => s + r.loyerAnnuel, 0))}</td>
+                    <td className="px-3 py-3 text-right">{formatCurrency(parcSorted.reduce((s, r) => s + r.charges, 0))}</td>
+                    <td className="px-3 py-3 text-right">{formatCurrency(parcSorted.reduce((s, r) => s + r.noi, 0))}</td>
+                    <td className="px-3 py-3 text-right">{formatCurrency(parcSorted.reduce((s, r) => s + r.crd, 0))}</td>
+                    <td className={`px-3 py-3 text-right ${parcFocusKpi.cashFlowNet < 0 ? "text-red-500" : "text-green-600"}`}>{formatCurrency(parcSorted.reduce((s, r) => s + r.cashFlowNet, 0))}</td>
+                    <td className="px-3 py-3 text-right">{formatPercent(parcFocusKpi.rendementBrut)}</td>
+                    <td className="px-3 py-3 text-right">{formatPercent(parcFocusKpi.ltv)}</td>
+                    <td className="px-3 py-3 text-right">{parcFocusKpi.dscr > 0 ? `${parcFocusKpi.dscr.toFixed(2)}x` : "—"}</td>
+                    <td className="px-3 py-3 text-right">{parcFocusKpi.tauxOccupation.toFixed(0)}%</td>
+                    <td className={`px-3 py-3 text-right ${parcFocusKpi.plusValue >= 0 ? "text-green-600" : "text-red-500"}`}>
+                      {parcFocusKpi.plusValue >= 0 ? "+" : ""}{formatCurrency(parcFocusKpi.plusValue)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </GlassCard>
+        </Section>
+
+        </>)}
+
       </motion.div>
     </AnimatePresence>
   );

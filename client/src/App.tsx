@@ -30,7 +30,6 @@ import IndexationAutoPage from "./pages/asset-management/IndexationAuto";
 import ScoreSantePage from "./pages/asset-management/ScoreSante";
 import ExtractionBailPDFPage from "./pages/asset-management/ExtractionBailPDF";
 import ProjectionsPredictivesPage from "./pages/asset-management/ProjectionsPredictives";
-import VueParcPage from "./pages/asset-management/VueParc";
 // Gestion Locative
 import GLDashboard from "./pages/gestion-locative/Dashboard";
 import BauxGLPage from "./pages/gestion-locative/Baux";
@@ -99,7 +98,6 @@ export default function App() {
         <Route path="/asset-management/score-sante" component={ScoreSantePage} />
         <Route path="/asset-management/extraction-bail" component={ExtractionBailPDFPage} />
         <Route path="/asset-management/projections-predictives" component={ProjectionsPredictivesPage} />
-        <Route path="/asset-management/vue-parc" component={VueParcPage} />
 
         {/* Gestion Locative */}
         <Route path="/gestion-locative" component={GLDashboard} />
