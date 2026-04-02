@@ -4,7 +4,7 @@ import { requireAuth } from "../middleware/auth";
 import { rateLimit } from "../lib/rate-limit";
 import { logger } from "../lib/logger";
 
-const chatLimiter = rateLimit(30, 60 * 1000, "chat"); // 30 messages per minute
+const chatLimiter = rateLimit(30, 5 * 60 * 1000, "chat"); // 30 messages per 5 minutes
 
 /** Write tools that require admin role */
 const WRITE_TOOLS = new Set([
@@ -611,6 +611,19 @@ export function registerChatRoutes(app: Express) {
     const { messages } = req.body as { messages: ChatMessage[] };
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: "Messages requis" });
+    }
+
+    // Validate message content (M2.4 — prevent abuse / oversized prompts)
+    for (const msg of messages) {
+      if (typeof msg.content !== "string" || msg.content.length === 0) {
+        return res.status(400).json({ error: "Chaque message doit contenir du texte" });
+      }
+      if (msg.content.length > 10000) {
+        return res.status(400).json({ error: "Message trop long (max 10 000 caractères)" });
+      }
+    }
+    if (messages.length > 50) {
+      return res.status(400).json({ error: "Trop de messages (max 50)" });
     }
 
     let keepalive: ReturnType<typeof setInterval> | undefined;

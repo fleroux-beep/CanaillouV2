@@ -180,17 +180,29 @@ function msUntilNext5amParis(): number {
 /**
  * Planifie la prochaine exécution à 5h Paris et relance la planification après.
  */
+let dailyTimer: ReturnType<typeof setTimeout> | null = null;
+let startupTimer: ReturnType<typeof setTimeout> | null = null;
+let running = false;
+
 function scheduleDailySync(): void {
   const delayMs = msUntilNext5amParis();
   const delayH = (delayMs / 3600000).toFixed(1);
   logger.info(`auto-sync: prochaine sync dans ${delayH}h (5h00 heure de Paris)`);
 
-  setTimeout(async () => {
+  dailyTimer = setTimeout(async () => {
+    if (running) {
+      logger.warn("auto-sync: previous sync still running — skipping");
+      scheduleDailySync();
+      return;
+    }
     try {
+      running = true;
       logger.info("auto-sync: sync quotidienne 5h00 Paris — démarrage");
       await runFullSync();
     } catch (err: any) {
       logger.error("auto-sync: daily sync failed", { error: err.message });
+    } finally {
+      running = false;
     }
     // Re-planifier pour demain
     scheduleDailySync();
@@ -203,8 +215,10 @@ function scheduleDailySync(): void {
  */
 export function startAutoSync(): void {
   // Run once at startup (with delay), but only if data is stale or empty
-  setTimeout(async () => {
+  startupTimer = setTimeout(async () => {
+    if (running) return;
     try {
+      running = true;
       if (await isStale()) {
         logger.info("auto-sync: données de marché absentes ou périmées — lancement sync");
         await runFullSync();
@@ -213,9 +227,21 @@ export function startAutoSync(): void {
       }
     } catch (err: any) {
       logger.error("auto-sync: startup sync failed", { error: err.message });
+    } finally {
+      running = false;
     }
   }, STARTUP_DELAY_MS);
 
   // Schedule daily sync at 5:00 AM Paris time
   scheduleDailySync();
+}
+
+/**
+ * Arrête proprement les timers de synchronisation automatique.
+ * Appelée lors du shutdown gracieux du serveur.
+ */
+export function stopAutoSync(): void {
+  if (dailyTimer) { clearTimeout(dailyTimer); dailyTimer = null; }
+  if (startupTimer) { clearTimeout(startupTimer); startupTimer = null; }
+  logger.info("auto-sync: stopped");
 }

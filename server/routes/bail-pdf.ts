@@ -8,6 +8,9 @@
 import type { Express } from "express";
 import multer from "multer";
 import { requireAuth } from "../middleware/auth";
+import { rateLimit } from "../lib/rate-limit";
+
+const pdfExtractLimiter = rateLimit(10, 10 * 60 * 1000, "bail-pdf"); // 10 per 10 min
 import { logger } from "../lib/logger";
 import fs from "fs";
 import path from "path";
@@ -93,7 +96,7 @@ export function registerBailPDFRoutes(app: Express) {
     fs.mkdirSync(uploadDir, { recursive: true });
   }
 
-  app.post("/api/bail-pdf/extract", requireAuth, upload.single("file"), async (req: any, res: any) => {
+  app.post("/api/bail-pdf/extract", requireAuth, pdfExtractLimiter, upload.single("file"), async (req: any, res: any) => {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
       return res.status(503).json({ error: "ANTHROPIC_API_KEY non configurée" });

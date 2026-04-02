@@ -4,7 +4,7 @@
  */
 import type { Express } from "express";
 import { db } from "../db";
-import { eq, desc, isNull } from "drizzle-orm";
+import { eq, desc, isNull, count } from "drizzle-orm";
 import { requireAuth, requireWriteAdmin } from "../middleware/auth";
 import { validate } from "./validation";
 import { logger } from "./logger";
@@ -36,11 +36,35 @@ export function registerCrud(app: Express, path: string, table: any, opts: CrudO
   const schema = opts.schemas[path];
   const apiPath = `/api/${opts.prefix}/${path}`;
 
-  app.get(apiPath, requireAuth, async (_req: any, res: any) => {
+  app.get(apiPath, requireAuth, async (req: any, res: any) => {
     try {
       const hasDeletedAt = "deletedAt" in table;
-      const rows = hasDeletedAt
-        ? await db.select().from(table).where(isNull(table.deletedAt)).orderBy(desc(table.createdAt))
+      const whereClause = hasDeletedAt ? isNull(table.deletedAt) : undefined;
+
+      // Optional pagination: ?page=1&limit=50
+      const pageParam = Number(req.query.page);
+      const limitParam = Number(req.query.limit);
+      const usePagination = pageParam > 0 || limitParam > 0;
+
+      if (usePagination) {
+        const page = Math.max(1, pageParam || 1);
+        const limit = Math.min(500, Math.max(1, limitParam || 100));
+        const offset = (page - 1) * limit;
+
+        const [rows, totalResult] = await Promise.all([
+          whereClause
+            ? db.select().from(table).where(whereClause).orderBy(desc(table.createdAt)).limit(limit).offset(offset)
+            : db.select().from(table).orderBy(desc(table.createdAt)).limit(limit).offset(offset),
+          whereClause
+            ? db.select({ value: count() }).from(table).where(whereClause)
+            : db.select({ value: count() }).from(table),
+        ]);
+        return res.json({ data: rows, total: totalResult[0].value, page, limit });
+      }
+
+      // No pagination — return all (backward compatible)
+      const rows = whereClause
+        ? await db.select().from(table).where(whereClause).orderBy(desc(table.createdAt))
         : await db.select().from(table).orderBy(desc(table.createdAt));
       res.json(rows);
     } catch (error: any) {

@@ -8,6 +8,10 @@ import { eq, desc, and, isNull } from "drizzle-orm";
 import { requireAuth, requireWriteAdmin } from "../middleware/auth";
 import { validate, refTauxEmpruntSchema, refValeursVenalesSchema, refValeursLocativesSchema, refTauxCapitalisationSchema } from "../lib/validation";
 import { logger } from "../lib/logger";
+import { rateLimit } from "../lib/rate-limit";
+
+const syncLimiter = rateLimit(3, 30 * 60 * 1000, "sync-marche"); // 3 per 30 min
+const analyseIALimiter = rateLimit(5, 10 * 60 * 1000, "analyse-ia"); // 5 per 10 min
 import { syncDVF } from "../lib/sync-dvf";
 import { syncANIL } from "../lib/sync-anil";
 import { computeTauxCapiFromRefs } from "../lib/compute-taux-capi";
@@ -77,7 +81,7 @@ export function registerMarcheRoutes(app: Express) {
   // ============================================================
   // Sync DVF — Fetch prix/m² par code postal des actifs
   // ============================================================
-  app.post("/api/am/marche/sync-dvf", requireWriteAdmin, async (_req: any, res: any) => {
+  app.post("/api/am/marche/sync-dvf", requireWriteAdmin, syncLimiter, async (_req: any, res: any) => {
     try {
       // Get distinct (code_postal, ville) pairs from actifs
       const actifsRows = await db.select({ codePostal: actifs.codePostal, ville: actifs.ville })
@@ -106,7 +110,7 @@ export function registerMarcheRoutes(app: Express) {
   // ============================================================
   // Sync ANIL — Fetch loyers/m² carte des loyers
   // ============================================================
-  app.post("/api/am/marche/sync-anil", requireWriteAdmin, async (_req: any, res: any) => {
+  app.post("/api/am/marche/sync-anil", requireWriteAdmin, syncLimiter, async (_req: any, res: any) => {
     try {
       const actifsRows = await db.select({ codePostal: actifs.codePostal, ville: actifs.ville })
         .from(actifs)
@@ -317,7 +321,7 @@ Règles :
   }
 
   // ─── Analyse IA : un seul actif ─────────────────────────────
-  app.post("/api/am/marche/analyse-ia/:actifId", requireWriteAdmin, async (req: any, res: any) => {
+  app.post("/api/am/marche/analyse-ia/:actifId", requireWriteAdmin, analyseIALimiter, async (req: any, res: any) => {
     try {
       const actifId = req.params.actifId;
       if (!UUID_RE.test(actifId)) return res.status(400).json({ error: "ID invalide" });
@@ -351,7 +355,7 @@ Règles :
   });
 
   // ──��� Analyse IA : tous les actifs (séquentiel) ──────────────
-  app.post("/api/am/marche/analyse-ia", requireWriteAdmin, async (_req: any, res: any) => {
+  app.post("/api/am/marche/analyse-ia", requireWriteAdmin, analyseIALimiter, async (_req: any, res: any) => {
     try {
       const apiKey = process.env.ANTHROPIC_API_KEY;
       if (!apiKey) return res.status(503).json({ error: "ANTHROPIC_API_KEY non configurée" });

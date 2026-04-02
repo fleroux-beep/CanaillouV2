@@ -4,28 +4,31 @@
 import type { Express } from "express";
 import { requireAuth, requireWriteAdmin } from "../middleware/auth";
 import { logger } from "../lib/logger";
+import { rateLimit } from "../lib/rate-limit";
 import { syncIndicesINSEE, autoIndexBaux } from "../lib/sync-insee";
+
+const indexationLimiter = rateLimit(5, 10 * 60 * 1000, "indexation"); // 5 per 10 min
 
 export function registerIndexationAutoRoutes(app: Express) {
   // Sync indices from INSEE
-  app.post("/api/indexation/sync-insee", requireWriteAdmin, async (_req: any, res: any) => {
+  app.post("/api/indexation/sync-insee", requireWriteAdmin, indexationLimiter, async (_req: any, res: any) => {
     try {
       const result = await syncIndicesINSEE();
       res.json({ message: "Synchronisation INSEE terminée", ...result });
     } catch (error: any) {
       logger.error("sync-insee route error", { error: error.message });
-      res.status(500).json({ error: `Erreur: ${error.message}` });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 
   // Auto-index all eligible baux
-  app.post("/api/indexation/auto-index", requireWriteAdmin, async (_req: any, res: any) => {
+  app.post("/api/indexation/auto-index", requireWriteAdmin, indexationLimiter, async (_req: any, res: any) => {
     try {
       const result = await autoIndexBaux();
       res.json({ message: "Indexation automatique terminée", ...result });
     } catch (error: any) {
       logger.error("auto-index route error", { error: error.message });
-      res.status(500).json({ error: `Erreur: ${error.message}` });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 
@@ -41,7 +44,7 @@ export function registerIndexationAutoRoutes(app: Express) {
       });
     } catch (error: any) {
       logger.error("full-pipeline route error", { error: error.message });
-      res.status(500).json({ error: `Erreur: ${error.message}` });
+      res.status(500).json({ error: "Erreur interne" });
     }
   });
 }

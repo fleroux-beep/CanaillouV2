@@ -22,7 +22,7 @@ import { registerBailPDFRoutes } from "./routes/bail-pdf";
 import { registerProjectionsPredictivesRoutes } from "./routes/projections-predictives";
 import { logger, requestLogger } from "./lib/logger";
 import { requireAdmin } from "./middleware/auth";
-import { startAutoSync } from "./lib/auto-sync-marche";
+import { startAutoSync, stopAutoSync } from "./lib/auto-sync-marche";
 import helmet from "helmet";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -57,7 +57,7 @@ app.use((_req, res, next) => {
           res.header("Access-Control-Allow-Origin", origin);
           res.header("Access-Control-Allow-Credentials", "true");
           res.header("Access-Control-Allow-Methods", "GET,POST,PATCH,PUT,DELETE,OPTIONS");
-          res.header("Access-Control-Allow-Headers", "Content-Type,Authorization");
+          res.header("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Requested-With");
         }
       } catch {
         // Invalid origin URL — ignore
@@ -91,10 +91,24 @@ app.use(
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      sameSite: "strict",
     },
   })
 );
+
+// CSRF protection — require custom header on state-changing requests
+// Browsers won't add custom headers in cross-origin form submissions
+app.use((req: any, res: any, next: any) => {
+  if (["GET", "HEAD", "OPTIONS"].includes(req.method)) return next();
+  // Skip for health check and static assets
+  if (!req.path.startsWith("/api/")) return next();
+  const xrw = req.headers["x-requested-with"];
+  if (xrw === "XMLHttpRequest" || xrw === "fetch") return next();
+  // Also accept Content-Type: application/json as evidence of programmatic request
+  const ct = req.headers["content-type"] || "";
+  if (ct.includes("application/json")) return next();
+  return res.status(403).json({ error: "Requête refusée (CSRF)" });
+});
 
 // API routes
 registerAuthRoutes(app);
@@ -248,6 +262,7 @@ async function withRetry<T>(fn: () => Promise<T>, label: string, retries = 5, de
 // ─── Graceful shutdown ─────────────────────────────────────
 function gracefulShutdown(signal: string) {
   logger.info(`${signal} received — shutting down gracefully`);
+  stopAutoSync();
   server?.close(() => {
     pool.end().then(() => {
       logger.info("Database pool closed");

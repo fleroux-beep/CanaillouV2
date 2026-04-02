@@ -27,7 +27,6 @@ export interface AMActif {
   tauxCapitalisation?: string | null;
   prixM2Marche?: string | null;
   archived?: boolean | null;
-  [key: string]: unknown;
 }
 
 /** Données de marché optionnelles pour enrichir les calculs */
@@ -45,7 +44,6 @@ export interface AMBail {
   loyerMensuel?: string | null;
   loyerAnnuel?: string | null;
   archived?: boolean | null;
-  [key: string]: unknown;
 }
 
 export interface AMLot {
@@ -55,7 +53,6 @@ export interface AMLot {
   loyerMensuel?: string | null;
   loyerAnnuel?: string | null;
   archived?: boolean | null;
-  [key: string]: unknown;
 }
 
 export interface AMEmprunt {
@@ -70,14 +67,12 @@ export interface AMEmprunt {
   assuranceMensuelle?: string | null;
   dateDebut?: string | null;
   archived?: boolean | null;
-  [key: string]: unknown;
 }
 
 export interface AMAssocie {
   id: string;
   nom: string;
   prenom?: string | null;
-  [key: string]: unknown;
 }
 
 export interface AMParticipation {
@@ -86,13 +81,11 @@ export interface AMParticipation {
   sciId: string;
   pourcentage?: string | null;
   montantApport?: string | null;
-  [key: string]: unknown;
 }
 
 export interface AMSCI {
   id: string;
   nom: string;
-  [key: string]: unknown;
 }
 
 // ============================================================

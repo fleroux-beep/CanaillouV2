@@ -734,6 +734,29 @@ export async function ensureSchema() {
       await client.query(safe);
     }
 
+    // ─── CHECK constraints (M4.2) ───
+    const checks = [
+      `ALTER TABLE "am_participations" ADD CONSTRAINT "chk_participation_pct" CHECK ("pourcentage" IS NULL OR ("pourcentage"::numeric >= 0 AND "pourcentage"::numeric <= 100))`,
+      `ALTER TABLE "am_emprunts" ADD CONSTRAINT "chk_emprunt_taux" CHECK ("taux_annuel" IS NULL OR "taux_annuel"::numeric >= 0)`,
+      `ALTER TABLE "am_emprunts" ADD CONSTRAINT "chk_emprunt_duree" CHECK ("duree_ans" IS NULL OR "duree_ans" > 0)`,
+      `ALTER TABLE "am_emprunts" ADD CONSTRAINT "chk_emprunt_montant" CHECK ("montant_emprunte" IS NULL OR "montant_emprunte"::numeric >= 0)`,
+    ];
+    for (const ck of checks) {
+      const safe = `DO $$ BEGIN ${ck}; EXCEPTION WHEN duplicate_object THEN NULL; END $$;`;
+      await client.query(safe);
+    }
+
+    // ─── UNIQUE constraints on business keys (M4.4) ───
+    const uniques = [
+      `ALTER TABLE "indices" ADD CONSTRAINT "uq_indices_type_trimestre" UNIQUE ("type", "trimestre")`,
+      `ALTER TABLE "ref_valeurs_venales" ADD CONSTRAINT "uq_ref_vv_source_cp_type_periode" UNIQUE ("source", "code_postal", "type_bien", "periode")`,
+      `ALTER TABLE "ref_valeurs_locatives" ADD CONSTRAINT "uq_ref_vl_source_cp_type_periode" UNIQUE ("source", "code_postal", "type_bien", "periode")`,
+    ];
+    for (const uq of uniques) {
+      const safe = `DO $$ BEGIN ${uq}; EXCEPTION WHEN duplicate_object THEN NULL; END $$;`;
+      await client.query(safe);
+    }
+
     await client.query("COMMIT");
     logger.info("database schema ensured");
   } catch (error: any) {
