@@ -11,35 +11,7 @@ import { formatCurrency } from "../../lib/utils";
 import { Plus, Pencil, Trash2, MapPin } from "lucide-react";
 import { motion } from "framer-motion";
 import { InfoTooltip } from "../../components/ui/info-tooltip";
-
-interface Actif {
-  id: string;
-  nom: string;
-  sciId?: string;
-  adresse?: string;
-  ville?: string;
-  codePostal?: string;
-  type?: string;
-  surface?: string;
-  surfaceCarrez?: string;
-  anneeConstruction?: number;
-  dpe?: string;
-  prixAcquisition?: string;
-  fraisNotaire?: string;
-  fraisAgence?: string;
-  montantTravaux?: string;
-  dateAcquisition?: string;
-  chargesAnnuelles?: string;
-  taxeFonciere?: string;
-  assurancePno?: string;
-  tauxCapitalisation?: string;
-  prixM2Marche?: string;
-  syndic?: string;
-  notes?: string;
-  archived?: boolean;
-}
-
-interface SCI { id: string; nom: string; }
+import type { Actif, SCI } from "../../types";
 
 const emptyActif: Partial<Actif> = { nom: "" };
 

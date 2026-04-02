@@ -18,16 +18,7 @@ import { getAnnuiteEmprunt, computeAmortSchedule, type AMEmprunt, type AmortRow 
 import { findRefTauxEmprunt, compareTauxEmprunt, badgeVariant, type RefTauxEmprunt } from "../../lib/market-utils";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area, ComposedChart, Line } from "recharts";
 import { InfoTooltip } from "../../components/ui/info-tooltip";
-
-interface Emprunt {
-  id: string; sciId?: string; actifId?: string; banque?: string; montantEmprunte?: string;
-  capitalRestantDu?: string; tauxAnnuel?: string; dureeAns?: number; dureeMois?: number;
-  dateDebut?: string; dateFin?: string; typeAmortissement?: string; mensualite?: string;
-  assuranceMensuelle?: string; tauxAssurance?: string; typeGarantie?: string; ira?: string;
-  notes?: string; archived?: boolean;
-}
-interface SCI { id: string; nom: string; }
-interface Actif { id: string; nom: string; }
+import type { Emprunt, SCI, Actif } from "../../types";
 
 const empty: Partial<Emprunt> = {};
 

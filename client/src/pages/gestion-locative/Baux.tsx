@@ -13,9 +13,7 @@ import { formatCurrency } from "../../lib/utils";
 import { Plus, Pencil, Trash2, MapPin } from "lucide-react";
 import { motion } from "framer-motion";
 import { InfoTooltip } from "../../components/ui/info-tooltip";
-
-interface Bail { id: string; nom: string; locataireId?: string; bailleurId?: string; typeBail?: string; adresse?: string; ville?: string; codePostal?: string; dateSignature?: string; dateEffet?: string; loyerBaseHT?: string; loyerHTActu?: string; indiceReference?: string; trimestreRef?: string; valeurIndiceBase?: string; charges?: string; depotGarantie?: string; taxeFonciere?: string; surface?: string; capacite?: number; statut?: string; archived?: boolean; notes?: string; taxe?: string; tvaTaux?: string; }
-interface Bailleur { id: string; nom: string; }
+import type { BailGL as Bail, Bailleur } from "../../types";
 
 const empty: Partial<Bail> = { nom: "" };
 

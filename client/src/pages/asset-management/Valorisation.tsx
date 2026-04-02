@@ -105,19 +105,30 @@ export default function ValorisationPage() {
     };
   }), [actifsActifs, scis, baux, lots]);
 
-  // Totals
-  const totalValorisation = actifData.reduce((sum: number, a: any) => sum + a.valeurEstimee, 0);
-  const totalAcquisition = actifData.reduce((sum: number, a: any) => sum + a.prixAcquisition, 0);
-  const totalPlusValue = totalValorisation - totalAcquisition;
-  const totalPlusValuePct = totalAcquisition > 0 ? (totalPlusValue / totalAcquisition) * 100 : 0;
-  const totalSurface = actifData.reduce((sum: number, a: any) => sum + a.surface, 0);
-  const totalLoyers = actifData.reduce((sum: number, a: any) => sum + a.loyerAnnuel, 0);
-  const totalCharges = actifData.reduce((sum: number, a: any) => sum + a.charges, 0);
-  const totalNOI = totalLoyers - totalCharges;
-  const avgRendementBrut = totalValorisation > 0 ? (totalLoyers / totalValorisation) * 100 : 0;
-  const avgRendementNet = totalValorisation > 0 ? (totalNOI / totalValorisation) * 100 : 0;
-  const avgPrixM2 = totalSurface > 0 ? totalAcquisition / totalSurface : 0;
-  const avgValeurM2 = totalSurface > 0 ? totalValorisation / totalSurface : 0;
+  // Totals (memoized — multiple reduce passes over actifData)
+  const {
+    totalValorisation, totalAcquisition, totalPlusValue, totalPlusValuePct,
+    totalSurface, totalLoyers, totalCharges, totalNOI,
+    avgRendementBrut, avgRendementNet, avgPrixM2, avgValeurM2,
+  } = useMemo(() => {
+    const totalValorisation = actifData.reduce((sum: number, a: any) => sum + a.valeurEstimee, 0);
+    const totalAcquisition = actifData.reduce((sum: number, a: any) => sum + a.prixAcquisition, 0);
+    const totalPlusValue = totalValorisation - totalAcquisition;
+    const totalPlusValuePct = totalAcquisition > 0 ? (totalPlusValue / totalAcquisition) * 100 : 0;
+    const totalSurface = actifData.reduce((sum: number, a: any) => sum + a.surface, 0);
+    const totalLoyers = actifData.reduce((sum: number, a: any) => sum + a.loyerAnnuel, 0);
+    const totalCharges = actifData.reduce((sum: number, a: any) => sum + a.charges, 0);
+    const totalNOI = totalLoyers - totalCharges;
+    const avgRendementBrut = totalValorisation > 0 ? (totalLoyers / totalValorisation) * 100 : 0;
+    const avgRendementNet = totalValorisation > 0 ? (totalNOI / totalValorisation) * 100 : 0;
+    const avgPrixM2 = totalSurface > 0 ? totalAcquisition / totalSurface : 0;
+    const avgValeurM2 = totalSurface > 0 ? totalValorisation / totalSurface : 0;
+    return {
+      totalValorisation, totalAcquisition, totalPlusValue, totalPlusValuePct,
+      totalSurface, totalLoyers, totalCharges, totalNOI,
+      avgRendementBrut, avgRendementNet, avgPrixM2, avgValeurM2,
+    };
+  }, [actifData]);
 
   // DCF portfolio-level
   const dcfResult: DCFResult | null = useMemo(() => {
@@ -150,50 +161,50 @@ export default function ValorisationPage() {
     }));
   }, [totalAcquisition, totalNOI, totalValorisation, dcfGrowthRate]);
 
-  // Chart data: acquisition vs estimée
-  const comparisonChart = actifData
+  // Chart data: acquisition vs estimée (memoized)
+  const comparisonChart = useMemo(() => actifData
     .filter((a: any) => a.prixAcquisition > 0 || a.valeurEstimee > 0)
     .map((a: any) => ({
       name: a.nom.length > 18 ? a.nom.substring(0, 18) + "…" : a.nom,
       "Prix acquisition": a.prixAcquisition,
       "Valeur estimée": a.valeurEstimee,
-    }));
+    })), [actifData]);
 
-  // Scatter: prix/m² acquisition vs valeur/m²
-  const scatterData = actifData
+  // Scatter: prix/m² acquisition vs valeur/m² (memoized)
+  const scatterData = useMemo(() => actifData
     .filter((a: any) => a.prixM2 > 0 && a.valeurM2 > 0)
     .map((a: any) => ({
       name: a.nom,
       x: a.prixM2,
       y: a.valeurM2,
       z: a.surface,
-    }));
+    })), [actifData]);
 
-  // Méthodes de valorisation breakdown
-  const methodData = actifData
+  // Méthodes de valorisation breakdown (memoized)
+  const methodData = useMemo(() => actifData
     .filter((a: any) => a.valeurCapitalisation > 0 || a.valeurComparables > 0)
     .map((a: any) => ({
       name: a.nom.length > 18 ? a.nom.substring(0, 18) + "…" : a.nom,
       "Capitalisation": a.valeurCapitalisation,
       "Comparables": a.valeurComparables,
       "Retenue": a.valeurEstimee,
-    }));
+    })), [actifData]);
 
-  // Plus-value pie chart
-  const pvByActif = actifData
+  // Plus-value pie chart (memoized)
+  const pvByActif = useMemo(() => actifData
     .filter((a: any) => Math.abs(a.plusValue) > 0)
     .sort((a: any, b: any) => b.plusValue - a.plusValue)
     .map((a: any) => ({
       name: a.nom,
       value: Math.abs(a.plusValue),
       positive: a.plusValue >= 0,
-    }));
+    })), [actifData]);
 
-  // DCF projected cash-flows chart
-  const dcfChartData = dcfResult?.projectedCashFlows.map((cf, i) => ({
+  // DCF projected cash-flows chart (memoized)
+  const dcfChartData = useMemo(() => dcfResult?.projectedCashFlows.map((cf, i) => ({
     year: `N+${i + 1}`,
     "Cash-flow": Math.round(cf),
-  })) || [];
+  })) || [], [dcfResult]);
 
   return (
     <AnimatePresence>

@@ -32,11 +32,22 @@ interface GeneratedAlert {
 async function generateAMAlerts(): Promise<GeneratedAlert[]> {
   const alerts: GeneratedAlert[] = [];
   const now = new Date();
-  const allActifs = await db.select().from(actifs).where(and(eq(actifs.archived, false), isNull(actifs.deletedAt)));
-  const allLots = await db.select().from(lots).where(and(eq(lots.archived, false), isNull(lots.deletedAt)));
-  const allBaux = await db.select().from(bauxAM).where(and(eq(bauxAM.archived, false), isNull(bauxAM.deletedAt)));
-  const allEmprunts = await db.select().from(emprunts).where(and(eq(emprunts.archived, false), isNull(emprunts.deletedAt)));
-  const allScis = await db.select().from(scis).where(isNull(scis.deletedAt));
+
+  // PERF(M7.3): These queries fetch all columns from each table separately and
+  // then join in JS. Ideally they would be replaced by a single SQL query with
+  // JOINs selecting only the columns needed for alert computation (e.g.
+  // actifs.id, actifs.nom, actifs.sciId, actifs.prixAcquisition, etc.).
+  // However, the Drizzle schema typing and the cross-entity aggregation logic
+  // below make a pure-SQL rewrite non-trivial. Leaving as-is for now with this
+  // note so a future refactor can address it.
+  // Additionally, Promise.all is used to run the independent queries in parallel.
+  const [allActifs, allLots, allBaux, allEmprunts, allScis] = await Promise.all([
+    db.select().from(actifs).where(and(eq(actifs.archived, false), isNull(actifs.deletedAt))),
+    db.select().from(lots).where(and(eq(lots.archived, false), isNull(lots.deletedAt))),
+    db.select().from(bauxAM).where(and(eq(bauxAM.archived, false), isNull(bauxAM.deletedAt))),
+    db.select().from(emprunts).where(and(eq(emprunts.archived, false), isNull(emprunts.deletedAt))),
+    db.select().from(scis).where(isNull(scis.deletedAt)),
+  ]);
 
   for (const actif of allActifs) {
     const actifBaux = allBaux.filter((b: any) => b.actifId === actif.id && b.statut !== "résilié");
@@ -168,9 +179,16 @@ async function generateAMAlerts(): Promise<GeneratedAlert[]> {
 async function generateGLAlerts(): Promise<GeneratedAlert[]> {
   const alerts: GeneratedAlert[] = [];
   const now = new Date();
-  const allBaux = await db.select().from(bauxGL).where(and(eq(bauxGL.archived, false), isNull(bauxGL.deletedAt)));
-  const allIndices = await db.select().from(indices);
-  const locatives = await db.select().from(refValeursLocatives);
+
+  // PERF(M7.3): Same concern as generateAMAlerts — full table loads joined in JS.
+  // allIndices is fetched but only used implicitly (bail.indiceReference is checked
+  // but never looked up in allIndices). Consider removing the indices query if unused,
+  // or selecting only needed columns.
+  const [allBaux, allIndices, locatives] = await Promise.all([
+    db.select().from(bauxGL).where(and(eq(bauxGL.archived, false), isNull(bauxGL.deletedAt))),
+    db.select().from(indices),
+    db.select().from(refValeursLocatives),
+  ]);
 
   for (const bail of allBaux) {
     const nom = bail.nom || "Bail sans nom";
@@ -277,22 +295,28 @@ export async function computeAndStoreAlerts(): Promise<{ am: number; gl: number 
     // Clear old auto-generated alerts
     await db.delete(alertes);
 
-    const amAlerts = await generateAMAlerts();
-    const glAlerts = await generateGLAlerts();
+    // Run AM and GL alert generation in parallel
+    const [amAlerts, glAlerts] = await Promise.all([
+      generateAMAlerts(),
+      generateGLAlerts(),
+    ]);
 
     const all = [...amAlerts, ...glAlerts];
-    for (const a of all) {
-      await db.insert(alertes).values({
-        module: a.module,
-        entityType: a.entityType,
-        entityId: a.entityId,
-        type: a.type,
-        title: a.title,
-        message: a.message,
-        targetDate: a.targetDate,
-        priority: a.priority,
-        dismissed: false,
-      });
+    // PERF(M7.3): Batch insert instead of inserting one row at a time
+    if (all.length > 0) {
+      await db.insert(alertes).values(
+        all.map((a) => ({
+          module: a.module,
+          entityType: a.entityType,
+          entityId: a.entityId,
+          type: a.type,
+          title: a.title,
+          message: a.message,
+          targetDate: a.targetDate,
+          priority: a.priority,
+          dismissed: false,
+        }))
+      );
     }
 
     logger.info(`Alertes proactives générées: ${amAlerts.length} AM + ${glAlerts.length} GL`);

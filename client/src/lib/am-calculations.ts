@@ -268,7 +268,12 @@ export function getLTV(dette: number, valeur: number): number {
   return (dette / valeur) * 100;
 }
 
-/** DSCR = NOI / service de la dette */
+/** DSCR = NOI / service de la dette.
+ * Returns 0 when there is no debt (serviceDette <= 0).
+ * Callers display "N/A" or "—" when dscr === 0 to indicate absence of debt
+ * rather than a bad coverage ratio. Server-side score-sante uses 999 internally
+ * for scoring purposes only; the returned metric value is also 0 for consistency.
+ */
 export function getDSCR(noi: number, serviceDette: number): number {
   if (serviceDette <= 0) return 0;
   return noi / serviceDette;

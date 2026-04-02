@@ -1,5 +1,5 @@
-import { useState } from "react";
 import { useCrud } from "../../hooks/useCrud";
+import { useFormDialog } from "../../hooks/useFormDialog";
 import { DataTable, type Column } from "../../components/ui/data-table";
 import { FormDialog } from "../../components/ui/form-dialog";
 import { ConfirmDialog } from "../../components/ui/confirm-dialog";
@@ -13,10 +13,7 @@ const empty: Partial<Locataire> = { nom: "" };
 
 export default function LocatairesAMPage() {
   const { data, create, update, remove, creating, updating, deleting } = useCrud<Locataire>("/api/am/locataires", "Locataire");
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState<Locataire | null>(null);
-  const [form, setForm] = useState<Partial<Locataire>>(empty);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const { dialogOpen, editing, form, deleteId, setDeleteId, openCreate, openEdit, close, onChange } = useFormDialog<Locataire>(empty);
 
   const columns: Column<Locataire>[] = [
     { key: "nom", label: "Nom", sortable: true, render: (r) => <span className="font-medium">{r.nom} {r.prenom || ""}</span> },
@@ -25,25 +22,24 @@ export default function LocatairesAMPage() {
     { key: "siret", label: "SIRET" },
     { key: "actions", label: "", align: "right", render: (r) => (
       <div className="flex items-center justify-end gap-1">
-        <button onClick={(e) => { e.stopPropagation(); setEditing(r); setForm(r); setDialogOpen(true); }} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button>
+        <button onClick={(e) => { e.stopPropagation(); openEdit(r); }} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button>
         <button onClick={(e) => { e.stopPropagation(); setDeleteId(r.id); }} className="rounded-lg p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"><Trash2 className="h-3.5 w-3.5" /></button>
       </div>
     )},
   ];
 
-  const onChange = (name: string, value: string) => setForm((f) => ({ ...f, [name]: value }));
-  const handleSubmit = async (e: React.FormEvent) => { e.preventDefault(); if (editing) { await update({ ...form, id: editing.id } as any); } else { await create(form); } setDialogOpen(false); };
+  const handleSubmit = async (e: React.FormEvent) => { e.preventDefault(); if (editing) { await update({ ...form, id: editing.id } as Locataire); } else { await create(form); } close(); };
 
   return (
     <div className="space-y-6">
       <PageHeader title="Locataires" description="Locataires des biens AM" actions={
-        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => { setEditing(null); setForm(empty); setDialogOpen(true); }}
+        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={openCreate}
           className="flex items-center gap-2 rounded-lg gradient-primary px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-orange-500/25">
           <Plus className="h-4 w-4" /> Nouveau locataire
         </motion.button>
       } />
       <DataTable data={data} columns={columns} searchKeys={["nom", "prenom", "email", "siret"]} searchPlaceholder="Rechercher..." emptyMessage="Aucun locataire" exportFileName="locataires-am" />
-      <FormDialog open={dialogOpen} onClose={() => setDialogOpen(false)} title={editing ? "Modifier le locataire" : "Nouveau locataire"} onSubmit={handleSubmit} loading={creating || updating}>
+      <FormDialog open={dialogOpen} onClose={close} title={editing ? "Modifier le locataire" : "Nouveau locataire"} onSubmit={handleSubmit} loading={creating || updating}>
         <FormGrid>
           <FormField label="Nom" name="nom" value={form.nom} onChange={onChange} required />
           <FormField label="Prénom" name="prenom" value={form.prenom} onChange={onChange} />

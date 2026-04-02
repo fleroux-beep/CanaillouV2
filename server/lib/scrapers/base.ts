@@ -196,8 +196,20 @@ export function getCached<T>(key: string): T | null {
   return entry.data as T;
 }
 
+const CACHE_MAX_SIZE = 1000;
+const CACHE_EVICT_COUNT = 200;
+
 export function setCache(key: string, data: any): void {
   cache.set(key, { data, ts: Date.now() });
+  // Evict oldest entries when cache exceeds size limit
+  if (cache.size > CACHE_MAX_SIZE) {
+    const keys = cache.keys();
+    for (let i = 0; i < CACHE_EVICT_COUNT; i++) {
+      const next = keys.next();
+      if (next.done) break;
+      cache.delete(next.value);
+    }
+  }
 }
 
 // ============================================================
