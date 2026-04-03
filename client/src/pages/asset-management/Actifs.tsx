@@ -50,7 +50,7 @@ export default function ActifsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editing) { await update({ ...form, id: editing.id } as any); }
+    if (editing) { await update({ ...form, id: editing.id } as Actif); }
     else { await create(form); }
     setDialogOpen(false);
   };

@@ -248,7 +248,8 @@ export async function ensureSchema() {
         "prestataire" varchar,
         "notes" text,
         "created_at" timestamp DEFAULT now(),
-        "updated_at" timestamp DEFAULT now()
+        "updated_at" timestamp DEFAULT now(),
+        "deleted_at" timestamp
       )
     `);
 
@@ -298,7 +299,8 @@ export async function ensureSchema() {
         "iban" varchar,
         "notes" text,
         "created_at" timestamp DEFAULT now(),
-        "updated_at" timestamp DEFAULT now()
+        "updated_at" timestamp DEFAULT now(),
+        "deleted_at" timestamp
       )
     `);
 
@@ -315,7 +317,8 @@ export async function ensureSchema() {
         "siret" varchar,
         "notes" text,
         "created_at" timestamp DEFAULT now(),
-        "updated_at" timestamp DEFAULT now()
+        "updated_at" timestamp DEFAULT now(),
+        "deleted_at" timestamp
       )
     `);
 
@@ -331,7 +334,8 @@ export async function ensureSchema() {
         "siret" varchar,
         "notes" text,
         "created_at" timestamp DEFAULT now(),
-        "updated_at" timestamp DEFAULT now()
+        "updated_at" timestamp DEFAULT now(),
+        "deleted_at" timestamp
       )
     `);
 
@@ -755,6 +759,17 @@ export async function ensureSchema() {
     for (const uq of uniques) {
       const safe = `DO $$ BEGIN ${uq}; EXCEPTION WHEN duplicate_object THEN NULL; END $$;`;
       await client.query(safe);
+    }
+
+    // Safe ADD COLUMN for soft-delete on tables that may already exist
+    const softDeleteTables = ["am_travaux", "gl_bailleurs", "gl_gestionnaires", "gl_locataires"];
+    for (const tbl of softDeleteTables) {
+      await client.query(`
+        DO $$ BEGIN
+          ALTER TABLE "${tbl}" ADD COLUMN "deleted_at" timestamp;
+        EXCEPTION WHEN duplicate_column THEN NULL;
+        END $$;
+      `);
     }
 
     await client.query("COMMIT");

@@ -34,7 +34,7 @@ export default function LocatairesGLPage() {
   ];
 
   const onChange = (name: string, value: string) => setForm((f) => ({ ...f, [name]: value }));
-  const handleSubmit = async (e: React.FormEvent) => { e.preventDefault(); if (editing) { await update({ ...form, id: editing.id } as any); } else { await create(form); } setDialogOpen(false); };
+  const handleSubmit = async (e: React.FormEvent) => { e.preventDefault(); if (editing) { await update({ ...form, id: editing.id } as LocataireGL); } else { await create(form); } setDialogOpen(false); };
 
   return (
     <div className="space-y-6">

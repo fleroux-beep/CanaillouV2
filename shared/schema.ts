@@ -274,6 +274,7 @@ export const travaux = pgTable("am_travaux", {
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
 }, (table) => [
   index("idx_travaux_actif_id").on(table.actifId),
   index("idx_travaux_sci_id").on(table.sciId),
@@ -295,6 +296,7 @@ export const bailleurs = pgTable("gl_bailleurs", {
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
 });
 
 export const gestionnaires = pgTable("gl_gestionnaires", {
@@ -309,6 +311,7 @@ export const gestionnaires = pgTable("gl_gestionnaires", {
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
 }, (table) => [
   index("idx_gestionnaires_bailleur_id").on(table.bailleurId),
 ]);
@@ -328,6 +331,7 @@ export const locatairesGL = pgTable("gl_locataires", {
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
 });
 
 // ============================================================

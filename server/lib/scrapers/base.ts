@@ -99,7 +99,10 @@ async function getBrowser(): Promise<Browser | null> {
     browserInstance = await launchWithTimeout({
       headless: true,
       executablePath,
-      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+      args: [
+        ...(process.getuid?.() === 0 ? ["--no-sandbox", "--disable-setuid-sandbox"] : []),
+        "--disable-dev-shm-usage",
+      ],
     });
     browserAvailable = true;
     logger.info(`Playwright: navigateur Chromium lancé (${executablePath})`);

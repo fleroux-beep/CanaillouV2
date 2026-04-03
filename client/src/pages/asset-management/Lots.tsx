@@ -52,7 +52,7 @@ export default function LotsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editing) { await update({ ...form, id: editing.id } as any); }
+    if (editing) { await update({ ...form, id: editing.id } as Lot); }
     else { await create(form); }
     setDialogOpen(false);
   };
