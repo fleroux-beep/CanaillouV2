@@ -146,7 +146,7 @@ export default function TresoreriePage() {
     fd.forEach((v, k) => { payload[k] = v; });
     if (!payload.fileName) payload.fileName = `${payload.type || "facture"}-${payload.dateFacture || ""}`;
     if (editing) {
-      await update({ id: editing.id, ...payload } as any);
+      await update({ id: editing.id, ...payload } as Facture);
     } else {
       await create(payload);
     }

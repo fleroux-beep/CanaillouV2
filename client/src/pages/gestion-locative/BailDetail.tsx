@@ -137,7 +137,7 @@ export default function BailGLDetailPage() {
     e.preventDefault();
     const { nouveauLoyerHT, ...avenantData } = avenantForm;
     if (editingAvenant) {
-      await updateAvenant.mutateAsync({ ...avenantData, id: editingAvenant.id } as any);
+      await updateAvenant.mutateAsync({ ...avenantData, id: editingAvenant.id } as Avenant);
     } else {
       await createAvenant.mutateAsync({ ...avenantData, bailId: params.id });
     }
@@ -160,7 +160,7 @@ export default function BailGLDetailPage() {
   const handleRenouvelSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (editingRenouvel) {
-      await updateRenouvellement.mutateAsync({ ...renouvelForm, id: editingRenouvel.id } as any);
+      await updateRenouvellement.mutateAsync({ ...renouvelForm, id: editingRenouvel.id } as Renouvellement);
     } else {
       await createRenouvellement.mutateAsync({ ...renouvelForm, bailId: params.id });
     }

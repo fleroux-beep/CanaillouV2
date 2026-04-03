@@ -134,6 +134,38 @@ export function registerAMRoutes(app: Express) {
   registerCrud(app, "travaux", travaux, opts);
   registerCrud(app, "documents", documentsAM, opts);
 
+  // Sync lot.locataireId when a bail is created or updated (m4.4)
+  const syncLotLocataire = async (bail: { lotId?: string | null; locataireId?: string | null }) => {
+    if (bail.lotId) {
+      await db.update(lots).set({ locataireId: bail.locataireId || null, updatedAt: new Date() }).where(eq(lots.id, bail.lotId));
+    }
+  };
+
+  app.post("/api/am/baux", requireWriteAdmin, ...(amSchemas["baux"] ? [validate(amSchemas["baux"])] : []), async (req: any, res: any) => {
+    try {
+      const rows = await db.insert(bauxAM).values(req.body).returning() as any[];
+      await syncLotLocataire(rows[0]);
+      res.status(201).json(rows[0]);
+    } catch (error: any) {
+      logger.error("route error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
+    }
+  });
+
+  app.patch("/api/am/baux/:id", requireWriteAdmin, ...(amSchemas["baux"] ? [validate(amSchemas["baux"].partial())] : []), async (req: any, res: any) => {
+    try {
+      const id = paramId(req, res);
+      if (!id) return;
+      const rows = await db.update(bauxAM).set({ ...req.body, updatedAt: new Date() }).where(eq(bauxAM.id, id)).returning() as any[];
+      if (rows.length === 0) return res.status(404).json({ error: "Non trouvé" });
+      await syncLotLocataire(rows[0]);
+      res.json(rows[0]);
+    } catch (error: any) {
+      logger.error("route error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
+    }
+  });
+
   // Custom delete for SCIs — cascade soft-delete to actifs, emprunts, participations
   app.delete("/api/am/scis/:id", requireWriteAdmin, async (req: any, res: any) => {
     try {

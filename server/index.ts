@@ -8,7 +8,6 @@ import { eq } from "drizzle-orm";
 import { pool, db } from "./db";
 import { ensureSchema } from "./ensure-schema";
 import { users, scis, actifs } from "@shared/schema";
-import { isNull } from "drizzle-orm";
 import { registerAuthRoutes } from "./routes/auth";
 import { registerAMRoutes } from "./routes/am";
 import { registerMarcheRoutes } from "./routes/am-marche";

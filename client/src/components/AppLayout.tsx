@@ -10,7 +10,7 @@ import {
   ChevronLeft, ChevronRight, LogOut, Sun, Moon, ArrowLeft,
   AlertTriangle, DollarSign, FolderOpen, ShieldCheck,
   TreePine, Hammer, ArrowLeftRight, FlaskConical, ClipboardList,
-  ArrowUpDown, FileBarChart, Menu, X, Settings, Activity, Search,
+  ArrowUpDown, FileBarChart, Menu, X, Settings, Search,
   Bell, Heart, FileUp, Zap, Brain,
 } from "lucide-react";
 import { cn } from "../lib/utils";

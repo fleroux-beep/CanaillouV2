@@ -50,6 +50,7 @@ export async function ensureSchema() {
     await client.query(`
       CREATE TABLE IF NOT EXISTS "am_scis" (
         "id" varchar PRIMARY KEY NOT NULL,
+        "owner_id" varchar REFERENCES "users"("id") ON DELETE cascade,
         "nom" varchar NOT NULL,
         "forme_juridique" varchar,
         "capital" numeric,
@@ -58,15 +59,15 @@ export async function ensureSchema() {
         "adresse" text,
         "ville" varchar,
         "code_postal" varchar,
-        "date_creation" varchar,
+        "date_creation" date,
         "gerant" varchar,
         "expert_comptable" varchar,
         "banque" varchar,
         "iban" varchar,
-        "date_revente" varchar,
+        "date_revente" date,
         "taux_rendement" numeric,
         "dividendes_realises" numeric,
-        "date_cloture_exercice" varchar,
+        "date_cloture_exercice" date,
         "notes" text,
         "deleted_at" timestamp,
         "created_at" timestamp DEFAULT now(),
@@ -78,6 +79,7 @@ export async function ensureSchema() {
     await client.query(`
       CREATE TABLE IF NOT EXISTS "am_associes" (
         "id" varchar PRIMARY KEY NOT NULL,
+        "owner_id" varchar REFERENCES "users"("id") ON DELETE cascade,
         "nom" varchar NOT NULL,
         "prenom" varchar,
         "email" varchar,
@@ -113,7 +115,7 @@ export async function ensureSchema() {
         "frais_notaire" numeric,
         "frais_agence" numeric,
         "montant_travaux" numeric,
-        "date_acquisition" varchar,
+        "date_acquisition" date,
         "charges_annuelles" numeric,
         "taxe_fonciere" numeric,
         "assurance_pno" numeric,
@@ -121,7 +123,7 @@ export async function ensureSchema() {
         "taux_capitalisation" numeric,
         "prix_m2_marche" numeric,
         "valeur_estimee_sortie" numeric,
-        "date_estimation" varchar,
+        "date_estimation" date,
         "source_estimation" varchar,
         "syndic" varchar,
         "regime_juridique" varchar,
@@ -137,6 +139,7 @@ export async function ensureSchema() {
     await client.query(`
       CREATE TABLE IF NOT EXISTS "am_locataires" (
         "id" varchar PRIMARY KEY NOT NULL,
+        "owner_id" varchar REFERENCES "users"("id") ON DELETE cascade,
         "nom" varchar NOT NULL,
         "prenom" varchar,
         "email" varchar,
@@ -183,9 +186,9 @@ export async function ensureSchema() {
         "sci_id" varchar,
         "locataire_id" varchar,
         "type_bail" varchar,
-        "date_debut" varchar,
-        "date_fin" varchar,
-        "date_signature" varchar,
+        "date_debut" date,
+        "date_fin" date,
+        "date_signature" date,
         "loyer_mensuel" numeric,
         "loyer_annuel" numeric,
         "charges" numeric,
@@ -216,8 +219,8 @@ export async function ensureSchema() {
         "taeg" numeric,
         "duree_ans" integer,
         "duree_mois" integer,
-        "date_debut" varchar,
-        "date_fin" varchar,
+        "date_debut" date,
+        "date_fin" date,
         "type_amortissement" varchar,
         "mensualite" numeric,
         "assurance_mensuelle" numeric,
@@ -242,13 +245,14 @@ export async function ensureSchema() {
         "description" text,
         "budget" numeric,
         "montant_reel" numeric,
-        "date_debut" varchar,
-        "date_fin" varchar,
+        "date_debut" date,
+        "date_fin" date,
         "statut" varchar DEFAULT 'planifié',
         "prestataire" varchar,
         "notes" text,
         "created_at" timestamp DEFAULT now(),
-        "updated_at" timestamp DEFAULT now()
+        "updated_at" timestamp DEFAULT now(),
+        "deleted_at" timestamp
       )
     `);
 
@@ -261,7 +265,7 @@ export async function ensureSchema() {
         "parts_sociales" numeric,
         "pourcentage" numeric,
         "montant_apport" numeric,
-        "date_entree" varchar,
+        "date_entree" date,
         "notes" text,
         "created_at" timestamp DEFAULT now()
       )
@@ -289,6 +293,7 @@ export async function ensureSchema() {
     await client.query(`
       CREATE TABLE IF NOT EXISTS "gl_bailleurs" (
         "id" varchar PRIMARY KEY NOT NULL,
+        "owner_id" varchar REFERENCES "users"("id") ON DELETE cascade,
         "nom" varchar NOT NULL,
         "type" varchar,
         "email" varchar,
@@ -298,7 +303,8 @@ export async function ensureSchema() {
         "iban" varchar,
         "notes" text,
         "created_at" timestamp DEFAULT now(),
-        "updated_at" timestamp DEFAULT now()
+        "updated_at" timestamp DEFAULT now(),
+        "deleted_at" timestamp
       )
     `);
 
@@ -315,7 +321,8 @@ export async function ensureSchema() {
         "siret" varchar,
         "notes" text,
         "created_at" timestamp DEFAULT now(),
-        "updated_at" timestamp DEFAULT now()
+        "updated_at" timestamp DEFAULT now(),
+        "deleted_at" timestamp
       )
     `);
 
@@ -323,6 +330,7 @@ export async function ensureSchema() {
     await client.query(`
       CREATE TABLE IF NOT EXISTS "gl_locataires" (
         "id" varchar PRIMARY KEY NOT NULL,
+        "owner_id" varchar REFERENCES "users"("id") ON DELETE cascade,
         "nom" varchar NOT NULL,
         "prenom" varchar,
         "email" varchar,
@@ -331,7 +339,8 @@ export async function ensureSchema() {
         "siret" varchar,
         "notes" text,
         "created_at" timestamp DEFAULT now(),
-        "updated_at" timestamp DEFAULT now()
+        "updated_at" timestamp DEFAULT now(),
+        "deleted_at" timestamp
       )
     `);
 
@@ -349,16 +358,16 @@ export async function ensureSchema() {
         "code_postal" varchar,
         "lat" real,
         "lng" real,
-        "date_signature" varchar,
-        "date_effet" varchar,
+        "date_signature" date,
+        "date_effet" date,
         "date_debut" timestamp,
         "date_fin" timestamp,
-        "periode_ferme_debut" varchar,
-        "periode_ferme_fin" varchar,
+        "periode_ferme_debut" date,
+        "periode_ferme_fin" date,
         "periode_ferme_duree_ans" integer,
-        "ech_trien1" varchar,
-        "ech_trien2" varchar,
-        "ech_trien3" varchar,
+        "ech_trien1" date,
+        "ech_trien2" date,
+        "ech_trien3" date,
         "loyer_base_ht" numeric,
         "loyer_ht_actu" numeric,
         "force_manual" boolean DEFAULT false,
@@ -390,7 +399,7 @@ export async function ensureSchema() {
       CREATE TABLE IF NOT EXISTS "gl_paiements" (
         "id" varchar PRIMARY KEY NOT NULL,
         "bail_id" varchar NOT NULL,
-        "date" varchar NOT NULL,
+        "date" date NOT NULL,
         "montant" numeric NOT NULL,
         "type" varchar NOT NULL,
         "methode" varchar,
@@ -410,13 +419,13 @@ export async function ensureSchema() {
         "file_url" text,
         "file_size" integer,
         "mime_type" varchar,
-        "date_facture" varchar NOT NULL,
-        "date_echeance" varchar,
+        "date_facture" date NOT NULL,
+        "date_echeance" date,
         "montant_ht" numeric,
         "montant_ttc" numeric NOT NULL,
         "reference" varchar,
         "statut" varchar NOT NULL,
-        "date_paiement" varchar,
+        "date_paiement" date,
         "notes" text,
         "created_at" timestamp DEFAULT now()
       )
@@ -427,12 +436,12 @@ export async function ensureSchema() {
       CREATE TABLE IF NOT EXISTS "gl_quittances" (
         "id" varchar PRIMARY KEY NOT NULL,
         "bail_id" varchar NOT NULL,
-        "periode_debut" varchar NOT NULL,
-        "periode_fin" varchar NOT NULL,
+        "periode_debut" date NOT NULL,
+        "periode_fin" date NOT NULL,
         "montant_loyer" numeric,
         "montant_charges" numeric,
         "montant_total" numeric,
-        "date_emission" varchar,
+        "date_emission" date,
         "statut" varchar,
         "notes" text,
         "created_at" timestamp DEFAULT now()
@@ -444,7 +453,7 @@ export async function ensureSchema() {
       CREATE TABLE IF NOT EXISTS "gl_indexations" (
         "id" varchar PRIMARY KEY NOT NULL,
         "bail_id" varchar NOT NULL,
-        "date_application" varchar NOT NULL,
+        "date_application" date NOT NULL,
         "ancien_loyer" numeric,
         "nouveau_loyer" numeric,
         "indice_base" numeric,
@@ -472,8 +481,8 @@ export async function ensureSchema() {
       CREATE TABLE IF NOT EXISTS "gl_avenants" (
         "id" varchar PRIMARY KEY NOT NULL,
         "bail_id" varchar NOT NULL,
-        "date_effet" varchar NOT NULL,
-        "date_signature" varchar,
+        "date_effet" date NOT NULL,
+        "date_signature" date,
         "champs_modifies" text NOT NULL,
         "titre" varchar,
         "notes" text,
@@ -486,9 +495,9 @@ export async function ensureSchema() {
       CREATE TABLE IF NOT EXISTS "gl_renouvellements" (
         "id" varchar PRIMARY KEY NOT NULL,
         "bail_id" varchar NOT NULL,
-        "date_effet" varchar NOT NULL,
-        "date_signature" varchar,
-        "nouvelle_date_fin" varchar NOT NULL,
+        "date_effet" date NOT NULL,
+        "date_signature" date,
+        "nouvelle_date_fin" date NOT NULL,
         "champs_modifies" text NOT NULL,
         "titre" varchar,
         "notes" text,
@@ -508,7 +517,7 @@ export async function ensureSchema() {
         "file_name" varchar,
         "file_size" integer,
         "mime_type" varchar,
-        "date_document" varchar,
+        "date_document" date,
         "notes" text,
         "created_at" timestamp DEFAULT now()
       )
@@ -518,13 +527,14 @@ export async function ensureSchema() {
     await client.query(`
       CREATE TABLE IF NOT EXISTS "alertes" (
         "id" varchar PRIMARY KEY NOT NULL,
+        "owner_id" varchar REFERENCES "users"("id") ON DELETE cascade,
         "module" varchar NOT NULL,
         "entity_type" varchar,
         "entity_id" varchar,
         "type" varchar NOT NULL,
         "title" varchar NOT NULL,
         "message" text,
-        "target_date" varchar,
+        "target_date" date,
         "priority" varchar DEFAULT 'normal',
         "dismissed" boolean DEFAULT false,
         "dismissed_at" timestamp,
@@ -555,7 +565,7 @@ export async function ensureSchema() {
         "duree_ans" integer NOT NULL,
         "taux" numeric NOT NULL,
         "periode" varchar,
-        "date_releve" varchar,
+        "date_releve" date,
         "notes" text,
         "created_at" timestamp DEFAULT now()
       )
@@ -575,7 +585,7 @@ export async function ensureSchema() {
         "prix_m2_haut" numeric,
         "nb_transactions" integer,
         "periode" varchar,
-        "date_releve" varchar,
+        "date_releve" date,
         "notes" text,
         "created_at" timestamp DEFAULT now()
       )
@@ -594,7 +604,7 @@ export async function ensureSchema() {
         "loyer_m2_mensuel_bas" numeric,
         "loyer_m2_mensuel_haut" numeric,
         "periode" varchar,
-        "date_releve" varchar,
+        "date_releve" date,
         "notes" text,
         "created_at" timestamp DEFAULT now()
       )
@@ -615,7 +625,7 @@ export async function ensureSchema() {
         "fiabilite" varchar,
         "methode_calcul" varchar,
         "periode" varchar,
-        "date_releve" varchar,
+        "date_releve" date,
         "notes" text,
         "created_at" timestamp DEFAULT now()
       )
@@ -642,7 +652,7 @@ export async function ensureSchema() {
         "code_postal" varchar,
         "ville" varchar,
         "taux_capi_deduit" numeric,
-        "date_releve" varchar,
+        "date_releve" date,
         "raw_data" jsonb,
         "notes" text,
         "created_at" timestamp DEFAULT now()
@@ -698,33 +708,33 @@ export async function ensureSchema() {
 
     // Foreign keys (use DO blocks to skip if already exist)
     const fks = [
-      `ALTER TABLE "am_actifs" ADD CONSTRAINT "am_actifs_sci_id_am_scis_id_fk" FOREIGN KEY ("sci_id") REFERENCES "am_scis"("id") ON DELETE set null ON UPDATE no action`,
-      `ALTER TABLE "gl_avenants" ADD CONSTRAINT "gl_avenants_bail_id_gl_baux_id_fk" FOREIGN KEY ("bail_id") REFERENCES "gl_baux"("id") ON DELETE cascade ON UPDATE no action`,
-      `ALTER TABLE "am_baux" ADD CONSTRAINT "am_baux_lot_id_am_lots_id_fk" FOREIGN KEY ("lot_id") REFERENCES "am_lots"("id") ON DELETE set null ON UPDATE no action`,
-      `ALTER TABLE "am_baux" ADD CONSTRAINT "am_baux_actif_id_am_actifs_id_fk" FOREIGN KEY ("actif_id") REFERENCES "am_actifs"("id") ON DELETE set null ON UPDATE no action`,
-      `ALTER TABLE "am_baux" ADD CONSTRAINT "am_baux_sci_id_am_scis_id_fk" FOREIGN KEY ("sci_id") REFERENCES "am_scis"("id") ON DELETE set null ON UPDATE no action`,
-      `ALTER TABLE "am_baux" ADD CONSTRAINT "am_baux_locataire_id_am_locataires_id_fk" FOREIGN KEY ("locataire_id") REFERENCES "am_locataires"("id") ON DELETE set null ON UPDATE no action`,
-      `ALTER TABLE "gl_baux" ADD CONSTRAINT "gl_baux_locataire_id_gl_locataires_id_fk" FOREIGN KEY ("locataire_id") REFERENCES "gl_locataires"("id") ON DELETE set null ON UPDATE no action`,
-      `ALTER TABLE "gl_baux" ADD CONSTRAINT "gl_baux_bailleur_id_gl_bailleurs_id_fk" FOREIGN KEY ("bailleur_id") REFERENCES "gl_bailleurs"("id") ON DELETE set null ON UPDATE no action`,
-      `ALTER TABLE "gl_baux" ADD CONSTRAINT "gl_baux_gestionnaire_id_gl_gestionnaires_id_fk" FOREIGN KEY ("gestionnaire_id") REFERENCES "gl_gestionnaires"("id") ON DELETE set null ON UPDATE no action`,
-      `ALTER TABLE "am_documents" ADD CONSTRAINT "am_documents_actif_id_am_actifs_id_fk" FOREIGN KEY ("actif_id") REFERENCES "am_actifs"("id") ON DELETE set null ON UPDATE no action`,
-      `ALTER TABLE "am_documents" ADD CONSTRAINT "am_documents_sci_id_am_scis_id_fk" FOREIGN KEY ("sci_id") REFERENCES "am_scis"("id") ON DELETE set null ON UPDATE no action`,
-      `ALTER TABLE "gl_documents" ADD CONSTRAINT "gl_documents_bail_id_gl_baux_id_fk" FOREIGN KEY ("bail_id") REFERENCES "gl_baux"("id") ON DELETE set null ON UPDATE no action`,
-      `ALTER TABLE "am_emprunts" ADD CONSTRAINT "am_emprunts_sci_id_am_scis_id_fk" FOREIGN KEY ("sci_id") REFERENCES "am_scis"("id") ON DELETE set null ON UPDATE no action`,
-      `ALTER TABLE "am_emprunts" ADD CONSTRAINT "am_emprunts_actif_id_am_actifs_id_fk" FOREIGN KEY ("actif_id") REFERENCES "am_actifs"("id") ON DELETE set null ON UPDATE no action`,
-      `ALTER TABLE "gl_factures" ADD CONSTRAINT "gl_factures_bail_id_gl_baux_id_fk" FOREIGN KEY ("bail_id") REFERENCES "gl_baux"("id") ON DELETE cascade ON UPDATE no action`,
-      `ALTER TABLE "gl_gestionnaires" ADD CONSTRAINT "gl_gestionnaires_bailleur_id_gl_bailleurs_id_fk" FOREIGN KEY ("bailleur_id") REFERENCES "gl_bailleurs"("id") ON DELETE set null ON UPDATE no action`,
-      `ALTER TABLE "gl_indexations" ADD CONSTRAINT "gl_indexations_bail_id_gl_baux_id_fk" FOREIGN KEY ("bail_id") REFERENCES "gl_baux"("id") ON DELETE cascade ON UPDATE no action`,
-      `ALTER TABLE "am_lots" ADD CONSTRAINT "am_lots_actif_id_am_actifs_id_fk" FOREIGN KEY ("actif_id") REFERENCES "am_actifs"("id") ON DELETE cascade ON UPDATE no action`,
-      `ALTER TABLE "am_lots" ADD CONSTRAINT "am_lots_sci_id_am_scis_id_fk" FOREIGN KEY ("sci_id") REFERENCES "am_scis"("id") ON DELETE set null ON UPDATE no action`,
-      `ALTER TABLE "am_lots" ADD CONSTRAINT "am_lots_locataire_id_am_locataires_id_fk" FOREIGN KEY ("locataire_id") REFERENCES "am_locataires"("id") ON DELETE set null ON UPDATE no action`,
-      `ALTER TABLE "gl_paiements" ADD CONSTRAINT "gl_paiements_bail_id_gl_baux_id_fk" FOREIGN KEY ("bail_id") REFERENCES "gl_baux"("id") ON DELETE cascade ON UPDATE no action`,
-      `ALTER TABLE "am_participations" ADD CONSTRAINT "am_participations_associe_id_am_associes_id_fk" FOREIGN KEY ("associe_id") REFERENCES "am_associes"("id") ON DELETE cascade ON UPDATE no action`,
-      `ALTER TABLE "am_participations" ADD CONSTRAINT "am_participations_sci_id_am_scis_id_fk" FOREIGN KEY ("sci_id") REFERENCES "am_scis"("id") ON DELETE cascade ON UPDATE no action`,
-      `ALTER TABLE "gl_quittances" ADD CONSTRAINT "gl_quittances_bail_id_gl_baux_id_fk" FOREIGN KEY ("bail_id") REFERENCES "gl_baux"("id") ON DELETE cascade ON UPDATE no action`,
-      `ALTER TABLE "gl_renouvellements" ADD CONSTRAINT "gl_renouvellements_bail_id_gl_baux_id_fk" FOREIGN KEY ("bail_id") REFERENCES "gl_baux"("id") ON DELETE cascade ON UPDATE no action`,
-      `ALTER TABLE "am_travaux" ADD CONSTRAINT "am_travaux_actif_id_am_actifs_id_fk" FOREIGN KEY ("actif_id") REFERENCES "am_actifs"("id") ON DELETE cascade ON UPDATE no action`,
-      `ALTER TABLE "am_travaux" ADD CONSTRAINT "am_travaux_sci_id_am_scis_id_fk" FOREIGN KEY ("sci_id") REFERENCES "am_scis"("id") ON DELETE set null ON UPDATE no action`,
+      `ALTER TABLE "am_actifs" ADD CONSTRAINT "am_actifs_sci_id_am_scis_id_fk" FOREIGN KEY ("sci_id") REFERENCES "am_scis"("id") ON DELETE set null ON UPDATE cascade`,
+      `ALTER TABLE "gl_avenants" ADD CONSTRAINT "gl_avenants_bail_id_gl_baux_id_fk" FOREIGN KEY ("bail_id") REFERENCES "gl_baux"("id") ON DELETE cascade ON UPDATE cascade`,
+      `ALTER TABLE "am_baux" ADD CONSTRAINT "am_baux_lot_id_am_lots_id_fk" FOREIGN KEY ("lot_id") REFERENCES "am_lots"("id") ON DELETE set null ON UPDATE cascade`,
+      `ALTER TABLE "am_baux" ADD CONSTRAINT "am_baux_actif_id_am_actifs_id_fk" FOREIGN KEY ("actif_id") REFERENCES "am_actifs"("id") ON DELETE set null ON UPDATE cascade`,
+      `ALTER TABLE "am_baux" ADD CONSTRAINT "am_baux_sci_id_am_scis_id_fk" FOREIGN KEY ("sci_id") REFERENCES "am_scis"("id") ON DELETE set null ON UPDATE cascade`,
+      `ALTER TABLE "am_baux" ADD CONSTRAINT "am_baux_locataire_id_am_locataires_id_fk" FOREIGN KEY ("locataire_id") REFERENCES "am_locataires"("id") ON DELETE set null ON UPDATE cascade`,
+      `ALTER TABLE "gl_baux" ADD CONSTRAINT "gl_baux_locataire_id_gl_locataires_id_fk" FOREIGN KEY ("locataire_id") REFERENCES "gl_locataires"("id") ON DELETE set null ON UPDATE cascade`,
+      `ALTER TABLE "gl_baux" ADD CONSTRAINT "gl_baux_bailleur_id_gl_bailleurs_id_fk" FOREIGN KEY ("bailleur_id") REFERENCES "gl_bailleurs"("id") ON DELETE set null ON UPDATE cascade`,
+      `ALTER TABLE "gl_baux" ADD CONSTRAINT "gl_baux_gestionnaire_id_gl_gestionnaires_id_fk" FOREIGN KEY ("gestionnaire_id") REFERENCES "gl_gestionnaires"("id") ON DELETE set null ON UPDATE cascade`,
+      `ALTER TABLE "am_documents" ADD CONSTRAINT "am_documents_actif_id_am_actifs_id_fk" FOREIGN KEY ("actif_id") REFERENCES "am_actifs"("id") ON DELETE set null ON UPDATE cascade`,
+      `ALTER TABLE "am_documents" ADD CONSTRAINT "am_documents_sci_id_am_scis_id_fk" FOREIGN KEY ("sci_id") REFERENCES "am_scis"("id") ON DELETE set null ON UPDATE cascade`,
+      `ALTER TABLE "gl_documents" ADD CONSTRAINT "gl_documents_bail_id_gl_baux_id_fk" FOREIGN KEY ("bail_id") REFERENCES "gl_baux"("id") ON DELETE set null ON UPDATE cascade`,
+      `ALTER TABLE "am_emprunts" ADD CONSTRAINT "am_emprunts_sci_id_am_scis_id_fk" FOREIGN KEY ("sci_id") REFERENCES "am_scis"("id") ON DELETE set null ON UPDATE cascade`,
+      `ALTER TABLE "am_emprunts" ADD CONSTRAINT "am_emprunts_actif_id_am_actifs_id_fk" FOREIGN KEY ("actif_id") REFERENCES "am_actifs"("id") ON DELETE set null ON UPDATE cascade`,
+      `ALTER TABLE "gl_factures" ADD CONSTRAINT "gl_factures_bail_id_gl_baux_id_fk" FOREIGN KEY ("bail_id") REFERENCES "gl_baux"("id") ON DELETE cascade ON UPDATE cascade`,
+      `ALTER TABLE "gl_gestionnaires" ADD CONSTRAINT "gl_gestionnaires_bailleur_id_gl_bailleurs_id_fk" FOREIGN KEY ("bailleur_id") REFERENCES "gl_bailleurs"("id") ON DELETE set null ON UPDATE cascade`,
+      `ALTER TABLE "gl_indexations" ADD CONSTRAINT "gl_indexations_bail_id_gl_baux_id_fk" FOREIGN KEY ("bail_id") REFERENCES "gl_baux"("id") ON DELETE cascade ON UPDATE cascade`,
+      `ALTER TABLE "am_lots" ADD CONSTRAINT "am_lots_actif_id_am_actifs_id_fk" FOREIGN KEY ("actif_id") REFERENCES "am_actifs"("id") ON DELETE cascade ON UPDATE cascade`,
+      `ALTER TABLE "am_lots" ADD CONSTRAINT "am_lots_sci_id_am_scis_id_fk" FOREIGN KEY ("sci_id") REFERENCES "am_scis"("id") ON DELETE set null ON UPDATE cascade`,
+      `ALTER TABLE "am_lots" ADD CONSTRAINT "am_lots_locataire_id_am_locataires_id_fk" FOREIGN KEY ("locataire_id") REFERENCES "am_locataires"("id") ON DELETE set null ON UPDATE cascade`,
+      `ALTER TABLE "gl_paiements" ADD CONSTRAINT "gl_paiements_bail_id_gl_baux_id_fk" FOREIGN KEY ("bail_id") REFERENCES "gl_baux"("id") ON DELETE cascade ON UPDATE cascade`,
+      `ALTER TABLE "am_participations" ADD CONSTRAINT "am_participations_associe_id_am_associes_id_fk" FOREIGN KEY ("associe_id") REFERENCES "am_associes"("id") ON DELETE cascade ON UPDATE cascade`,
+      `ALTER TABLE "am_participations" ADD CONSTRAINT "am_participations_sci_id_am_scis_id_fk" FOREIGN KEY ("sci_id") REFERENCES "am_scis"("id") ON DELETE cascade ON UPDATE cascade`,
+      `ALTER TABLE "gl_quittances" ADD CONSTRAINT "gl_quittances_bail_id_gl_baux_id_fk" FOREIGN KEY ("bail_id") REFERENCES "gl_baux"("id") ON DELETE cascade ON UPDATE cascade`,
+      `ALTER TABLE "gl_renouvellements" ADD CONSTRAINT "gl_renouvellements_bail_id_gl_baux_id_fk" FOREIGN KEY ("bail_id") REFERENCES "gl_baux"("id") ON DELETE cascade ON UPDATE cascade`,
+      `ALTER TABLE "am_travaux" ADD CONSTRAINT "am_travaux_actif_id_am_actifs_id_fk" FOREIGN KEY ("actif_id") REFERENCES "am_actifs"("id") ON DELETE cascade ON UPDATE cascade`,
+      `ALTER TABLE "am_travaux" ADD CONSTRAINT "am_travaux_sci_id_am_scis_id_fk" FOREIGN KEY ("sci_id") REFERENCES "am_scis"("id") ON DELETE set null ON UPDATE cascade`,
     ];
 
     for (const fk of fks) {
@@ -755,6 +765,65 @@ export async function ensureSchema() {
     for (const uq of uniques) {
       const safe = `DO $$ BEGIN ${uq}; EXCEPTION WHEN duplicate_object THEN NULL; END $$;`;
       await client.query(safe);
+    }
+
+    // Safe ADD COLUMN for soft-delete on tables that may already exist
+    const softDeleteTables = ["am_travaux", "gl_bailleurs", "gl_gestionnaires", "gl_locataires"];
+    for (const tbl of softDeleteTables) {
+      await client.query(`
+        DO $$ BEGIN
+          ALTER TABLE "${tbl}" ADD COLUMN "deleted_at" timestamp;
+        EXCEPTION WHEN duplicate_column THEN NULL;
+        END $$;
+      `);
+    }
+
+    // Add owner_id to root entity tables for multi-tenant isolation (C2.2)
+    const ownerTables = ["am_scis", "am_associes", "am_locataires", "gl_bailleurs", "gl_locataires", "alertes"];
+    for (const tbl of ownerTables) {
+      await client.query(`
+        DO $$ BEGIN
+          ALTER TABLE "${tbl}" ADD COLUMN "owner_id" varchar REFERENCES "users"("id") ON DELETE cascade;
+        EXCEPTION WHEN duplicate_column THEN NULL;
+        END $$;
+      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS "idx_${tbl.replace("gl_", "").replace("am_", "")}_owner_id" ON "${tbl}" ("owner_id")`);
+    }
+
+    // Migrate varchar date columns to proper date type (C3.1)
+    const dateColumnMigrations: [string, string][] = [
+      ["am_scis", "date_creation"], ["am_scis", "date_revente"], ["am_scis", "date_cloture_exercice"],
+      ["am_participations", "date_entree"],
+      ["am_actifs", "date_acquisition"], ["am_actifs", "date_estimation"],
+      ["am_baux", "date_debut"], ["am_baux", "date_fin"], ["am_baux", "date_signature"],
+      ["am_emprunts", "date_debut"], ["am_emprunts", "date_fin"],
+      ["am_travaux", "date_debut"], ["am_travaux", "date_fin"],
+      ["gl_baux", "date_signature"], ["gl_baux", "date_effet"],
+      ["gl_baux", "periode_ferme_debut"], ["gl_baux", "periode_ferme_fin"],
+      ["gl_baux", "ech_trien1"], ["gl_baux", "ech_trien2"], ["gl_baux", "ech_trien3"],
+      ["gl_paiements", "date"],
+      ["gl_factures", "date_facture"], ["gl_factures", "date_echeance"], ["gl_factures", "date_paiement"],
+      ["gl_quittances", "periode_debut"], ["gl_quittances", "periode_fin"], ["gl_quittances", "date_emission"],
+      ["gl_indexations", "date_application"],
+      ["gl_avenants", "date_effet"], ["gl_avenants", "date_signature"],
+      ["gl_renouvellements", "date_effet"], ["gl_renouvellements", "date_signature"], ["gl_renouvellements", "nouvelle_date_fin"],
+      ["gl_documents", "date_document"],
+      ["alertes", "target_date"],
+      ["ref_taux_emprunt", "date_releve"], ["ref_valeurs_venales", "date_releve"],
+      ["ref_valeurs_locatives", "date_releve"], ["ref_taux_capitalisation", "date_releve"],
+      ["ref_marche_scraping", "date_releve"],
+    ];
+    for (const [tbl, col] of dateColumnMigrations) {
+      await client.query(`
+        DO $$ BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = '${tbl}' AND column_name = '${col}' AND data_type = 'character varying'
+          ) THEN
+            ALTER TABLE "${tbl}" ALTER COLUMN "${col}" TYPE date USING "${col}"::date;
+          END IF;
+        END $$;
+      `);
     }
 
     await client.query("COMMIT");

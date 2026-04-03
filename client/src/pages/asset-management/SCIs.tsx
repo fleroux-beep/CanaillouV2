@@ -67,7 +67,7 @@ export default function SCIsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (editing) {
-      await update({ ...form, id: editing.id } as any);
+      await update({ ...form, id: editing.id } as SCI);
     } else {
       await create(form);
     }

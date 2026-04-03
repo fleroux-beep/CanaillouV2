@@ -8,6 +8,7 @@ import {
   numeric,
   real,
   timestamp,
+  date,
   jsonb,
   uniqueIndex,
   index,
@@ -18,7 +19,7 @@ import { relations } from "drizzle-orm";
 // AUTH & SESSIONS
 // ============================================================
 
-export const sessions = pgTable("sessions", {
+export const sessions = pgTable("session", {
   sid: varchar("sid").primaryKey(),
   sess: jsonb("sess").notNull(),
   expire: timestamp("expire").notNull(),
@@ -42,6 +43,7 @@ export const users = pgTable("users", {
 
 export const scis = pgTable("am_scis", {
   id: varchar("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  ownerId: varchar("owner_id").references(() => users.id, { onDelete: "cascade" }),
   nom: varchar("nom").notNull(),
   formeJuridique: varchar("forme_juridique"),
   capital: numeric("capital"),
@@ -50,16 +52,16 @@ export const scis = pgTable("am_scis", {
   adresse: text("adresse"),
   ville: varchar("ville"),
   codePostal: varchar("code_postal"),
-  dateCreation: varchar("date_creation"),
+  dateCreation: date("date_creation"),
   gerant: varchar("gerant"),
   expertComptable: varchar("expert_comptable"),
   banque: varchar("banque"),
   iban: varchar("iban"),
   // SCPI-specific fields
-  dateRevente: varchar("date_revente"),
+  dateRevente: date("date_revente"),
   tauxRendement: numeric("taux_rendement"),
   dividendesRealises: numeric("dividendes_realises"),
-  dateClotureExercice: varchar("date_cloture_exercice"),
+  dateClotureExercice: date("date_cloture_exercice"),
   notes: text("notes"),
   deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -68,6 +70,7 @@ export const scis = pgTable("am_scis", {
 
 export const associes = pgTable("am_associes", {
   id: varchar("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  ownerId: varchar("owner_id").references(() => users.id, { onDelete: "cascade" }),
   nom: varchar("nom").notNull(),
   prenom: varchar("prenom"),
   email: varchar("email"),
@@ -86,7 +89,7 @@ export const participations = pgTable("am_participations", {
   partsSociales: numeric("parts_sociales"),
   pourcentage: numeric("pourcentage"),
   montantApport: numeric("montant_apport"),
-  dateEntree: varchar("date_entree"),
+  dateEntree: date("date_entree"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
@@ -120,7 +123,7 @@ export const actifs = pgTable("am_actifs", {
   fraisNotaire: numeric("frais_notaire"),
   fraisAgence: numeric("frais_agence"),
   montantTravaux: numeric("montant_travaux"),
-  dateAcquisition: varchar("date_acquisition"),
+  dateAcquisition: date("date_acquisition"),
   // Charges annuelles
   chargesAnnuelles: numeric("charges_annuelles"),
   taxeFonciere: numeric("taxe_fonciere"),
@@ -130,7 +133,7 @@ export const actifs = pgTable("am_actifs", {
   tauxCapitalisation: numeric("taux_capitalisation"),
   prixM2Marche: numeric("prix_m2_marche"),
   valeurEstimeeSortie: numeric("valeur_estimee_sortie"),
-  dateEstimation: varchar("date_estimation"),
+  dateEstimation: date("date_estimation"),
   sourceEstimation: varchar("source_estimation"),
   // Gestion
   syndic: varchar("syndic"),
@@ -178,6 +181,7 @@ export const lots = pgTable("am_lots", {
 
 export const locatairesAM = pgTable("am_locataires", {
   id: varchar("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  ownerId: varchar("owner_id").references(() => users.id, { onDelete: "cascade" }),
   nom: varchar("nom").notNull(),
   prenom: varchar("prenom"),
   email: varchar("email"),
@@ -196,9 +200,9 @@ export const bauxAM = pgTable("am_baux", {
   sciId: varchar("sci_id").references(() => scis.id, { onDelete: "set null" }),
   locataireId: varchar("locataire_id").references(() => locatairesAM.id, { onDelete: "set null" }),
   typeBail: varchar("type_bail"), // habitation, commercial, professionnel
-  dateDebut: varchar("date_debut"),
-  dateFin: varchar("date_fin"),
-  dateSignature: varchar("date_signature"),
+  dateDebut: date("date_debut"),
+  dateFin: date("date_fin"),
+  dateSignature: date("date_signature"),
   loyerMensuel: numeric("loyer_mensuel"),
   loyerAnnuel: numeric("loyer_annuel"),
   charges: numeric("charges"),
@@ -237,8 +241,8 @@ export const emprunts = pgTable("am_emprunts", {
   taeg: numeric("taeg"),
   dureeAns: integer("duree_ans"),
   dureeMois: integer("duree_mois"),
-  dateDebut: varchar("date_debut"),
-  dateFin: varchar("date_fin"),
+  dateDebut: date("date_debut"),
+  dateFin: date("date_fin"),
   typeAmortissement: varchar("type_amortissement"), // constant, in-fine, progressif
   mensualite: numeric("mensualite"),
   assuranceMensuelle: numeric("assurance_mensuelle"),
@@ -267,13 +271,14 @@ export const travaux = pgTable("am_travaux", {
   description: text("description"),
   budget: numeric("budget"),
   montantReel: numeric("montant_reel"),
-  dateDebut: varchar("date_debut"),
-  dateFin: varchar("date_fin"),
+  dateDebut: date("date_debut"),
+  dateFin: date("date_fin"),
   statut: varchar("statut").default("planifié"), // planifié, en cours, terminé, annulé
   prestataire: varchar("prestataire"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
 }, (table) => [
   index("idx_travaux_actif_id").on(table.actifId),
   index("idx_travaux_sci_id").on(table.sciId),
@@ -285,6 +290,7 @@ export const travaux = pgTable("am_travaux", {
 
 export const bailleurs = pgTable("gl_bailleurs", {
   id: varchar("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  ownerId: varchar("owner_id").references(() => users.id, { onDelete: "cascade" }),
   nom: varchar("nom").notNull(),
   type: varchar("type"),
   email: varchar("email"),
@@ -295,6 +301,7 @@ export const bailleurs = pgTable("gl_bailleurs", {
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
 });
 
 export const gestionnaires = pgTable("gl_gestionnaires", {
@@ -309,6 +316,7 @@ export const gestionnaires = pgTable("gl_gestionnaires", {
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
 }, (table) => [
   index("idx_gestionnaires_bailleur_id").on(table.bailleurId),
 ]);
@@ -319,6 +327,7 @@ export const gestionnaires = pgTable("gl_gestionnaires", {
 
 export const locatairesGL = pgTable("gl_locataires", {
   id: varchar("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  ownerId: varchar("owner_id").references(() => users.id, { onDelete: "cascade" }),
   nom: varchar("nom").notNull(),
   prenom: varchar("prenom"),
   email: varchar("email"),
@@ -328,6 +337,7 @@ export const locatairesGL = pgTable("gl_locataires", {
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
 });
 
 // ============================================================
@@ -347,16 +357,16 @@ export const bauxGL = pgTable("gl_baux", {
   lat: real("lat"),
   lng: real("lng"),
   // Dates
-  dateSignature: varchar("date_signature"),
-  dateEffet: varchar("date_effet"),
+  dateSignature: date("date_signature"),
+  dateEffet: date("date_effet"),
   dateDebut: timestamp("date_debut"),
   dateFin: timestamp("date_fin"),
-  periodeFermeDebut: varchar("periode_ferme_debut"),
-  periodeFermeFin: varchar("periode_ferme_fin"),
+  periodeFermeDebut: date("periode_ferme_debut"),
+  periodeFermeFin: date("periode_ferme_fin"),
   periodeFermeDureeAns: integer("periode_ferme_duree_ans"),
-  echTrien1: varchar("ech_trien1"),
-  echTrien2: varchar("ech_trien2"),
-  echTrien3: varchar("ech_trien3"),
+  echTrien1: date("ech_trien1"),
+  echTrien2: date("ech_trien2"),
+  echTrien3: date("ech_trien3"),
   // Loyer
   loyerBaseHT: numeric("loyer_base_ht"),
   loyerHTActu: numeric("loyer_ht_actu"),
@@ -399,7 +409,7 @@ export const bauxGL = pgTable("gl_baux", {
 export const paiementsGL = pgTable("gl_paiements", {
   id: varchar("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   bailId: varchar("bail_id").notNull().references(() => bauxGL.id, { onDelete: "cascade" }),
-  date: varchar("date").notNull(),
+  date: date("date").notNull(),
   montant: numeric("montant").notNull(),
   type: varchar("type").notNull(),
   methode: varchar("methode"),
@@ -418,13 +428,13 @@ export const facturesGL = pgTable("gl_factures", {
   fileUrl: text("file_url"),
   fileSize: integer("file_size"),
   mimeType: varchar("mime_type"),
-  dateFacture: varchar("date_facture").notNull(),
-  dateEcheance: varchar("date_echeance"),
+  dateFacture: date("date_facture").notNull(),
+  dateEcheance: date("date_echeance"),
   montantHT: numeric("montant_ht"),
   montantTTC: numeric("montant_ttc").notNull(),
   reference: varchar("reference"),
   statut: varchar("statut").notNull(),
-  datePaiement: varchar("date_paiement"),
+  datePaiement: date("date_paiement"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
@@ -434,12 +444,12 @@ export const facturesGL = pgTable("gl_factures", {
 export const quittancesGL = pgTable("gl_quittances", {
   id: varchar("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   bailId: varchar("bail_id").notNull().references(() => bauxGL.id, { onDelete: "cascade" }),
-  periodeDebut: varchar("periode_debut").notNull(),
-  periodeFin: varchar("periode_fin").notNull(),
+  periodeDebut: date("periode_debut").notNull(),
+  periodeFin: date("periode_fin").notNull(),
   montantLoyer: numeric("montant_loyer"),
   montantCharges: numeric("montant_charges"),
   montantTotal: numeric("montant_total"),
-  dateEmission: varchar("date_emission"),
+  dateEmission: date("date_emission"),
   statut: varchar("statut"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -454,7 +464,7 @@ export const quittancesGL = pgTable("gl_quittances", {
 export const indexationsGL = pgTable("gl_indexations", {
   id: varchar("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   bailId: varchar("bail_id").notNull().references(() => bauxGL.id, { onDelete: "cascade" }),
-  dateApplication: varchar("date_application").notNull(),
+  dateApplication: date("date_application").notNull(),
   ancienLoyer: numeric("ancien_loyer"),
   nouveauLoyer: numeric("nouveau_loyer"),
   indiceBase: numeric("indice_base"),
@@ -482,8 +492,8 @@ export const indices = pgTable("indices", {
 export const avenantsGL = pgTable("gl_avenants", {
   id: varchar("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   bailId: varchar("bail_id").notNull().references(() => bauxGL.id, { onDelete: "cascade" }),
-  dateEffet: varchar("date_effet").notNull(),
-  dateSignature: varchar("date_signature"),
+  dateEffet: date("date_effet").notNull(),
+  dateSignature: date("date_signature"),
   champsModifies: text("champs_modifies").notNull(),
   titre: varchar("titre"),
   notes: text("notes"),
@@ -493,9 +503,9 @@ export const avenantsGL = pgTable("gl_avenants", {
 export const renouvellementsGL = pgTable("gl_renouvellements", {
   id: varchar("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   bailId: varchar("bail_id").notNull().references(() => bauxGL.id, { onDelete: "cascade" }),
-  dateEffet: varchar("date_effet").notNull(),
-  dateSignature: varchar("date_signature"),
-  nouvelleDateFin: varchar("nouvelle_date_fin").notNull(),
+  dateEffet: date("date_effet").notNull(),
+  dateSignature: date("date_signature"),
+  nouvelleDateFin: date("nouvelle_date_fin").notNull(),
   champsModifies: text("champs_modifies").notNull(),
   titre: varchar("titre"),
   notes: text("notes"),
@@ -516,20 +526,21 @@ export const documentsGL = pgTable("gl_documents", {
   fileName: varchar("file_name"),
   fileSize: integer("file_size"),
   mimeType: varchar("mime_type"),
-  dateDocument: varchar("date_document"),
+  dateDocument: date("date_document"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const alertes = pgTable("alertes", {
   id: varchar("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  ownerId: varchar("owner_id").references(() => users.id, { onDelete: "cascade" }),
   module: varchar("module").notNull(), // "am" ou "gl"
   entityType: varchar("entity_type"),
   entityId: varchar("entity_id"),
   type: varchar("type").notNull(),
   title: varchar("title").notNull(),
   message: text("message"),
-  targetDate: varchar("target_date"),
+  targetDate: date("target_date"),
   priority: varchar("priority").default("normal"),
   dismissed: boolean("dismissed").default(false),
   dismissedAt: timestamp("dismissed_at"),
@@ -577,7 +588,7 @@ export const refTauxEmprunt = pgTable("ref_taux_emprunt", {
   dureeAns: integer("duree_ans").notNull(), // 7, 10, 15, 20, 25
   taux: numeric("taux").notNull(), // en %
   periode: varchar("periode"), // ex: "2025-03", "T1-2025"
-  dateReleve: varchar("date_releve"),
+  dateReleve: date("date_releve"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -594,7 +605,7 @@ export const refValeursVenales = pgTable("ref_valeurs_venales", {
   prixM2Haut: numeric("prix_m2_haut"), // Q3
   nbTransactions: integer("nb_transactions"),
   periode: varchar("periode"), // ex: "S1-2025"
-  dateReleve: varchar("date_releve"),
+  dateReleve: date("date_releve"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -610,7 +621,7 @@ export const refValeursLocatives = pgTable("ref_valeurs_locatives", {
   loyerM2MensuelBas: numeric("loyer_m2_mensuel_bas"),
   loyerM2MensuelHaut: numeric("loyer_m2_mensuel_haut"),
   periode: varchar("periode"),
-  dateReleve: varchar("date_releve"),
+  dateReleve: date("date_releve"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -628,7 +639,7 @@ export const refTauxCapitalisation = pgTable("ref_taux_capitalisation", {
   fiabilite: varchar("fiabilite"), // haute, moyenne, faible
   methodeCalcul: varchar("methode_calcul"), // ex: "DVF S2-2025 / ANIL 2025"
   periode: varchar("periode"),
-  dateReleve: varchar("date_releve"),
+  dateReleve: date("date_releve"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -661,7 +672,7 @@ export const refMarcheScraping = pgTable("ref_marche_scraping", {
   // Taux capi déduit
   tauxCapiDeduit: numeric("taux_capi_deduit"),
   // Meta
-  dateReleve: varchar("date_releve"),
+  dateReleve: date("date_releve"),
   rawData: jsonb("raw_data"), // données brutes pour debug
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),

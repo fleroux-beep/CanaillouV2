@@ -106,9 +106,9 @@ export default function DocumentsGLPage() {
     const payload: Record<string, any> = {};
     fd.forEach((v, k) => { payload[k] = v; });
     if (editing) {
-      await update({ id: editing.id, ...payload } as any);
+      await update({ id: editing.id, ...payload } as Document);
     } else {
-      await create(payload as any);
+      await create(payload as Partial<Document>);
     }
     setFormOpen(false);
     setEditing(null);

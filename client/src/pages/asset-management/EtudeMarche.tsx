@@ -12,9 +12,9 @@ import {
   RefreshCw, Building2, MapPin, TrendingUp, TrendingDown,
   Database, Search, ChevronDown, AlertTriangle,
   Home, Store, Briefcase, Loader2, Sparkles,
-  Eye, ShieldCheck, ShieldAlert, Target,
-  ArrowUpRight, ArrowDownRight, Minus, Zap, Shield, Clock,
-  CheckCircle2, XCircle,
+  Eye, ShieldCheck, Target,
+  ArrowUpRight, ArrowDownRight, Minus, Zap, Shield,
+  CheckCircle2,
 } from "lucide-react";
 
 // ============================================================

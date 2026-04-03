@@ -43,26 +43,6 @@ function marseilleInsee(cp: string): string[] {
 // ─── Fallback synchrone (Paris/Lyon/Marseille uniquement) ───
 
 /**
- * Convertit un code postal en code(s) INSEE pour les cas triviaux
- * (Paris, Lyon, Marseille). Pour les autres communes, utiliser
- * resolveInsee() qui interroge l'API geo.api.gouv.fr.
- */
-export function codePostalToInsee(codePostal: string): string[] {
-  const cp = codePostal.trim();
-  if (!cp || cp.length !== 5) return [cp];
-
-  // Paris
-  if (cp.startsWith("750") && cp !== "75000") return parisInsee(cp);
-  // Lyon
-  if (cp.startsWith("6900") && cp !== "69000") return lyonInsee(cp);
-  // Marseille
-  if (cp.startsWith("1300") && parseInt(cp.slice(3), 10) <= 16 && cp !== "13000") return marseilleInsee(cp);
-
-  // Default: code postal = code INSEE (works for most communes)
-  return [cp];
-}
-
-/**
  * Inverse: code INSEE → code postal pour l'affichage.
  */
 export function inseeToCodePostal(codeInsee: string): string {
