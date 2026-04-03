@@ -152,41 +152,48 @@ export function registerMarcheRoutes(app: Express) {
   // Étude de marché — Vue consolidée par actif (Phase 1 + IA)
   // ============================================================
 
-  /** Assemble Phase 1 data for an asset */
-  async function getPhase1(actifRow: any) {
+  /** Lookup helpers for pre-fetched ref data */
+  function findRef<T extends { codePostal: string | null; typeBien: string | null; source: string | null }>(
+    rows: T[], cp: string, typeBien: string, source: string,
+  ): T | undefined {
+    return rows.find((r) => r.codePostal === cp && r.typeBien === typeBien && r.source === source);
+  }
+
+  /** Assemble Phase 1 data for an asset using pre-fetched ref tables */
+  function getPhase1(
+    actifRow: any,
+    allVenales: any[],
+    allLocatives: any[],
+    allTauxCapi: any[],
+  ) {
     const cp = actifRow.codePostal || "";
     const { typeBien, dvfCompatible, anilCompatible } = mapActifTypeToSearch(actifRow.type || "résidentiel");
 
-    const venales = await db.select().from(refValeursVenales);
-    const locatives = await db.select().from(refValeursLocatives);
-    const tauxCapi = await db.select().from(refTauxCapitalisation);
-
-    const venalesDVF = dvfCompatible
-      ? venales.filter((v) => v.codePostal === cp && v.typeBien === typeBien && v.source === "dvf")
-      : [];
-    const locativesANIL = anilCompatible
-      ? locatives.filter((l) => l.codePostal === cp && l.typeBien === typeBien && l.source === "anil")
-      : [];
-    const tauxCalc = (dvfCompatible && anilCompatible)
-      ? tauxCapi.filter((t) => t.codePostal === cp && t.typeBien === typeBien && t.source === "calculé")
-      : [];
+    const venale = dvfCompatible ? findRef(allVenales, cp, typeBien, "dvf") : undefined;
+    const locative = anilCompatible ? findRef(allLocatives, cp, typeBien, "anil") : undefined;
+    const taux = (dvfCompatible && anilCompatible)
+      ? findRef(allTauxCapi, cp, typeBien, "calculé") : undefined;
 
     return {
-      valeurVenale: venalesDVF[0]
-        ? { prixM2Median: Number(venalesDVF[0].prixM2Median), prixM2Bas: Number(venalesDVF[0].prixM2Bas), prixM2Haut: Number(venalesDVF[0].prixM2Haut), nbTransactions: venalesDVF[0].nbTransactions, periode: venalesDVF[0].periode, source: "DVF" }
+      valeurVenale: venale
+        ? { prixM2Median: Number(venale.prixM2Median), prixM2Bas: Number(venale.prixM2Bas), prixM2Haut: Number(venale.prixM2Haut), nbTransactions: venale.nbTransactions, periode: venale.periode, source: "DVF" }
         : null,
-      valeurLocative: locativesANIL[0]
-        ? { loyerM2Median: Number(locativesANIL[0].loyerM2MensuelMedian), loyerM2Bas: Number(locativesANIL[0].loyerM2MensuelBas), loyerM2Haut: Number(locativesANIL[0].loyerM2MensuelHaut), periode: locativesANIL[0].periode, source: "ANIL" }
+      valeurLocative: locative
+        ? { loyerM2Median: Number(locative.loyerM2MensuelMedian), loyerM2Bas: Number(locative.loyerM2MensuelBas), loyerM2Haut: Number(locative.loyerM2MensuelHaut), periode: locative.periode, source: "ANIL" }
         : null,
-      tauxCapi: tauxCalc[0]
-        ? { taux: Number(tauxCalc[0].tauxCapi), tauxBas: Number(tauxCalc[0].tauxCapiBas), tauxHaut: Number(tauxCalc[0].tauxCapiHaut), fiabilite: tauxCalc[0].fiabilite, methode: tauxCalc[0].methodeCalcul }
+      tauxCapi: taux
+        ? { taux: Number(taux.tauxCapi), tauxBas: Number(taux.tauxCapiBas), tauxHaut: Number(taux.tauxCapiHaut), fiabilite: taux.fiabilite, methode: taux.methodeCalcul }
         : null,
     };
   }
 
   /** Build full context for Claude AI analysis */
   async function buildActifContext(actifRow: any) {
-    const phase1 = await getPhase1(actifRow);
+    // Fetch ref tables for single-asset context
+    const allVenales = await db.select().from(refValeursVenales);
+    const allLocatives = await db.select().from(refValeursLocatives);
+    const allTauxCapi = await db.select().from(refTauxCapitalisation);
+    const phase1 = getPhase1(actifRow, allVenales, allLocatives, allTauxCapi);
     const actifLots = await db.select().from(lots).where(and(eq(lots.actifId, actifRow.id), isNull(lots.deletedAt)));
     const actifBaux = await db.select().from(bauxAM).where(and(eq(bauxAM.actifId, actifRow.id), isNull(bauxAM.deletedAt)));
     const actifEmprunts = await db.select().from(emprunts).where(and(eq(emprunts.actifId, actifRow.id), isNull(emprunts.deletedAt)));
@@ -396,49 +403,86 @@ Règles :
     }
   });
 
-  // ─── Étude de marché : données Phase 1 + dernière analyse IA ──
+  /** Compute internal metrics for an asset: rendement interne, taux capi interne */
+  function computeInternalMetrics(actifRow: any, actifLots: any[], actifBaux: any[], phase1: any) {
+    const surface = Number(actifRow.surfaceCarrez || actifRow.surface || 0);
+    const prixAcq = Number(actifRow.prixAcquisition || 0) + Number(actifRow.fraisNotaire || 0)
+      + Number(actifRow.fraisAgence || 0) + Number(actifRow.montantTravaux || 0);
+    const loyerAnnuel = actifBaux.reduce((s: number, b: any) => s + Number(b.loyerAnnuel || 0) + Number(b.loyerMensuel || 0) * 12, 0)
+      || actifLots.reduce((s: number, l: any) => s + Number(l.loyerAnnuel || 0) + Number(l.loyerMensuel || 0) * 12, 0);
+    const lotsOccupes = actifLots.filter((l: any) => l.statut === "loué").length;
+
+    const prixM2 = surface > 0 ? Math.round(prixAcq / surface) : 0;
+    const loyerM2Mensuel = surface > 0 ? Math.round((loyerAnnuel / 12 / surface) * 100) / 100 : 0;
+    const rendementBrut = prixAcq > 0 ? Math.round((loyerAnnuel / prixAcq) * 10000) / 100 : 0;
+
+    // Taux capi interne = rendement brut basé sur les données réelles de l'actif
+    // Si pas de taux capi marché (DVF×ANIL), utiliser le rendement interne comme proxy
+    const tauxCapiInterne = rendementBrut > 0 ? rendementBrut : null;
+
+    // Écart prix : compare prix/m² interne au marché DVF
+    let ecartPrixPct: number | null = null;
+    if (prixM2 > 0 && phase1.valeurVenale?.prixM2Median) {
+      ecartPrixPct = Math.round(((prixM2 - phase1.valeurVenale.prixM2Median) / phase1.valeurVenale.prixM2Median) * 10000) / 100;
+    }
+
+    // Écart loyer : compare loyer/m² interne au marché ANIL
+    let ecartLoyerPct: number | null = null;
+    if (loyerM2Mensuel > 0 && phase1.valeurLocative?.loyerM2Median) {
+      ecartLoyerPct = Math.round(((loyerM2Mensuel - phase1.valeurLocative.loyerM2Median) / phase1.valeurLocative.loyerM2Median) * 10000) / 100;
+    }
+
+    return {
+      surface, prixAcq, prixM2, loyerAnnuel, loyerM2Mensuel, rendementBrut,
+      tauxCapiInterne, ecartPrixPct, ecartLoyerPct,
+      nbLots: actifLots.length, lotsOccupes,
+      tauxOccupation: actifLots.length > 0 ? Math.round((lotsOccupes / actifLots.length) * 100) : 100,
+    };
+  }
+
+  // ─── Étude de marché : données Phase 1 + métriques internes + IA ──
   app.get("/api/am/marche/etude", requireAuth, async (_req: any, res: any) => {
     try {
-      const allActifs = await db.select().from(actifs).where(and(eq(actifs.archived, false), isNull(actifs.deletedAt)));
-      const allEtudes = await db.select().from(etudesIA);
+      // Fetch all data upfront (avoid N+1 queries)
+      const [allActifs, allEtudes, allVenales, allLocatives, allTauxCapi, allLots, allBaux] = await Promise.all([
+        db.select().from(actifs).where(and(eq(actifs.archived, false), isNull(actifs.deletedAt))),
+        db.select().from(etudesIA),
+        db.select().from(refValeursVenales),
+        db.select().from(refValeursLocatives),
+        db.select().from(refTauxCapitalisation),
+        db.select().from(lots).where(isNull(lots.deletedAt)),
+        db.select().from(bauxAM).where(isNull(bauxAM.deletedAt)),
+      ]);
 
-      const data = [];
-      for (const actifRow of allActifs) {
-        const phase1 = await getPhase1(actifRow);
+      const data = allActifs.map((actifRow) => {
+        const phase1 = getPhase1(actifRow, allVenales, allLocatives, allTauxCapi);
         const etude = allEtudes.find((e) => e.actifId === actifRow.id);
-        const { typeBien, dvfCompatible, anilCompatible } = mapActifTypeToSearch(actifRow.type || "résidentiel");
+        const { dvfCompatible, anilCompatible } = mapActifTypeToSearch(actifRow.type || "résidentiel");
+        const actifLots = allLots.filter((l) => l.actifId === actifRow.id);
+        const actifBaux = allBaux.filter((b) => b.actifId === actifRow.id);
+        const interne = computeInternalMetrics(actifRow, actifLots, actifBaux, phase1);
 
         const avertissements: string[] = [];
         if (!dvfCompatible) avertissements.push(`Pas de données DVF pour le type "${actifRow.type}".`);
         if (!anilCompatible) avertissements.push(`Pas de données ANIL pour le type "${actifRow.type}".`);
 
-        data.push({
+        return {
           actif: {
-            id: actifRow.id,
-            nom: actifRow.nom,
-            adresse: actifRow.adresse,
-            ville: actifRow.ville,
-            codePostal: actifRow.codePostal,
-            type: actifRow.type,
-            surface: actifRow.surface,
-            surfaceCarrez: actifRow.surfaceCarrez,
+            id: actifRow.id, nom: actifRow.nom, adresse: actifRow.adresse,
+            ville: actifRow.ville, codePostal: actifRow.codePostal,
+            type: actifRow.type, surface: actifRow.surface, surfaceCarrez: actifRow.surfaceCarrez,
+            dpe: actifRow.dpe,
           },
           avertissements,
           phase1,
+          interne,
           analyseIA: etude ? {
-            id: etude.id,
-            positionnement: etude.positionnement,
-            potentiel: etude.potentiel,
-            risques: etude.risques,
-            recommandations: etude.recommandations,
-            comparables: etude.comparables,
-            synthese: etude.synthese,
-            confidence: etude.confidence,
-            model: etude.model,
-            createdAt: etude.createdAt,
+            id: etude.id, positionnement: etude.positionnement, potentiel: etude.potentiel,
+            risques: etude.risques, recommandations: etude.recommandations, comparables: etude.comparables,
+            synthese: etude.synthese, confidence: etude.confidence, model: etude.model, createdAt: etude.createdAt,
           } : null,
-        });
-      }
+        };
+      });
 
       res.json(data);
     } catch (error: any) {
@@ -455,7 +499,16 @@ Règles :
       const [actifRow] = await db.select().from(actifs).where(eq(actifs.id, actifId));
       if (!actifRow) return res.status(404).json({ error: "Actif non trouvé" });
 
-      const phase1 = await getPhase1(actifRow);
+      const [allVenales, allLocatives, allTauxCapi, actifLots, actifBaux] = await Promise.all([
+        db.select().from(refValeursVenales),
+        db.select().from(refValeursLocatives),
+        db.select().from(refTauxCapitalisation),
+        db.select().from(lots).where(and(eq(lots.actifId, actifId), isNull(lots.deletedAt))),
+        db.select().from(bauxAM).where(and(eq(bauxAM.actifId, actifId), isNull(bauxAM.deletedAt))),
+      ]);
+
+      const phase1 = getPhase1(actifRow, allVenales, allLocatives, allTauxCapi);
+      const interne = computeInternalMetrics(actifRow, actifLots, actifBaux, phase1);
       const [etude] = await db.select().from(etudesIA).where(eq(etudesIA.actifId, actifId));
 
       res.json({
@@ -463,8 +516,10 @@ Règles :
           id: actifRow.id, nom: actifRow.nom, adresse: actifRow.adresse,
           ville: actifRow.ville, codePostal: actifRow.codePostal,
           type: actifRow.type, surface: actifRow.surface, surfaceCarrez: actifRow.surfaceCarrez,
+          dpe: actifRow.dpe,
         },
         phase1,
+        interne,
         analyseIA: etude ? {
           id: etude.id, positionnement: etude.positionnement, potentiel: etude.potentiel,
           risques: etude.risques, recommandations: etude.recommandations, comparables: etude.comparables,

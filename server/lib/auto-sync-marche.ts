@@ -16,7 +16,7 @@ import { logger } from "./logger";
 import { syncDVF } from "./sync-dvf";
 import { syncANIL } from "./sync-anil";
 import { computeTauxCapiFromRefs } from "./compute-taux-capi";
-import { syncIndicesINSEE, autoIndexBaux } from "./sync-insee";
+import { syncIndicesINSEE, assignDefaultIndices, autoIndexBaux } from "./sync-insee";
 import { computeAndStoreAlerts } from "../routes/alertes-proactives";
 
 const STARTUP_DELAY_MS = 30 * 1000; // 30 seconds after server starts
@@ -118,7 +118,16 @@ async function runFullSync(): Promise<void> {
     logger.error("auto-sync: sync INSEE failed", { error: err.message });
   }
 
-  // 5. Auto-indexation des baux GL
+  // 5. Assign default indices to baux without indiceReference
+  try {
+    logger.info("auto-sync: assignation indices par défaut");
+    const assignResult = await assignDefaultIndices();
+    logger.info("auto-sync: indices assignés", { assigned: assignResult.assigned });
+  } catch (err: any) {
+    logger.error("auto-sync: assign default indices failed", { error: err.message });
+  }
+
+  // 6. Auto-indexation des baux GL
   try {
     logger.info("auto-sync: indexation automatique baux GL");
     const indexResult = await autoIndexBaux();
@@ -127,7 +136,7 @@ async function runFullSync(): Promise<void> {
     logger.error("auto-sync: auto-index baux failed", { error: err.message });
   }
 
-  // 6. Recalcul alertes proactives
+  // 7. Recalcul alertes proactives
   try {
     logger.info("auto-sync: recalcul alertes proactives");
     const alertResult = await computeAndStoreAlerts();

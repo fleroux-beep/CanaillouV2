@@ -27,66 +27,42 @@ interface InseeValue {
 
 /**
  * Fetch latest values from INSEE SDMX API for a given series.
+ * The API always returns XML (SDMX StructureSpecificData), regardless of Accept header.
  */
 async function fetchInseeSeriesValues(seriesId: string): Promise<InseeValue[]> {
   const url = `https://api.insee.fr/series/BDM/V1/data/SERIES_BDM/${seriesId}?lastNObservations=12`;
 
   try {
     const response = await fetch(url, {
-      headers: {
-        Accept: "application/json",
-      },
+      signal: AbortSignal.timeout(15000),
     });
 
     if (!response.ok) {
-      // Fallback: try without header
-      const response2 = await fetch(url);
-      if (!response2.ok) {
-        throw new Error(`INSEE API returned ${response2.status}`);
-      }
-      return parseInseeResponse(await response2.text());
+      throw new Error(`INSEE API returned ${response.status}`);
     }
 
-    const data = await response.json();
-    return parseInseeJsonResponse(data);
+    const text = await response.text();
+    return parseInseeXmlResponse(text);
   } catch (err: any) {
     logger.warn(`INSEE API fetch failed for series ${seriesId}: ${err.message}`);
     return [];
   }
 }
 
-function parseInseeJsonResponse(data: any): InseeValue[] {
+/**
+ * Parse INSEE SDMX XML response.
+ * The XML uses attributes on <Obs> elements:
+ *   <Obs TIME_PERIOD="2025-Q4" OBS_VALUE="145.78" .../>
+ */
+function parseInseeXmlResponse(text: string): InseeValue[] {
   const values: InseeValue[] = [];
-  try {
-    const observations = data?.dataSets?.[0]?.series?.["0:0:0:0"]?.observations || {};
-    const timePeriods = data?.structure?.dimensions?.observation?.[0]?.values || [];
-
-    for (const [idx, obs] of Object.entries(observations) as any) {
-      const period = timePeriods[Number(idx)]?.id;
-      const val = obs?.[0];
-      if (period && val != null) {
-        // Convert "2025-Q1" to "T1-2025"
-        const trimestre = convertPeriod(period);
-        if (trimestre) {
-          values.push({ trimestre, valeur: Number(val) });
-        }
-      }
-    }
-  } catch {
-    // parsing error
-  }
-  return values;
-}
-
-function parseInseeResponse(text: string): InseeValue[] {
-  // Simple XML/text parsing fallback
-  const values: InseeValue[] = [];
-  const obsPattern = /TIME_PERIOD[^>]*value="([^"]+)"[^>]*>.*?OBS_VALUE[^>]*value="([^"]+)"/gs;
+  const obsPattern = /TIME_PERIOD="([^"]+)"\s+OBS_VALUE="([^"]+)"/g;
   let match;
   while ((match = obsPattern.exec(text)) !== null) {
     const trimestre = convertPeriod(match[1]);
-    if (trimestre) {
-      values.push({ trimestre, valeur: Number(match[2]) });
+    const valeur = Number(match[2]);
+    if (trimestre && !isNaN(valeur)) {
+      values.push({ trimestre, valeur });
     }
   }
   return values;
@@ -142,6 +118,68 @@ export async function syncIndicesINSEE(): Promise<{ synced: number; errors: stri
   }
 
   return { synced, errors };
+}
+
+/**
+ * Détermine l'indice par défaut selon le type de bail :
+ *   - habitation → ICC (Indice du Coût de la Construction)
+ *   - commercial, professionnel, derogatoire → ILC (Indice des Loyers Commerciaux)
+ */
+function defaultIndiceForType(typeBail: string | null): string {
+  if (typeBail === "habitation") return "ICC";
+  return "ILC";
+}
+
+/**
+ * Assigne automatiquement l'indice de référence et la valeur de base
+ * aux baux qui n'en ont pas encore.
+ * Règle métier : habitation → ICC, commercial/crèche/professionnel → ILC.
+ */
+export async function assignDefaultIndices(): Promise<{ assigned: number; errors: string[] }> {
+  let assigned = 0;
+  const errors: string[] = [];
+
+  const allBaux = await db.select().from(bauxGL)
+    .where(and(eq(bauxGL.archived, false), isNull(bauxGL.deletedAt)));
+  const allIndices = await db.select().from(indices);
+
+  // Build map: type → latest index
+  const latestByType = new Map<string, { trimestre: string; valeur: number }>();
+  for (const idx of allIndices) {
+    const existing = latestByType.get(idx.type);
+    if (!existing || idx.trimestre.localeCompare(existing.trimestre) > 0) {
+      latestByType.set(idx.type, { trimestre: idx.trimestre, valeur: Number(idx.valeur) });
+    }
+  }
+
+  for (const bail of allBaux) {
+    try {
+      if (bail.forceManual) continue;
+      // Skip baux that already have an indiceReference set
+      if (bail.indiceReference) continue;
+
+      const indiceType = defaultIndiceForType(bail.typeBail);
+      const latest = latestByType.get(indiceType);
+      if (!latest) continue; // No index data available yet
+
+      await db.update(bauxGL)
+        .set({
+          indiceReference: indiceType,
+          trimestreRef: latest.trimestre,
+          valeurIndiceBase: String(latest.valeur),
+          updatedAt: new Date(),
+        })
+        .where(eq(bauxGL.id, bail.id));
+
+      assigned++;
+      logger.info(`assign-default-indices: bail "${bail.nom || bail.id}" → ${indiceType} (${latest.trimestre} = ${latest.valeur})`);
+    } catch (err: any) {
+      errors.push(`Bail ${bail.nom || bail.id}: ${err.message}`);
+    }
+  }
+
+  logger.info(`assign-default-indices: ${assigned} baux mis à jour`);
+  return { assigned, errors };
 }
 
 /**
