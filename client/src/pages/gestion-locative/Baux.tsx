@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
+
+const DEFAULT_TVA_RATE = 20; // Taux TVA par défaut en France (%)
 import { useCrud } from "../../hooks/useCrud";
 import { DataTable, type Column } from "../../components/ui/data-table";
 import { FormDialog } from "../../components/ui/form-dialog";
@@ -11,9 +13,7 @@ import { formatCurrency } from "../../lib/utils";
 import { Plus, Pencil, Trash2, MapPin } from "lucide-react";
 import { motion } from "framer-motion";
 import { InfoTooltip } from "../../components/ui/info-tooltip";
-
-interface Bail { id: string; nom: string; locataireId?: string; bailleurId?: string; typeBail?: string; adresse?: string; ville?: string; codePostal?: string; dateSignature?: string; dateEffet?: string; loyerBaseHT?: string; loyerHTActu?: string; indiceReference?: string; trimestreRef?: string; valeurIndiceBase?: string; charges?: string; depotGarantie?: string; taxeFonciere?: string; surface?: string; capacite?: number; statut?: string; archived?: boolean; notes?: string; taxe?: string; tvaTaux?: string; }
-interface Bailleur { id: string; nom: string; }
+import type { BailGL as Bail, Bailleur } from "../../types";
 
 const empty: Partial<Bail> = { nom: "" };
 
@@ -36,7 +36,7 @@ export default function BauxGLPage() {
     { key: "loyerTTC", label: <InfoTooltip metricKey="loyerTTC">Loyer TTC</InfoTooltip>, exportLabel: "Loyer TTC", align: "right", sortable: true, render: (r) => {
       const ht = Number(r.loyerHTActu || r.loyerBaseHT || 0);
       if (ht <= 0) return "—";
-      const tva = Number(r.tvaTaux || 20);
+      const tva = Number(r.tvaTaux || DEFAULT_TVA_RATE);
       if (r.taxe === "TVA") {
         return formatCurrency(ht * (1 + tva / 100));
       }
@@ -47,7 +47,7 @@ export default function BauxGLPage() {
       return formatCurrency(ht);
     }},
     { key: "taxe", label: "Régime fiscal", render: (r) => {
-      if (r.taxe === "TVA") return <Badge variant="primary">TVA {r.tvaTaux || 20}%</Badge>;
+      if (r.taxe === "TVA") return <Badge variant="primary">TVA {r.tvaTaux || DEFAULT_TVA_RATE}%</Badge>;
       if (r.taxe === "CRL") return <Badge variant="warning">CRL 2,5%</Badge>;
       return "—";
     }},

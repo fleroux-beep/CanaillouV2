@@ -10,6 +10,7 @@ import {
   timestamp,
   jsonb,
   uniqueIndex,
+  index,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -88,7 +89,10 @@ export const participations = pgTable("am_participations", {
   dateEntree: varchar("date_entree"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => [
+  index("idx_participations_associe_id").on(table.associeId),
+  index("idx_participations_sci_id").on(table.sciId),
+]);
 
 // ============================================================
 // ASSET MANAGEMENT — Actifs & Lots
@@ -136,7 +140,9 @@ export const actifs = pgTable("am_actifs", {
   deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("idx_actifs_sci_id").on(table.sciId),
+]);
 
 export const lots = pgTable("am_lots", {
   id: varchar("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -160,7 +166,11 @@ export const lots = pgTable("am_lots", {
   deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("idx_lots_actif_id").on(table.actifId),
+  index("idx_lots_sci_id").on(table.sciId),
+  index("idx_lots_locataire_id").on(table.locataireId),
+]);
 
 // ============================================================
 // ASSET MANAGEMENT — Locataires & Baux
@@ -205,7 +215,12 @@ export const bauxAM = pgTable("am_baux", {
   deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("idx_baux_am_lot_id").on(table.lotId),
+  index("idx_baux_am_actif_id").on(table.actifId),
+  index("idx_baux_am_sci_id").on(table.sciId),
+  index("idx_baux_am_locataire_id").on(table.locataireId),
+]);
 
 // ============================================================
 // ASSET MANAGEMENT — Emprunts
@@ -235,7 +250,10 @@ export const emprunts = pgTable("am_emprunts", {
   deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("idx_emprunts_sci_id").on(table.sciId),
+  index("idx_emprunts_actif_id").on(table.actifId),
+]);
 
 // ============================================================
 // ASSET MANAGEMENT — Travaux
@@ -256,7 +274,10 @@ export const travaux = pgTable("am_travaux", {
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("idx_travaux_actif_id").on(table.actifId),
+  index("idx_travaux_sci_id").on(table.sciId),
+]);
 
 // ============================================================
 // GESTION LOCATIVE — Bailleurs & Gestionnaires
@@ -288,7 +309,9 @@ export const gestionnaires = pgTable("gl_gestionnaires", {
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("idx_gestionnaires_bailleur_id").on(table.bailleurId),
+]);
 
 // ============================================================
 // GESTION LOCATIVE — Locataires (= vous, le preneur)
@@ -363,7 +386,11 @@ export const bauxGL = pgTable("gl_baux", {
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("idx_baux_gl_locataire_id").on(table.locataireId),
+  index("idx_baux_gl_bailleur_id").on(table.bailleurId),
+  index("idx_baux_gl_gestionnaire_id").on(table.gestionnaireId),
+]);
 
 // ============================================================
 // GESTION LOCATIVE — Paiements, Factures, Quittances
@@ -379,7 +406,9 @@ export const paiementsGL = pgTable("gl_paiements", {
   reference: varchar("reference"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => [
+  index("idx_paiements_gl_bail_id").on(table.bailId),
+]);
 
 export const facturesGL = pgTable("gl_factures", {
   id: varchar("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -398,7 +427,9 @@ export const facturesGL = pgTable("gl_factures", {
   datePaiement: varchar("date_paiement"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => [
+  index("idx_factures_gl_bail_id").on(table.bailId),
+]);
 
 export const quittancesGL = pgTable("gl_quittances", {
   id: varchar("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -412,7 +443,9 @@ export const quittancesGL = pgTable("gl_quittances", {
   statut: varchar("statut"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => [
+  index("idx_quittances_gl_bail_id").on(table.bailId),
+]);
 
 // ============================================================
 // GESTION LOCATIVE — Indexations & Indices
@@ -430,7 +463,9 @@ export const indexationsGL = pgTable("gl_indexations", {
   tauxVariation: numeric("taux_variation"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => [
+  index("idx_indexations_gl_bail_id").on(table.bailId),
+]);
 
 export const indices = pgTable("indices", {
   id: varchar("id").primaryKey().$defaultFn(() => crypto.randomUUID()),

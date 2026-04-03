@@ -10,8 +10,11 @@ const isRailway = !!process.env.RAILWAY_ENVIRONMENT_NAME;
 
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
+  max: 20,
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 5_000,
   ssl: process.env.NODE_ENV === "production"
-    ? { rejectUnauthorized: isRailway ? false : process.env.DB_SSL_REJECT_UNAUTHORIZED !== "false" }
+    ? { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== "false" }
     : false,
 });
 

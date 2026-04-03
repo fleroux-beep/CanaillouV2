@@ -342,6 +342,41 @@ describe("computeIRR", () => {
     expect(irr!).toBeGreaterThan(8);
     expect(irr!).toBeLessThan(12);
   });
+
+  it("handles erratic cash flows that may not converge", () => {
+    // Erratic sign-alternating flows — result may be a number or null,
+    // but must not throw or return NaN/Infinity
+    const irr = computeIRR([-100, 50, -200, 300, -150, 400]);
+    if (irr !== null) {
+      expect(Number.isFinite(irr)).toBe(true);
+    }
+  });
+
+  it("returns null for all-negative cash flows", () => {
+    // No positive return ever — IRR is undefined
+    expect(computeIRR([-100, -50, -200, -300])).toBeNull();
+  });
+
+  it("converges easily for all-positive cash flows after initial investment", () => {
+    const irr = computeIRR([-1000, 200, 300, 400, 500]);
+    expect(irr).not.toBeNull();
+    expect(Number.isFinite(irr!)).toBe(true);
+    expect(irr!).toBeGreaterThan(0);
+  });
+
+  it("handles very large numbers without overflow", () => {
+    const irr = computeIRR([-1e12, 2e11, 3e11, 4e11, 5e11]);
+    if (irr !== null) {
+      expect(Number.isFinite(irr)).toBe(true);
+    }
+  });
+
+  it("computes negative IRR when returns are poor", () => {
+    // Invest 1000, only get back 800 total over 4 years
+    const irr = computeIRR([-1000, 200, 200, 200, 200]);
+    expect(irr).not.toBeNull();
+    expect(irr!).toBeLessThan(0);
+  });
 });
 
 describe("computeNPV", () => {
@@ -434,6 +469,60 @@ describe("computeAmortSchedule", () => {
     // Each year should amortize 12000
     expect(rows[0].capitalAmorti).toBeCloseTo(12000, 0);
     expect(rows[0].interets).toBeCloseTo(0, 5);
+  });
+
+  it("uses pre-filled mensualite instead of calculating", () => {
+    const e = makeEmprunt({
+      montantEmprunte: "200000",
+      tauxAnnuel: "3",
+      dureeAns: 20,
+      mensualite: "1500", // Override calculated mensualite
+    });
+    const rows = computeAmortSchedule(e);
+    expect(rows.length).toBeGreaterThan(0);
+    // The annuite for the first year should be based on 1500/month
+    // interets + capitalAmorti = annuite, and annuite ~ 1500*12 = 18000
+    expect(rows[0].annuite).toBeCloseTo(18000, -1);
+  });
+
+  it("includes assurance from tauxAssurance", () => {
+    const e = makeEmprunt({
+      montantEmprunte: "200000",
+      tauxAnnuel: "3",
+      dureeAns: 20,
+      tauxAssurance: "0.36", // 0.36% of capital
+    });
+    const rows = computeAmortSchedule(e);
+    expect(rows.length).toBe(20);
+    // assuranceMensuelle = 200000 * 0.0036 / 12 = 60 => annuelle = 720
+    expect(rows[0].assurance).toBeCloseTo(720, 0);
+    expect(rows[0].totalAnnuel).toBeGreaterThan(rows[0].annuite);
+    expect(rows[0].totalAnnuel).toBeCloseTo(rows[0].annuite + 720, 0);
+  });
+
+  it("includes assurance from assuranceMensuelle", () => {
+    const e = makeEmprunt({
+      montantEmprunte: "150000",
+      tauxAnnuel: "2.5",
+      dureeAns: 15,
+      assuranceMensuelle: "50",
+    });
+    const rows = computeAmortSchedule(e);
+    expect(rows.length).toBe(15);
+    // assurance annuelle = 50 * 12 = 600
+    expect(rows[0].assurance).toBeCloseTo(600, 0);
+    expect(rows[0].totalAnnuel).toBeCloseTo(rows[0].annuite + 600, 0);
+  });
+
+  it("assurance is zero when no assurance fields set", () => {
+    const e = makeEmprunt({
+      montantEmprunte: "100000",
+      tauxAnnuel: "4",
+      dureeAns: 10,
+    });
+    const rows = computeAmortSchedule(e);
+    expect(rows[0].assurance).toBe(0);
+    expect(rows[0].totalAnnuel).toBe(rows[0].annuite);
   });
 });
 

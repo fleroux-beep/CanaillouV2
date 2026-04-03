@@ -215,41 +215,41 @@ export default function ControleGestionPage() {
     );
   }, [portfolioData, projGrowthLoyer, projInflationCharges, projAppreciation, amortAnnuel, projYears]);
 
-  // Charts data
-  const chargesPieData = [
+  // Charts data (memoized)
+  const chargesPieData = useMemo(() => [
     { name: "Taxe foncière", value: portfolioData.totalTaxeFonciere },
     { name: "Assurance PNO", value: portfolioData.totalAssurancePno },
     { name: "Charges copropriété", value: portfolioData.totalChargesCopro },
     { name: "Autres", value: portfolioData.totalAutres },
-  ].filter((d) => d.value > 0);
+  ].filter((d) => d.value > 0), [portfolioData]);
 
-  // Waterfall: Loyers → - Charges → NOI → - Dette → Cash-flow
-  const waterfallData = [
+  // Waterfall: Loyers -> Charges -> NOI -> Dette -> Cash-flow (memoized)
+  const waterfallData = useMemo(() => [
     { name: "Loyers", value: portfolioData.totalLoyers, fill: "#10b981" },
     { name: "Charges", value: -portfolioData.totalCharges, fill: "#f59e0b" },
     { name: "NOI", value: portfolioData.noi, fill: portfolioData.noi >= 0 ? "#3b82f6" : "#ef4444" },
     { name: "Service dette", value: -portfolioData.totalServiceDette, fill: "#8b5cf6" },
     { name: "Cash-flow net", value: portfolioData.cashFlowNet, fill: portfolioData.cashFlowNet >= 0 ? "#10b981" : "#ef4444" },
-  ];
+  ], [portfolioData]);
 
-  // Per-actif NOI chart
-  const actifNoiChart = portfolioData.actifDetails
+  // Per-actif NOI chart (memoized)
+  const actifNoiChart = useMemo(() => [...portfolioData.actifDetails]
     .sort((a: any, b: any) => b.noi - a.noi)
     .map((a: any) => ({
       name: a.nom.length > 18 ? a.nom.substring(0, 18) + "…" : a.nom,
       "Loyers": a.loyerAnnuel,
       "Charges": a.charges,
       "NOI": a.noi,
-    }));
+    })), [portfolioData]);
 
-  // Projection chart data
-  const projectionChart = projection.map((p) => ({
+  // Projection chart data (memoized)
+  const projectionChart = useMemo(() => projection.map((p) => ({
     year: p.label,
     "Cash-flow": Math.round(p.cashFlow),
     "NOI": Math.round(p.noi),
     "DSCR": Number(p.dscr.toFixed(2)),
     "LTV": Number(p.ltv.toFixed(1)),
-  }));
+  })), [projection]);
 
   return (
     <AnimatePresence>

@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import bcrypt from "bcrypt";
 import { db } from "../db";
 import { users } from "@shared/schema";
@@ -9,11 +9,11 @@ import { rateLimit } from "../lib/rate-limit";
 import { logger } from "../lib/logger";
 
 // 10 attempts per 15 minutes per IP
-const loginLimiter = rateLimit(10, 15 * 60 * 1000);
+const loginLimiter = rateLimit(10, 15 * 60 * 1000, "login");
 
 export function registerAuthRoutes(app: Express) {
   // Login
-  app.post("/api/auth/login", loginLimiter, validate(loginSchema), async (req: any, res: any) => {
+  app.post("/api/auth/login", loginLimiter, validate(loginSchema), async (req: Request, res: Response) => {
     try {
       const { email, password } = req.body;
 
@@ -44,7 +44,7 @@ export function registerAuthRoutes(app: Express) {
         logger.info("session saved successfully", { sessionID: req.sessionID, userId: user.id });
       } catch (saveErr: any) {
         logger.error("SESSION SAVE FAILED", { error: saveErr.message, stack: saveErr.stack, sessionID: req.sessionID });
-        return res.status(500).json({ error: "Erreur de sauvegarde de session", detail: saveErr.message });
+        return res.status(500).json({ error: "Erreur de sauvegarde de session" });
       }
 
       res.json({
@@ -61,7 +61,7 @@ export function registerAuthRoutes(app: Express) {
   });
 
   // Logout
-  app.post("/api/auth/logout", (req: any, res: any) => {
+  app.post("/api/auth/logout", (req: Request, res: Response) => {
     req.session.destroy((err: any) => {
       if (err) return res.status(500).json({ error: "Erreur lors de la déconnexion" });
       res.json({ ok: true });
@@ -69,7 +69,7 @@ export function registerAuthRoutes(app: Express) {
   });
 
   // Get current user
-  app.get("/api/auth/user", requireAuth, async (req: any, res: any) => {
+  app.get("/api/auth/user", requireAuth, async (req: Request, res: Response) => {
     try {
       const rows = await db
         .select({
@@ -92,7 +92,7 @@ export function registerAuthRoutes(app: Express) {
   });
 
   // Change password
-  app.patch("/api/auth/password", requireAuth, validate(changePasswordSchema), async (req: any, res: any) => {
+  app.patch("/api/auth/password", requireAuth, validate(changePasswordSchema), async (req: Request, res: Response) => {
     try {
       const { currentPassword, newPassword } = req.body;
       const pwRows = await db.select().from(users).where(eq(users.id, req.session.userId!)).limit(1);
@@ -102,7 +102,7 @@ export function registerAuthRoutes(app: Express) {
       const valid = await bcrypt.compare(currentPassword, user.password);
       if (!valid) return res.status(401).json({ error: "Mot de passe actuel incorrect" });
 
-      const hashed = await bcrypt.hash(newPassword, 10);
+      const hashed = await bcrypt.hash(newPassword, 12);
       await db.update(users).set({ password: hashed, updatedAt: new Date() }).where(eq(users.id, user.id));
       res.json({ ok: true });
     } catch (error: any) {
@@ -112,7 +112,7 @@ export function registerAuthRoutes(app: Express) {
   });
 
   // Admin: list users
-  app.get("/api/users", requireAdmin, async (_req: any, res: any) => {
+  app.get("/api/users", requireAdmin, async (_req: Request, res: Response) => {
     try {
       const allUsers = await db
         .select({
@@ -133,10 +133,10 @@ export function registerAuthRoutes(app: Express) {
   });
 
   // Admin: create/invite user
-  app.post("/api/users", requireAdmin, validate(createUserSchema), async (req: any, res: any) => {
+  app.post("/api/users", requireAdmin, validate(createUserSchema), async (req: Request, res: Response) => {
     try {
       const { email, password, firstName, lastName, role } = req.body;
-      const hashed = await bcrypt.hash(password, 10);
+      const hashed = await bcrypt.hash(password, 12);
       const newRows = await db
         .insert(users)
         .values({
@@ -166,7 +166,7 @@ export function registerAuthRoutes(app: Express) {
   });
 
   // Admin: approve user
-  app.patch("/api/users/:id/approve", requireAdmin, async (req: any, res: any) => {
+  app.patch("/api/users/:id/approve", requireAdmin, async (req: Request, res: Response) => {
     try {
       const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
       await db.update(users).set({ isApproved: true }).where(eq(users.id, id));
@@ -177,10 +177,18 @@ export function registerAuthRoutes(app: Express) {
     }
   });
 
-  // Admin: delete user
-  app.delete("/api/users/:id", requireAdmin, async (req: any, res: any) => {
+  // Admin: delete user (cannot delete self or last admin)
+  app.delete("/api/users/:id", requireAdmin, async (req: Request, res: Response) => {
     try {
       const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      if (id === req.session.userId) {
+        return res.status(400).json({ error: "Impossible de supprimer votre propre compte" });
+      }
+      const admins = await db.select({ id: users.id }).from(users).where(eq(users.role, "admin"));
+      const target = admins.find((a) => a.id === id);
+      if (target && admins.length <= 1) {
+        return res.status(400).json({ error: "Impossible de supprimer le dernier administrateur" });
+      }
       await db.delete(users).where(eq(users.id, id));
       res.json({ ok: true });
     } catch (error: any) {

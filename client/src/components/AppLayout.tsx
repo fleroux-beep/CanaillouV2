@@ -19,7 +19,7 @@ import { ChatPanel } from "./ui/chat-panel";
 interface NavItem {
   label: string;
   href: string;
-  icon: any;
+  icon: React.ComponentType<{ className?: string }>;
 }
 
 interface NavGroup {

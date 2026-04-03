@@ -79,11 +79,14 @@ export function registerScoreSanteRoutes(app: Express) {
         const nbActifsInSci = allActifs.filter((a: any) => a.sciId === actif.sciId).length || 1;
         const actifTravaux = allTravaux.filter((t: any) => t.actifId === actif.id);
 
-        // Calculate financials
-        const loyerAnnuel = actifBaux.reduce((s, b: any) => {
-          return s + Number(b.loyerAnnuel || 0) + Number(b.loyerMensuel || 0) * 12;
-        }, 0) || actifLots.reduce((s, l: any) => {
-          return s + Number(l.loyerAnnuel || 0) + Number(l.loyerMensuel || 0) * 12;
+        // Calculate financials (use loyerAnnuel OR loyerMensuel*12, not both)
+        const loyerFromBaux = actifBaux.reduce((s, b: any) => {
+          const annuel = Number(b.loyerAnnuel || 0);
+          return s + (annuel > 0 ? annuel : Number(b.loyerMensuel || 0) * 12);
+        }, 0);
+        const loyerAnnuel = loyerFromBaux > 0 ? loyerFromBaux : actifLots.reduce((s, l: any) => {
+          const annuel = Number(l.loyerAnnuel || 0);
+          return s + (annuel > 0 ? annuel : Number(l.loyerMensuel || 0) * 12);
         }, 0);
 
         const chargesTotal = Number(actif.chargesCopropriete || actif.chargesAnnuelles || 0)
@@ -94,7 +97,10 @@ export function registerScoreSanteRoutes(app: Express) {
 
         let valeur = prixAcq;
         const tauxCapi = Number(actif.tauxCapitalisation || 0);
-        if (tauxCapi > 0 && noi > 0) valeur = noi / (tauxCapi / 100);
+        if (tauxCapi > 0) {
+          // If NOI <= 0, estimated value is 0 — do not mask the problem with prixAcq
+          valeur = noi > 0 ? noi / (tauxCapi / 100) : 0;
+        }
 
         // Helper: calcul actuariel de la mensualité (même logique que la page Emprunts)
         function computeMensualite(e: any): number {
@@ -122,7 +128,10 @@ export function registerScoreSanteRoutes(app: Express) {
           + sciEmprunts.reduce((s, e: any) => s + computeMensualite(e) * 12, 0) / nbActifsInSci;
 
         const ltv = valeur > 0 ? (crd / valeur) * 100 : 0;
-        const dscr = serviceDette > 0 ? noi / serviceDette : 999;
+        // Internal DSCR for scoring: use 999 when no debt so score dimensions treat it as excellent.
+        // The returned metric uses 0 (no-debt → "N/A" in UI), consistent with client-side getDSCR.
+        const dscrInternal = serviceDette > 0 ? noi / serviceDette : 999;
+        const dscr = dscrInternal;
         const rendementBrut = prixAcq > 0 ? (loyerAnnuel / prixAcq) * 100 : 0;
         const cashFlowNet = noi - serviceDette;
 
@@ -167,21 +176,22 @@ export function registerScoreSanteRoutes(app: Express) {
         if (ltv > 60) recommandations.push(`LTV élevée (${ltv.toFixed(1)}%) — envisager un remboursement anticipé partiel.`);
 
         // 3. Couverture de dette / DSCR (20%)
+        // Use dscrInternal (999 when no debt) for scoring; display uses dscrInternal for detail text
         let scoreDSCR = 100;
         if (serviceDette === 0) scoreDSCR = 100;
-        else if (dscr >= 2.0) scoreDSCR = 100;
-        else if (dscr >= 1.5) scoreDSCR = 80 + (dscr - 1.5) * 40;
-        else if (dscr >= 1.2) scoreDSCR = 50 + (dscr - 1.2) * 100;
-        else if (dscr >= 1.0) scoreDSCR = 20 + (dscr - 1.0) * 150;
-        else scoreDSCR = Math.max(0, dscr * 20);
+        else if (dscrInternal >= 2.0) scoreDSCR = 100;
+        else if (dscrInternal >= 1.5) scoreDSCR = 80 + (dscrInternal - 1.5) * 40;
+        else if (dscrInternal >= 1.2) scoreDSCR = 50 + (dscrInternal - 1.2) * 100;
+        else if (dscrInternal >= 1.0) scoreDSCR = 20 + (dscrInternal - 1.0) * 150;
+        else scoreDSCR = Math.max(0, dscrInternal * 20);
         dimensions.push({
           label: "Couverture dette",
           score: Math.round(scoreDSCR),
           weight: 0.20,
-          detail: `DSCR: ${dscr >= 999 ? "N/A (pas de dette)" : dscr.toFixed(2) + "x"}`,
+          detail: `DSCR: ${serviceDette === 0 ? "N/A (pas de dette)" : dscrInternal.toFixed(2) + "x"}`,
           color: scoreColor(scoreDSCR),
         });
-        if (dscr < 1.2 && serviceDette > 0) recommandations.push(`DSCR faible (${dscr.toFixed(2)}x) — risque de tension sur le cash-flow.`);
+        if (dscrInternal < 1.2 && serviceDette > 0) recommandations.push(`DSCR faible (${dscrInternal.toFixed(2)}x) — risque de tension sur le cash-flow.`);
 
         // 4. Occupation (15%)
         let scoreOccupation = tauxOccupation;
@@ -241,7 +251,7 @@ export function registerScoreSanteRoutes(app: Express) {
           metriques: {
             rendementBrut: Math.round(rendementBrut * 100) / 100,
             ltv: Math.round(ltv * 100) / 100,
-            dscr: serviceDette > 0 ? Math.round(dscr * 100) / 100 : 0,
+            dscr: serviceDette > 0 ? Math.round(dscrInternal * 100) / 100 : 0,
             tauxOccupation: Math.round(tauxOccupation),
             noi: Math.round(noi),
             valeur: Math.round(valeur),

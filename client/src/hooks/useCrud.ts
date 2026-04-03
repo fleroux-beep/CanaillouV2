@@ -10,6 +10,7 @@ export function useCrud<T extends { id: string }>(basePath: string, label: strin
   const { data = [], isLoading } = useQuery<T[]>({
     queryKey,
     queryFn: () => apiRequest(basePath),
+    staleTime: 30 * 1000, // 30 seconds — avoid excessive refetches
   });
 
   const createMutation = useMutation({

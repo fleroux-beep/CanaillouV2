@@ -55,12 +55,16 @@ interface ActifProjection {
 export function registerProjectionsPredictivesRoutes(app: Express) {
   app.post("/api/am/projections-predictives", requireAuth, async (req: any, res: any) => {
     try {
+      const clamp = (v: number, min: number, max: number, fallback: number) => {
+        const n = Number(v);
+        return Number.isFinite(n) ? Math.min(Math.max(n, min), max) : fallback;
+      };
       const params: ProjectionParams = {
-        horizon: Math.min(Math.max(Number(req.body.horizon) || 10, 1), 30),
-        tauxIndexation: Number(req.body.tauxIndexation) || 2.0,
-        tauxInflationCharges: Number(req.body.tauxInflationCharges) || 1.5,
-        tauxCroissanceMarche: Number(req.body.tauxCroissanceMarche) || 1.5,
-        tauxActualisation: Number(req.body.tauxActualisation) || 6.0,
+        horizon: clamp(req.body.horizon, 1, 30, 10),
+        tauxIndexation: clamp(req.body.tauxIndexation, -10, 20, 2.0),
+        tauxInflationCharges: clamp(req.body.tauxInflationCharges, -10, 20, 1.5),
+        tauxCroissanceMarche: clamp(req.body.tauxCroissanceMarche, -20, 30, 1.5),
+        tauxActualisation: clamp(req.body.tauxActualisation, 0.1, 30, 6.0),
       };
 
       const allActifs = await db.select().from(actifs).where(and(eq(actifs.archived, false), isNull(actifs.deletedAt)));
@@ -79,11 +83,14 @@ export function registerProjectionsPredictivesRoutes(app: Express) {
         const sciEmprunts = allEmprunts.filter((e: any) => e.sciId === actif.sciId && !e.actifId);
         const nbActifsInSci = allActifs.filter((a: any) => a.sciId === actif.sciId).length || 1;
 
-        // Base values (Year 0)
-        const loyerBase = actifBaux.reduce((s, b: any) => {
-          return s + Number(b.loyerAnnuel || 0) + Number(b.loyerMensuel || 0) * 12;
-        }, 0) || actifLots.reduce((s, l: any) => {
-          return s + Number(l.loyerAnnuel || 0) + Number(l.loyerMensuel || 0) * 12;
+        // Base values (Year 0) — use loyerAnnuel OR loyerMensuel*12, not both
+        const loyerFromBaux = actifBaux.reduce((s, b: any) => {
+          const annuel = Number(b.loyerAnnuel || 0);
+          return s + (annuel > 0 ? annuel : Number(b.loyerMensuel || 0) * 12);
+        }, 0);
+        const loyerBase = loyerFromBaux > 0 ? loyerFromBaux : actifLots.reduce((s, l: any) => {
+          const annuel = Number(l.loyerAnnuel || 0);
+          return s + (annuel > 0 ? annuel : Number(l.loyerMensuel || 0) * 12);
         }, 0);
 
         const chargesBase = Number(actif.chargesCopropriete || actif.chargesAnnuelles || 0)
@@ -95,13 +102,30 @@ export function registerProjectionsPredictivesRoutes(app: Express) {
         let valeurBase = prixAcq;
         const tauxCapi = Number(actif.tauxCapitalisation || 0);
         const noiBase = loyerBase - chargesBase;
-        if (tauxCapi > 0 && noiBase > 0) valeurBase = noiBase / (tauxCapi / 100);
+        if (tauxCapi > 0) {
+          // If NOI <= 0, estimated value is 0 — do not mask the problem
+          valeurBase = noiBase > 0 ? noiBase / (tauxCapi / 100) : 0;
+        }
 
         const crdBase = actifEmprunts.reduce((s, e: any) => s + Number(e.capitalRestantDu || e.montantEmprunte || 0), 0)
           + sciEmprunts.reduce((s, e: any) => s + Number(e.capitalRestantDu || e.montantEmprunte || 0), 0) / nbActifsInSci;
 
-        const serviceDetteAnnuel = actifEmprunts.reduce((s, e: any) => s + Number(e.mensualite || 0) * 12, 0)
-          + sciEmprunts.reduce((s, e: any) => s + Number(e.mensualite || 0) * 12, 0) / nbActifsInSci;
+        // Compute annuity with actuarial fallback when mensualite is not set
+        function computeAnnuite(e: any): number {
+          const mens = Number(e.mensualite || 0);
+          if (mens > 0) return mens * 12;
+          const montant = Number(e.montantEmprunte || 0);
+          const duree = Number(e.dureeAns || 0);
+          if (montant <= 0 || duree <= 0) return 0;
+          const tauxAnnuel = Number(e.tauxAnnuel || 0) / 100;
+          if (tauxAnnuel <= 0) return montant / duree;
+          const rm = tauxAnnuel / 12;
+          const n = duree * 12;
+          const factor = Math.pow(1 + rm, n);
+          return (montant * (rm * factor) / (factor - 1)) * 12;
+        }
+        const serviceDetteAnnuel = actifEmprunts.reduce((s, e: any) => s + computeAnnuite(e), 0)
+          + sciEmprunts.reduce((s, e: any) => s + computeAnnuite(e), 0) / nbActifsInSci;
 
         // Average interest rate for amortization
         const allActifEmprunts = [...actifEmprunts, ...sciEmprunts];
@@ -131,15 +155,26 @@ export function registerProjectionsPredictivesRoutes(app: Express) {
             return Math.max(maxY, (Number(e.dureeAns || 0)) - y);
           }, 0);
 
-          // CRD projection (simplified: assume constant service de dette until maturity)
-          let crd = crdBase;
+          // CRD projection: compute actual remaining balance after y years
+          // using proper amortization (interest computed on declining balance)
+          let crd = 0;
           if (serviceDetteAnnuel > 0 && weightedRate > 0) {
-            const interetAnnuel = crdBase * (weightedRate / 100);
-            const amortPerYear = serviceDetteAnnuel - interetAnnuel;
-            crd = Math.max(0, crdBase - amortPerYear * y);
+            // Simulate year-by-year amortization on the blended loan
+            let bal = crdBase;
+            const annualRate = weightedRate / 100;
+            for (let yr = 0; yr < y && bal > 0; yr++) {
+              const interetAn = bal * annualRate;
+              const capitalAn = Math.min(bal, serviceDetteAnnuel - interetAn);
+              bal = Math.max(0, bal - capitalAn);
+            }
+            crd = bal;
+          } else if (serviceDetteAnnuel > 0) {
+            // Zero-rate loan: linear amortization
+            crd = Math.max(0, crdBase - serviceDetteAnnuel * y);
           } else {
             const totalDuree = allActifEmprunts.reduce((maxD, e: any) => Math.max(maxD, Number(e.dureeAns || 0)), 0);
             if (totalDuree > 0) crd = Math.max(0, crdBase * (1 - y / totalDuree));
+            else crd = crdBase;
           }
 
           const serviceDette = crd > 0 ? serviceDetteAnnuel : 0;
@@ -170,15 +205,16 @@ export function registerProjectionsPredictivesRoutes(app: Express) {
 
         // Terminal value (Gordon growth model)
         const lastNOI = projections[projections.length - 1]?.noi || noiBase;
-        const exitCap = (tauxCapi || 5.5) / 100;
-        const valeurTerminale = lastNOI / exitCap;
+        const exitCapPct = Number(tauxCapi || 5.5);
+        const exitCap = exitCapPct > 0 ? exitCapPct / 100 : 0;
+        const valeurTerminale = exitCap >= 0.01 ? lastNOI / exitCap : 0;
         cashFlows[cashFlows.length - 1] += valeurTerminale;
 
         // DCF: VAN (NPV)
         const discountRate = params.tauxActualisation / 100;
         const van = cashFlows.reduce((npv, cf, i) => npv + cf / Math.pow(1 + discountRate, i), 0);
 
-        // TRI (IRR) - Newton-Raphson approximation
+        // TRI (IRR) - Newton-Raphson approximation with safety bounds
         let tri = 0.1; // initial guess
         for (let iter = 0; iter < 100; iter++) {
           let f = 0, df = 0;
@@ -190,7 +226,10 @@ export function registerProjectionsPredictivesRoutes(app: Express) {
           const newTri = tri - f / df;
           if (Math.abs(newTri - tri) < 1e-8) { tri = newTri; break; }
           tri = newTri;
+          if (tri < -0.99) tri = -0.5;
+          if (!Number.isFinite(tri)) { tri = 0; break; }
         }
+        if (!Number.isFinite(tri)) tri = 0;
 
         results.push({
           actifId: actif.id,

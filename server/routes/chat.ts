@@ -4,7 +4,15 @@ import { requireAuth } from "../middleware/auth";
 import { rateLimit } from "../lib/rate-limit";
 import { logger } from "../lib/logger";
 
-const chatLimiter = rateLimit(30, 60 * 1000); // 30 messages per minute
+const chatLimiter = rateLimit(30, 5 * 60 * 1000, "chat"); // 30 messages per 5 minutes
+
+/** Write tools that require admin role */
+const WRITE_TOOLS = new Set([
+  "update_actif", "update_lot", "update_emprunt", "update_sci",
+  "update_bail_am", "update_bail_gl",
+  "create_actif", "create_lot", "create_emprunt", "create_bail_am",
+  "delete_entity",
+]);
 import {
   scis, actifs, emprunts, lots, bauxAM, associes, participations,
   bauxGL, bailleurs, paiementsGL, indices, locatairesGL,
@@ -37,7 +45,10 @@ async function fetchPortfolioSummary(): Promise<unknown> {
   }, 0);
 
   const totalCRD = empruntsList.reduce((s, e: any) => s + Number(e.capitalRestantDu || e.montantEmprunte || 0), 0);
-  const totalLoyers = bauxList.reduce((s, b: any) => s + Number(b.loyerAnnuel || 0) + Number(b.loyerMensuel || 0) * 12, 0);
+  const totalLoyers = bauxList.reduce((s, b: any) => {
+    const annuel = Number(b.loyerAnnuel || 0);
+    return s + (annuel > 0 ? annuel : Number(b.loyerMensuel || 0) * 12);
+  }, 0);
 
   return {
     nbSCI: sciList.length,
@@ -517,7 +528,11 @@ const toolDefinitions = [
 ];
 
 // ─── Tool executor ──────────────────────────────────────────
-async function executeTool(name: string, input: Record<string, unknown>): Promise<unknown> {
+async function executeTool(name: string, input: Record<string, unknown>, userRole?: string): Promise<unknown> {
+  // Enforce admin role for write operations (C2.1 fix)
+  if (WRITE_TOOLS.has(name) && userRole !== "admin") {
+    return { error: "Modification réservée aux administrateurs" };
+  }
   try {
     switch (name) {
       case "get_portfolio_summary": return await fetchPortfolioSummary();
@@ -598,6 +613,19 @@ export function registerChatRoutes(app: Express) {
       return res.status(400).json({ error: "Messages requis" });
     }
 
+    // Validate message content (M2.4 — prevent abuse / oversized prompts)
+    for (const msg of messages) {
+      if (typeof msg.content !== "string" || msg.content.length === 0) {
+        return res.status(400).json({ error: "Chaque message doit contenir du texte" });
+      }
+      if (msg.content.length > 10000) {
+        return res.status(400).json({ error: "Message trop long (max 10 000 caractères)" });
+      }
+    }
+    if (messages.length > 50) {
+      return res.status(400).json({ error: "Trop de messages (max 50)" });
+    }
+
     let keepalive: ReturnType<typeof setInterval> | undefined;
     try {
       // Set up SSE for streaming
@@ -672,7 +700,7 @@ export function registerChatRoutes(app: Express) {
             // Notify client about tool usage
             res.write(`data: ${JSON.stringify({ type: "tool_use", tool: toolCall.name })}\n\n`);
 
-            const toolResult = await executeTool(toolCall.name, toolCall.input || {});
+            const toolResult = await executeTool(toolCall.name, toolCall.input || {}, req.session?.role);
             toolResults.push({
               type: "tool_result",
               tool_use_id: toolCall.id,

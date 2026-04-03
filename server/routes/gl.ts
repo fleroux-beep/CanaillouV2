@@ -7,112 +7,43 @@ import {
 } from "@shared/schema";
 import { eq, desc, count, isNotNull, isNull, and } from "drizzle-orm";
 import { requireAuth, requireWriteAdmin } from "../middleware/auth";
-import { validate, glSchemas } from "../lib/validation";
+import { glSchemas } from "../lib/validation";
 import { logger } from "../lib/logger";
+import { registerCrud as registerCrudFactory, paramId } from "../lib/crud-factory";
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function registerGLRoutes(app: Express) {
+  const opts = { prefix: "gl", schemas: glSchemas };
+  registerCrudFactory(app, "bailleurs", bailleurs, opts);
+  registerCrudFactory(app, "gestionnaires", gestionnaires, opts);
+  registerCrudFactory(app, "locataires", locatairesGL, opts);
+  registerCrudFactory(app, "baux", bauxGL, opts);
+  registerCrudFactory(app, "paiements", paiementsGL, opts);
+  registerCrudFactory(app, "factures", facturesGL, opts);
+  registerCrudFactory(app, "quittances", quittancesGL, opts);
+  registerCrudFactory(app, "indexations", indexationsGL, opts);
+  registerCrudFactory(app, "avenants", avenantsGL, opts);
+  registerCrudFactory(app, "renouvellements", renouvellementsGL, opts);
+  registerCrudFactory(app, "documents", documentsGL, opts);
+  registerCrudFactory(app, "indices", indices, opts);
 
-function paramId(req: any, res?: any): string {
-  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  if (res && !UUID_RE.test(id)) {
-    res.status(400).json({ error: "ID invalide" });
-    return "";
-  }
-  return id;
-}
-
-function registerCrud(app: Express, path: string, table: any) {
-  const schema = glSchemas[path];
-
-  app.get(`/api/gl/${path}`, requireAuth, async (_req: any, res: any) => {
+  // Custom delete for bailleurs — prevent if linked baux exist
+  app.delete("/api/gl/bailleurs/:id", requireWriteAdmin, async (req: any, res: any) => {
     try {
-      const hasDeletedAt = "deletedAt" in table;
-      const rows = hasDeletedAt
-        ? await db.select().from(table).where(isNull(table.deletedAt)).orderBy(desc(table.createdAt))
-        : await db.select().from(table).orderBy(desc(table.createdAt));
-      res.json(rows);
-    } catch (error: any) {
-      logger.error("route error", { path, error: error.message, stack: error.stack });
-      res.status(500).json({ error: `Erreur interne: ${error.message}` });
-    }
-  });
-
-  app.get(`/api/gl/${path}/:id`, requireAuth, async (req: any, res: any) => {
-    try {
-      const rows = await db.select().from(table).where(eq(table.id, paramId(req))).limit(1) as any[];
-      if (rows.length === 0) return res.status(404).json({ error: "Non trouvé" });
-      res.json(rows[0]);
-    } catch (error: any) {
-      logger.error("route error", { error: error.message });
-      res.status(500).json({ error: "Erreur interne" });
-    }
-  });
-
-  app.post(`/api/gl/${path}`, requireWriteAdmin, ...(schema ? [validate(schema)] : []), async (req: any, res: any) => {
-    try {
-      const rows = await db.insert(table).values(req.body).returning() as any[];
-      res.status(201).json(rows[0]);
-    } catch (error: any) {
-      logger.error("route error", { error: error.message });
-      res.status(500).json({ error: "Erreur interne" });
-    }
-  });
-
-  app.patch(`/api/gl/${path}/:id`, requireWriteAdmin, ...(schema ? [validate(schema.partial())] : []), async (req: any, res: any) => {
-    try {
-      const updateData = table.updatedAt
-        ? { ...req.body, updatedAt: new Date() }
-        : req.body;
-      const rows = await db.update(table).set(updateData).where(eq(table.id, paramId(req))).returning() as any[];
-      if (rows.length === 0) return res.status(404).json({ error: "Non trouvé" });
-      res.json(rows[0]);
-    } catch (error: any) {
-      logger.error("route error", { error: error.message });
-      res.status(500).json({ error: "Erreur interne" });
-    }
-  });
-
-  app.delete(`/api/gl/${path}/:id`, requireWriteAdmin, async (req: any, res: any) => {
-    try {
-      const id = paramId(req);
-
-      // Prevent deleting a bailleur that still has linked baux
-      if (path === "bailleurs") {
-        const linkedBaux = await db.select({ id: bauxGL.id }).from(bauxGL)
-          .where(and(eq(bauxGL.bailleurId, id), isNull(bauxGL.deletedAt)))
-          .limit(1);
-        if (linkedBaux.length > 0) {
-          return res.status(409).json({ error: "Impossible de supprimer ce bailleur : des baux y sont encore liés" });
-        }
+      const id = paramId(req, res);
+      if (!id) return;
+      const linkedBaux = await db.select({ id: bauxGL.id }).from(bauxGL)
+        .where(and(eq(bauxGL.bailleurId, id), isNull(bauxGL.deletedAt)))
+        .limit(1);
+      if (linkedBaux.length > 0) {
+        return res.status(409).json({ error: "Impossible de supprimer ce bailleur : des baux y sont encore liés" });
       }
-
-      const hasDeletedAt = "deletedAt" in table;
-      if (hasDeletedAt) {
-        await db.update(table).set({ deletedAt: new Date() }).where(eq(table.id, id));
-      } else {
-        await db.delete(table).where(eq(table.id, id));
-      }
+      await db.delete(bailleurs).where(eq(bailleurs.id, id));
       res.json({ ok: true });
     } catch (error: any) {
       logger.error("route error", { error: error.message });
       res.status(500).json({ error: "Erreur interne" });
     }
   });
-}
-
-export function registerGLRoutes(app: Express) {
-  registerCrud(app, "bailleurs", bailleurs);
-  registerCrud(app, "gestionnaires", gestionnaires);
-  registerCrud(app, "locataires", locatairesGL);
-  registerCrud(app, "baux", bauxGL);
-  registerCrud(app, "paiements", paiementsGL);
-  registerCrud(app, "factures", facturesGL);
-  registerCrud(app, "quittances", quittancesGL);
-  registerCrud(app, "indexations", indexationsGL);
-  registerCrud(app, "avenants", avenantsGL);
-  registerCrud(app, "renouvellements", renouvellementsGL);
-  registerCrud(app, "documents", documentsGL);
-  registerCrud(app, "indices", indices);
 
   // Get all baux for a bailleur
   app.get("/api/gl/bailleurs/:id/baux", requireAuth, async (req: any, res: any) => {
@@ -166,8 +97,8 @@ export function registerGLRoutes(app: Express) {
     }
   });
 
-  // Automatic indexation calculation
-  app.post("/api/gl/indexation/auto", requireAuth, async (_req: any, res: any) => {
+  // Automatic indexation calculation (requires admin — modifies all lease rents)
+  app.post("/api/gl/indexation/auto", requireWriteAdmin, async (_req: any, res: any) => {
     try {
       // Fetch all baux that have an indiceReference set and are not manually forced
       const allBaux = await db

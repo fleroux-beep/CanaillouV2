@@ -1,51 +1,64 @@
+import { lazy, Suspense } from "react";
 import { Route, Switch } from "wouter";
 import { useAuth } from "./contexts/AuthContext";
 import { AppLayout } from "./components/AppLayout";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+
+// Eager: login is needed immediately
 import LoginPage from "./pages/LoginPage";
-import HomePage from "./pages/HomePage";
+
+// Lazy-loaded page components
+const HomePage = lazy(() => import("./pages/HomePage"));
 // Asset Management
-import AMDashboard from "./pages/asset-management/Dashboard";
-import SCIsPage from "./pages/asset-management/SCIs";
-import ActifsPage from "./pages/asset-management/Actifs";
-import ActifDetailPage from "./pages/asset-management/ActifDetail";
-import LotsPage from "./pages/asset-management/Lots";
-import BauxAMPage from "./pages/asset-management/Baux";
-import EmpruntsPage from "./pages/asset-management/Emprunts";
-import LocatairesAMPage from "./pages/asset-management/Locataires";
-import AssociesPage from "./pages/asset-management/Associes";
-import TravauxPage from "./pages/asset-management/Travaux";
-import ValorisationPage from "./pages/asset-management/Valorisation";
-import ControleGestionPage from "./pages/asset-management/ControleGestion";
-import ArbitragesPage from "./pages/asset-management/Arbitrages";
-import CartePage from "./pages/asset-management/Carte";
-import CalendrierAMPage from "./pages/asset-management/Calendrier";
-import ReportingPage from "./pages/asset-management/Reporting";
-import SCIsAssociesPage from "./pages/asset-management/SCIsAssocies";
-import VuePatrimoinePage from "./pages/asset-management/VuePatrimoine";
-import SimulateurPage from "./pages/asset-management/Simulateur";
-import EtudeMarchePage from "./pages/asset-management/EtudeMarche";
-import AlertesAMPage from "./pages/asset-management/AlertesAM";
-import IndexationAutoPage from "./pages/asset-management/IndexationAuto";
-import ScoreSantePage from "./pages/asset-management/ScoreSante";
-import ExtractionBailPDFPage from "./pages/asset-management/ExtractionBailPDF";
-import ProjectionsPredictivesPage from "./pages/asset-management/ProjectionsPredictives";
+const AMDashboard = lazy(() => import("./pages/asset-management/Dashboard"));
+const SCIsPage = lazy(() => import("./pages/asset-management/SCIs"));
+const ActifsPage = lazy(() => import("./pages/asset-management/Actifs"));
+const ActifDetailPage = lazy(() => import("./pages/asset-management/ActifDetail"));
+const LotsPage = lazy(() => import("./pages/asset-management/Lots"));
+const BauxAMPage = lazy(() => import("./pages/asset-management/Baux"));
+const EmpruntsPage = lazy(() => import("./pages/asset-management/Emprunts"));
+const LocatairesAMPage = lazy(() => import("./pages/asset-management/Locataires"));
+const AssociesPage = lazy(() => import("./pages/asset-management/Associes"));
+const TravauxPage = lazy(() => import("./pages/asset-management/Travaux"));
+const ValorisationPage = lazy(() => import("./pages/asset-management/Valorisation"));
+const ControleGestionPage = lazy(() => import("./pages/asset-management/ControleGestion"));
+const ArbitragesPage = lazy(() => import("./pages/asset-management/Arbitrages"));
+const CartePage = lazy(() => import("./pages/asset-management/Carte"));
+const CalendrierAMPage = lazy(() => import("./pages/asset-management/Calendrier"));
+const ReportingPage = lazy(() => import("./pages/asset-management/Reporting"));
+const SCIsAssociesPage = lazy(() => import("./pages/asset-management/SCIsAssocies"));
+const VuePatrimoinePage = lazy(() => import("./pages/asset-management/VuePatrimoine"));
+const SimulateurPage = lazy(() => import("./pages/asset-management/Simulateur"));
+const EtudeMarchePage = lazy(() => import("./pages/asset-management/EtudeMarche"));
+const AlertesAMPage = lazy(() => import("./pages/asset-management/AlertesAM"));
+const IndexationAutoPage = lazy(() => import("./pages/asset-management/IndexationAuto"));
+const ScoreSantePage = lazy(() => import("./pages/asset-management/ScoreSante"));
+const ExtractionBailPDFPage = lazy(() => import("./pages/asset-management/ExtractionBailPDF"));
+const ProjectionsPredictivesPage = lazy(() => import("./pages/asset-management/ProjectionsPredictives"));
 // Gestion Locative
-import GLDashboard from "./pages/gestion-locative/Dashboard";
-import BauxGLPage from "./pages/gestion-locative/Baux";
-import BailleursPage from "./pages/gestion-locative/Bailleurs";
-import LocatairesGLPage from "./pages/gestion-locative/Locataires";
-import PaiementsGLPage from "./pages/gestion-locative/Paiements";
-import GLKPIPage from "./pages/gestion-locative/KPI";
-import ProjectionsPage from "./pages/gestion-locative/Projections";
-import AlertesPage from "./pages/gestion-locative/Alertes";
-import IndicesPage from "./pages/gestion-locative/Indices";
-import CalendrierGLPage from "./pages/gestion-locative/Calendrier";
-import BailGLDetailPage from "./pages/gestion-locative/BailDetail";
-import TresoreriePage from "./pages/gestion-locative/Tresorerie";
-import DocumentsGLPage from "./pages/gestion-locative/Documents";
-import ControleBailleurPage from "./pages/gestion-locative/ControleBailleur";
-import AdminPage from "./pages/AdminPage";
+const GLDashboard = lazy(() => import("./pages/gestion-locative/Dashboard"));
+const BauxGLPage = lazy(() => import("./pages/gestion-locative/Baux"));
+const BailleursPage = lazy(() => import("./pages/gestion-locative/Bailleurs"));
+const LocatairesGLPage = lazy(() => import("./pages/gestion-locative/Locataires"));
+const PaiementsGLPage = lazy(() => import("./pages/gestion-locative/Paiements"));
+const GLKPIPage = lazy(() => import("./pages/gestion-locative/KPI"));
+const ProjectionsPage = lazy(() => import("./pages/gestion-locative/Projections"));
+const AlertesPage = lazy(() => import("./pages/gestion-locative/Alertes"));
+const IndicesPage = lazy(() => import("./pages/gestion-locative/Indices"));
+const CalendrierGLPage = lazy(() => import("./pages/gestion-locative/Calendrier"));
+const BailGLDetailPage = lazy(() => import("./pages/gestion-locative/BailDetail"));
+const TresoreriePage = lazy(() => import("./pages/gestion-locative/Tresorerie"));
+const DocumentsGLPage = lazy(() => import("./pages/gestion-locative/Documents"));
+const ControleBailleurPage = lazy(() => import("./pages/gestion-locative/ControleBailleur"));
+const AdminPage = lazy(() => import("./pages/AdminPage"));
+
+function PageSpinner() {
+  return (
+    <div className="flex h-[60vh] items-center justify-center">
+      <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
+    </div>
+  );
+}
 
 export default function App() {
   const { user, loading } = useAuth();
@@ -68,6 +81,7 @@ export default function App() {
   return (
     <AppLayout>
       <ErrorBoundary>
+      <Suspense fallback={<PageSpinner />}>
       <Switch>
         <Route path="/" component={HomePage} />
 
@@ -124,11 +138,12 @@ export default function App() {
           <div className="flex h-[60vh] items-center justify-center">
             <div className="text-center">
               <p className="text-4xl font-bold text-muted-foreground/30">404</p>
-              <p className="mt-2 text-muted-foreground">Page non trouvée</p>
+              <p className="mt-2 text-muted-foreground">Page non trouvee</p>
             </div>
           </div>
         </Route>
       </Switch>
+      </Suspense>
       </ErrorBoundary>
     </AppLayout>
   );
