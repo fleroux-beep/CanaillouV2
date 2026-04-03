@@ -276,10 +276,3 @@ const glossary: Record<string, MetricDef> = {
 
 export default glossary;
 
-/**
- * Retrieve a metric definition by its key.
- * Returns undefined if key not found.
- */
-export function getMetric(key: string): MetricDef | undefined {
-  return glossary[key];
-}
