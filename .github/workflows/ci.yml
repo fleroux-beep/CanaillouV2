@@ -16,4 +16,6 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - name: Verify schema sync
+        run: npx tsx scripts/verify-schema.ts
       - run: npx vitest run
