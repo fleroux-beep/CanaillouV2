@@ -19,6 +19,7 @@ import { registerIndexationAutoRoutes } from "./routes/indexation-auto";
 import { registerScoreSanteRoutes } from "./routes/score-sante";
 import { registerBailPDFRoutes } from "./routes/bail-pdf";
 import { registerProjectionsPredictivesRoutes } from "./routes/projections-predictives";
+import { registerImportWizardRoutes } from "./routes/import-wizard";
 import { logger, requestLogger } from "./lib/logger";
 import { requireAdmin } from "./middleware/auth";
 import { startAutoSync, stopAutoSync } from "./lib/auto-sync-marche";
@@ -121,6 +122,7 @@ registerIndexationAutoRoutes(app);
 registerScoreSanteRoutes(app);
 registerBailPDFRoutes(app);
 registerProjectionsPredictivesRoutes(app);
+registerImportWizardRoutes(app);
 
 // Admin: import Excel SCI data (one-time migration)
 app.post("/api/admin/import-excel", requireAdmin, async (_req, res) => {

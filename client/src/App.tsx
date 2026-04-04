@@ -33,6 +33,7 @@ const EtudeMarchePage = lazy(() => import("./pages/asset-management/EtudeMarche"
 const AlertesAMPage = lazy(() => import("./pages/asset-management/AlertesAM"));
 const IndexationAutoPage = lazy(() => import("./pages/asset-management/IndexationAuto"));
 const ScoreSantePage = lazy(() => import("./pages/asset-management/ScoreSante"));
+const ImportDonneesPage = lazy(() => import("./pages/asset-management/ImportDonnees"));
 const ExtractionBailPDFPage = lazy(() => import("./pages/asset-management/ExtractionBailPDF"));
 const ProjectionsPredictivesPage = lazy(() => import("./pages/asset-management/ProjectionsPredictives"));
 // Gestion Locative
@@ -110,6 +111,7 @@ export default function App() {
         <Route path="/asset-management/alertes" component={AlertesAMPage} />
         <Route path="/asset-management/indexation-auto" component={IndexationAutoPage} />
         <Route path="/asset-management/score-sante" component={ScoreSantePage} />
+        <Route path="/asset-management/import" component={ImportDonneesPage} />
         <Route path="/asset-management/extraction-bail" component={ExtractionBailPDFPage} />
         <Route path="/asset-management/projections-predictives" component={ProjectionsPredictivesPage} />
 
