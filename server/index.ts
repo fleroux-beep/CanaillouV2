@@ -217,6 +217,8 @@ async function withRetry<T>(fn: () => Promise<T>, label: string, retries = 5, de
   throw new Error("unreachable");
 }
 
+let server: ReturnType<typeof app.listen> | undefined;
+
 // Start listening FIRST (so healthcheck passes), then run DB setup
 (async () => {
   // Log masked DATABASE_URL for debugging
@@ -271,8 +273,6 @@ function gracefulShutdown(signal: string) {
   // Force exit after 10s
   setTimeout(() => process.exit(1), 10_000);
 }
-
-let server: ReturnType<typeof app.listen> | undefined;
 
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));

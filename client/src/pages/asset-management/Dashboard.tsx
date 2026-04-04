@@ -26,7 +26,7 @@ import { SkeletonKpi, SkeletonCard, SkeletonTable } from "../../components/ui/sk
 import {
   Building2, Landmark, Users, FileText, PiggyBank, TrendingUp,
   BarChart3, Shield, Wallet, CircleDollarSign, Activity,
-  Target, Gauge, AlertTriangle, ArrowDownUp, Banknote, Percent, Layers, Eye,
+  Target, Gauge, AlertTriangle, ArrowDownUp, Banknote, Percent, Layers,
 } from "lucide-react";
 
 const COLORS = ["#3b82f6", "#8b5cf6", "#06b6d4", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#6366f1"];
@@ -200,7 +200,7 @@ function computeParcKpiRow(allActifs: any[], allBaux: any[], allLots: any[], all
 }
 
 export default function AMDashboard() {
-  const [dashboardView, setDashboardView] = useState<DashboardView>("sci");
+  const [dashboardView, setDashboardView] = useState<DashboardView>("parc");
   const [parcSelectedSciId, setParcSelectedSciId] = useState<string | null>(null);
   const [parcChartType, setParcChartType] = useState<"bar" | "pie" | "radar">("bar");
 
@@ -463,17 +463,17 @@ export default function AMDashboard() {
           description={viewDescription}
         />
 
-        {/* View switcher */}
+        {/* View switcher — hierarchical: Parc → SCI → Actif */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1 rounded-xl bg-muted/50 p-1">
             {([
-              { key: "actif" as DashboardView, label: "Actif", icon: Building2 },
-              { key: "sci" as DashboardView, label: "SCI", icon: Landmark },
               { key: "parc" as DashboardView, label: "Parc", icon: Layers },
+              { key: "sci" as DashboardView, label: "SCI", icon: Landmark },
+              { key: "actif" as DashboardView, label: "Actif", icon: Building2 },
             ]).map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
-                onClick={() => { setDashboardView(key); if (key !== "parc") setParcSelectedSciId(null); }}
+                onClick={() => { setDashboardView(key); if (key === "parc") setParcSelectedSciId(null); }}
                 className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-medium transition-all ${
                   dashboardView === key
                     ? "bg-gradient-to-r from-orange-500 to-rose-600 text-white shadow-sm"
@@ -486,8 +486,8 @@ export default function AMDashboard() {
             ))}
           </div>
 
-          {/* SCI filter for Parc & Actif views */}
-          {(dashboardView === "actif" || dashboardView === "parc") && (
+          {/* SCI filter for Actif view */}
+          {dashboardView === "actif" && (
             <select
               value={parcSelectedSciId || ""}
               onChange={(e) => setParcSelectedSciId(e.target.value || null)}
@@ -498,6 +498,13 @@ export default function AMDashboard() {
                 <option key={sci.id} value={sci.id}>{sci.nom}</option>
               ))}
             </select>
+          )}
+
+          {/* Breadcrumb when drilling down from SCI */}
+          {dashboardView === "actif" && parcSelectedSciId && (
+            <span className="text-xs text-muted-foreground">
+              {scis.find((s: any) => s.id === parcSelectedSciId)?.nom}
+            </span>
           )}
         </div>
 
@@ -799,7 +806,8 @@ export default function AMDashboard() {
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: Math.min(0.6 + i * 0.05, 0.6 + 0.5) }}
-                      className="border-t transition-colors hover:bg-muted/20"
+                      className="border-t transition-colors hover:bg-muted/20 cursor-pointer"
+                      onClick={() => { setParcSelectedSciId(k.sci.id); setDashboardView("actif"); }}
                     >
                       <td className="px-4 py-3 font-medium">{k.sci.nom}</td>
                       <td className="px-4 py-3 text-right">{k.actifs.length}</td>
@@ -863,28 +871,51 @@ export default function AMDashboard() {
         {/* ─── ACTIF VIEW ─── */}
         {dashboardView === "actif" && (<>
 
-        {/* Actif KPIs */}
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <KpiCard label="Valorisation" value={Math.round(parcFocusKpi.valorisation)} formatFn={formatCurrency} icon={Target} variant="primary" gradient delay={0} metricKey="valorisation" />
-          <KpiCard label="Loyers annuels" value={Math.round(parcFocusKpi.loyerAnnuel)} formatFn={formatCurrency} icon={CircleDollarSign} variant="primary" gradient delay={1} metricKey="loyerHT" />
-          <KpiCard label="NOI" value={Math.round(parcFocusKpi.noi)} formatFn={formatCurrency} icon={TrendingUp} variant={parcFocusKpi.noi > 0 ? "success" : "danger"} gradient delay={2} metricKey="noi" />
-          <KpiCard label="Fonds propres nets" value={Math.round(parcFocusKpi.fondsPropreNets)} formatFn={formatCurrency} icon={Wallet} variant="primary" gradient delay={3} metricKey="fondsPropres" />
+        {/* Hero KPIs */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <KpiCard label="Valorisation" value={parcFocusKpi.valorisation} formatFn={formatCurrency} icon={TrendingUp} variant="primary" gradient delay={0} metricKey="valorisation" />
+          <KpiCard label="Loyers annuels" value={parcFocusKpi.loyerAnnuel} formatFn={formatCurrency} icon={CircleDollarSign} variant="success" gradient delay={1} metricKey="loyerHT" />
+          <KpiCard label="NOI" value={parcFocusKpi.noi} formatFn={formatCurrency} icon={Activity} variant={parcFocusKpi.noi >= 0 ? "success" : "danger"} gradient delay={2} metricKey="noi" subtitle={`Charges: ${formatCurrency(parcFocusKpi.charges)}`} />
+          <KpiCard label="Dette (CRD)" value={parcFocusKpi.crd} formatFn={formatCurrency} icon={PiggyBank} variant="warning" gradient delay={3} metricKey="crd" />
+          <KpiCard label="Fonds propres nets" value={parcFocusKpi.fondsPropreNets} formatFn={formatCurrency} icon={Wallet} variant="primary" gradient delay={4} metricKey="fondsPropres" />
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <KpiCard label="Cash-flow net" value={Math.round(parcFocusKpi.cashFlowNet)} formatFn={formatCurrency} icon={Activity} variant={parcFocusKpi.cashFlowNet >= 0 ? "success" : "danger"} delay={4} metricKey="cashFlowNet" />
-          <KpiCard label="CRD (dette)" value={Math.round(parcFocusKpi.crd)} formatFn={formatCurrency} icon={PiggyBank} variant="warning" delay={5} metricKey="crd" />
-          <KpiCard label="Plus-value" value={Math.round(parcFocusKpi.plusValue)} formatFn={formatCurrency} icon={TrendingUp} variant={parcFocusKpi.plusValue >= 0 ? "success" : "danger"} delay={6} />
-          <KpiCard label="Service dette" value={Math.round(parcFocusKpi.serviceDette)} formatFn={formatCurrency} icon={PiggyBank} delay={7} metricKey="serviceDette" />
+        {/* Performance + Rings */}
+        <div className="grid gap-4 lg:grid-cols-3">
+          <GlassCard delay={4} className="col-span-2">
+            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">Performance</h3>
+            <div className="grid gap-4 sm:grid-cols-4">
+              <KpiCard label="Rdt brut" value={parcFocusKpi.rendementBrut} formatFn={(n) => formatPercent(n)} icon={BarChart3} variant="success" delay={5} metricKey="rendementBrut" />
+              <KpiCard label="Rdt net" value={parcFocusKpi.rendementNet} formatFn={(n) => formatPercent(n)} icon={BarChart3} variant="success" delay={6} metricKey="rendementNet" />
+              <KpiCard label="Cash-flow/an" value={parcFocusKpi.cashFlowNet} formatFn={formatCurrency} icon={Activity} variant={parcFocusKpi.cashFlowNet >= 0 ? "success" : "danger"} delay={7} metricKey="cashFlowNet" />
+              <KpiCard label="DSCR" value={parcFocusKpi.dscr} formatFn={(n) => n > 0 ? n.toFixed(2) + "x" : "N/A"} icon={Shield} variant={parcFocusKpi.dscr >= 1.4 ? "success" : parcFocusKpi.dscr >= 1.2 ? "primary" : parcFocusKpi.dscr >= 1 ? "warning" : parcFocusKpi.dscr > 0 ? "danger" : "default"} delay={8} metricKey="dscr" />
+            </div>
+          </GlassCard>
+          <GlassCard delay={5} className="flex items-center justify-around">
+            <ProgressRing value={parcFocusKpi.tauxOccupation} color="hsl(142, 76%, 36%)" label={`${parcFocusKpi.tauxOccupation.toFixed(0)}%`} sublabel="Occupation" />
+            <ProgressRing value={parcFocusKpi.ltv} color={parcFocusKpi.ltv > 80 ? "hsl(0, 84%, 60%)" : parcFocusKpi.ltv > 60 ? "hsl(38, 92%, 50%)" : "hsl(221, 83%, 53%)"} label={`${parcFocusKpi.ltv.toFixed(1)}%`} sublabel="LTV" />
+          </GlassCard>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <KpiCard label="Rendement brut" value={Math.round(parcFocusKpi.rendementBrut * 10) / 10} subtitle="%" icon={Percent} variant={parcFocusKpi.rendementBrut >= 5 ? "success" : parcFocusKpi.rendementBrut >= 3 ? "warning" : "danger"} delay={8} metricKey="rendementBrut" />
-          <KpiCard label="Rendement net" value={Math.round(parcFocusKpi.rendementNet * 10) / 10} subtitle="%" icon={Percent} variant={parcFocusKpi.rendementNet >= 4 ? "success" : "warning"} delay={9} metricKey="rendementNet" />
-          <KpiCard label="LTV" value={Math.round(parcFocusKpi.ltv * 10) / 10} subtitle="%" icon={Shield} variant={parcFocusKpi.ltv <= 60 ? "success" : parcFocusKpi.ltv <= 80 ? "warning" : "danger"} delay={10} metricKey="ltv" />
-          <KpiCard label="DSCR" value={Math.round(parcFocusKpi.dscr * 100) / 100} subtitle="x" icon={Gauge} variant={parcFocusKpi.dscr >= 1.2 ? "success" : parcFocusKpi.dscr >= 1 ? "warning" : "danger"} delay={11} metricKey="dscr" />
-          <KpiCard label="Taux occupation" value={Math.round(parcFocusKpi.tauxOccupation)} subtitle="%" icon={Building2} variant={parcFocusKpi.tauxOccupation >= 80 ? "success" : "warning"} delay={12} metricKey="tauxOccupation" />
-        </div>
+        {/* Waterfall */}
+        {parcFocusKpi.loyerAnnuel > 0 && (
+          <GlassCard delay={6}>
+            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">Cascade des revenus</h3>
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={parcWaterfallData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
+                <Tooltip {...chartTooltipStyle} formatter={(v: number) => formatCurrency(Math.abs(v))} />
+                <Bar dataKey="value" animationDuration={1000}>
+                  {parcWaterfallData.map((entry, i) => (
+                    <Cell key={i} fill={entry.fill} radius={[4, 4, 0, 0] as any} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </GlassCard>
+        )}
 
         {/* Actif detail table */}
         <Section title="Détail par Actif">
@@ -966,27 +997,30 @@ export default function AMDashboard() {
         {/* ─── PARC VIEW ─── */}
         {dashboardView === "parc" && (<>
 
-        {/* Parc KPIs */}
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <KpiCard label="Valorisation" value={Math.round(parcFocusKpi.valorisation)} formatFn={formatCurrency} icon={Target} variant="primary" gradient delay={0} metricKey="valorisation" />
-          <KpiCard label="Loyers annuels" value={Math.round(parcFocusKpi.loyerAnnuel)} formatFn={formatCurrency} icon={CircleDollarSign} variant="primary" gradient delay={1} metricKey="loyerHT" />
-          <KpiCard label="NOI" value={Math.round(parcFocusKpi.noi)} formatFn={formatCurrency} icon={TrendingUp} variant={parcFocusKpi.noi > 0 ? "success" : "danger"} gradient delay={2} metricKey="noi" />
-          <KpiCard label="Fonds propres nets" value={Math.round(parcFocusKpi.fondsPropreNets)} formatFn={formatCurrency} icon={Wallet} variant="primary" gradient delay={3} metricKey="fondsPropres" />
+        {/* Hero KPIs */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <KpiCard label="Valorisation" value={parcFocusKpi.valorisation} formatFn={formatCurrency} icon={TrendingUp} variant="primary" gradient delay={0} metricKey="valorisation" />
+          <KpiCard label="Loyers annuels" value={parcFocusKpi.loyerAnnuel} formatFn={formatCurrency} icon={CircleDollarSign} variant="success" gradient delay={1} metricKey="loyerHT" />
+          <KpiCard label="NOI" value={parcFocusKpi.noi} formatFn={formatCurrency} icon={Activity} variant={parcFocusKpi.noi >= 0 ? "success" : "danger"} gradient delay={2} metricKey="noi" subtitle={`Charges: ${formatCurrency(parcFocusKpi.charges)}`} />
+          <KpiCard label="Dette (CRD)" value={parcFocusKpi.crd} formatFn={formatCurrency} icon={PiggyBank} variant="warning" gradient delay={3} metricKey="crd" />
+          <KpiCard label="Fonds propres nets" value={parcFocusKpi.fondsPropreNets} formatFn={formatCurrency} icon={Wallet} variant="primary" gradient delay={4} metricKey="fondsPropres" />
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <KpiCard label="Cash-flow net" value={Math.round(parcFocusKpi.cashFlowNet)} formatFn={formatCurrency} icon={Activity} variant={parcFocusKpi.cashFlowNet >= 0 ? "success" : "danger"} delay={4} metricKey="cashFlowNet" />
-          <KpiCard label="CRD (dette)" value={Math.round(parcFocusKpi.crd)} formatFn={formatCurrency} icon={PiggyBank} variant="warning" delay={5} metricKey="crd" />
-          <KpiCard label="Plus-value" value={Math.round(parcFocusKpi.plusValue)} formatFn={formatCurrency} icon={TrendingUp} variant={parcFocusKpi.plusValue >= 0 ? "success" : "danger"} delay={6} />
-          <KpiCard label="Service dette" value={Math.round(parcFocusKpi.serviceDette)} formatFn={formatCurrency} icon={PiggyBank} delay={7} metricKey="serviceDette" />
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <KpiCard label="Rendement brut" value={Math.round(parcFocusKpi.rendementBrut * 10) / 10} subtitle="%" icon={Percent} variant={parcFocusKpi.rendementBrut >= 5 ? "success" : parcFocusKpi.rendementBrut >= 3 ? "warning" : "danger"} delay={8} metricKey="rendementBrut" />
-          <KpiCard label="Rendement net" value={Math.round(parcFocusKpi.rendementNet * 10) / 10} subtitle="%" icon={Percent} variant={parcFocusKpi.rendementNet >= 4 ? "success" : "warning"} delay={9} metricKey="rendementNet" />
-          <KpiCard label="LTV" value={Math.round(parcFocusKpi.ltv * 10) / 10} subtitle="%" icon={Shield} variant={parcFocusKpi.ltv <= 60 ? "success" : parcFocusKpi.ltv <= 80 ? "warning" : "danger"} delay={10} metricKey="ltv" />
-          <KpiCard label="DSCR" value={Math.round(parcFocusKpi.dscr * 100) / 100} subtitle="x" icon={Gauge} variant={parcFocusKpi.dscr >= 1.2 ? "success" : parcFocusKpi.dscr >= 1 ? "warning" : "danger"} delay={11} metricKey="dscr" />
-          <KpiCard label="Taux occupation" value={Math.round(parcFocusKpi.tauxOccupation)} subtitle="%" icon={Building2} variant={parcFocusKpi.tauxOccupation >= 80 ? "success" : "warning"} delay={12} metricKey="tauxOccupation" />
+        {/* Performance + Rings */}
+        <div className="grid gap-4 lg:grid-cols-3">
+          <GlassCard delay={4} className="col-span-2">
+            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">Performance</h3>
+            <div className="grid gap-4 sm:grid-cols-4">
+              <KpiCard label="Rdt brut" value={parcFocusKpi.rendementBrut} formatFn={(n) => formatPercent(n)} icon={BarChart3} variant="success" delay={5} metricKey="rendementBrut" />
+              <KpiCard label="Rdt net" value={parcFocusKpi.rendementNet} formatFn={(n) => formatPercent(n)} icon={BarChart3} variant="success" delay={6} metricKey="rendementNet" />
+              <KpiCard label="Cash-flow/an" value={parcFocusKpi.cashFlowNet} formatFn={formatCurrency} icon={Activity} variant={parcFocusKpi.cashFlowNet >= 0 ? "success" : "danger"} delay={7} metricKey="cashFlowNet" />
+              <KpiCard label="DSCR" value={parcFocusKpi.dscr} formatFn={(n) => n > 0 ? n.toFixed(2) + "x" : "N/A"} icon={Shield} variant={parcFocusKpi.dscr >= 1.4 ? "success" : parcFocusKpi.dscr >= 1.2 ? "primary" : parcFocusKpi.dscr >= 1 ? "warning" : parcFocusKpi.dscr > 0 ? "danger" : "default"} delay={8} metricKey="dscr" />
+            </div>
+          </GlassCard>
+          <GlassCard delay={5} className="flex items-center justify-around">
+            <ProgressRing value={parcFocusKpi.tauxOccupation} color="hsl(142, 76%, 36%)" label={`${parcFocusKpi.tauxOccupation.toFixed(0)}%`} sublabel="Occupation" />
+            <ProgressRing value={parcFocusKpi.ltv} color={parcFocusKpi.ltv > 80 ? "hsl(0, 84%, 60%)" : parcFocusKpi.ltv > 60 ? "hsl(38, 92%, 50%)" : "hsl(221, 83%, 53%)"} label={`${parcFocusKpi.ltv.toFixed(1)}%`} sublabel="LTV" />
+          </GlassCard>
         </div>
 
         {/* Parc Waterfall + Comparative Charts */}
@@ -1110,7 +1144,7 @@ export default function AMDashboard() {
                 </thead>
                 <tbody>
                   {parcSorted.map((row: ParcKpiSet, i: number) => (
-                    <tr key={row.id} className="border-b border-border/20 hover:bg-muted/20 transition-colors">
+                    <tr key={row.id} className="border-b border-border/20 hover:bg-muted/20 transition-colors cursor-pointer" onClick={() => { setParcSelectedSciId(row.id); setDashboardView("actif"); }}>
                       <td className="px-4 py-3 font-medium whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <div className="h-2 w-2 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />

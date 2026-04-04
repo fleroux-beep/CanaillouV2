@@ -251,10 +251,10 @@ function PortfolioTab({ data, onSelectActif }: { data: EtudeActif[]; onSelectAct
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <KpiCard title="Actifs" value={totalActifs} icon={Building2} />
-        <KpiCard title="Couverture DVF" value={`${withDVF}/${totalActifs}`} subtitle={totalActifs > 0 ? `${Math.round((withDVF / totalActifs) * 100)}%` : ""} icon={Database} />
-        <KpiCard title="Analyses IA" value={`${withIA}/${totalActifs}`} subtitle={totalActifs > 0 ? `${Math.round((withIA / totalActifs) * 100)}%` : ""} icon={Sparkles} />
-        <KpiCard title="Taux capi moyen" value={avgTauxCapi > 0 ? fmtTaux(avgTauxCapi) : "—"} icon={TrendingUp} />
+        <KpiCard label="Actifs" value={totalActifs} icon={Building2} />
+        <KpiCard label="Couverture DVF" value={withDVF} subtitle={`${withDVF}/${totalActifs} (${totalActifs > 0 ? Math.round((withDVF / totalActifs) * 100) : 0}%)`} icon={Database} />
+        <KpiCard label="Analyses IA" value={withIA} subtitle={`${withIA}/${totalActifs} (${totalActifs > 0 ? Math.round((withIA / totalActifs) * 100) : 0}%)`} icon={Sparkles} />
+        <KpiCard label="Taux capi moyen" value={avgTauxCapi} formatFn={(n) => n > 0 ? fmtTaux(n) : "—"} icon={TrendingUp} />
       </div>
 
       <DataTable
@@ -292,8 +292,8 @@ function FicheActifTab({ item, onBack, onAnalyse, analysing }: {
             <h2 className="text-lg font-bold">{actif.nom}</h2>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               {actif.ville && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{actif.ville}</span>}
-              {actif.type && <Badge variant="secondary">{actif.type}</Badge>}
-              {actif.dpe && <Badge variant="secondary">DPE {actif.dpe}</Badge>}
+              {actif.type && <Badge variant="outline">{actif.type}</Badge>}
+              {actif.dpe && <Badge variant="outline">DPE {actif.dpe}</Badge>}
             </div>
           </div>
         </div>
@@ -319,7 +319,7 @@ function FicheActifTab({ item, onBack, onAnalyse, analysing }: {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Left: Market data + Internal metrics */}
         <div className="space-y-4">
-          <Section title="Données de marché (DVF / ANIL)" icon={Database}>
+          <Section title="Données de marché (DVF / ANIL)">
             <div className="space-y-3">
               <DataMetric label="Valeur vénale (DVF)" value={fmtPrix(phase1.valeurVenale?.prixM2Median)}
                 sub={phase1.valeurVenale ? `${fmtPrix(phase1.valeurVenale.prixM2Bas)} — ${fmtPrix(phase1.valeurVenale.prixM2Haut)}${phase1.valeurVenale.nbTransactions ? ` · ${phase1.valeurVenale.nbTransactions} tx` : ""}` : "Aucune donnée DVF"} accent="blue" />
@@ -330,7 +330,7 @@ function FicheActifTab({ item, onBack, onAnalyse, analysing }: {
             </div>
           </Section>
 
-          <Section title="Métriques internes" icon={BarChart3}>
+          <Section title="Métriques internes">
             <div className="grid grid-cols-2 gap-3">
               <DataMetric label="Prix/m² d'achat" value={interne.prixM2 > 0 ? fmtPrix(interne.prixM2) : "—"} sub={interne.ecartPrixPct != null ? `${interne.ecartPrixPct > 0 ? "+" : ""}${interne.ecartPrixPct.toFixed(1)}% vs marché` : undefined} />
               <DataMetric label="Loyer/m² réel" value={interne.loyerM2Mensuel > 0 ? fmtLoyer(interne.loyerM2Mensuel) : "—"} sub={interne.ecartLoyerPct != null ? `${interne.ecartLoyerPct > 0 ? "+" : ""}${interne.ecartLoyerPct.toFixed(1)}% vs marché` : undefined} />
@@ -344,8 +344,7 @@ function FicheActifTab({ item, onBack, onAnalyse, analysing }: {
         <div className="space-y-4">
           {analyseIA ? (
             <>
-              <Section title="Analyse IA" icon={Sparkles}
-                actions={<ConfidenceBadge confidence={analyseIA.confidence} />}>
+              <Section title="Analyse IA">
                 {/* Synthèse */}
                 <div className="rounded-xl bg-purple-500/5 border border-purple-500/20 p-4 mb-4">
                   <p className="text-sm leading-relaxed">{analyseIA.synthese}</p>
@@ -470,15 +469,15 @@ export default function EtudeMarche() {
 
   const { data = [], isLoading } = useQuery<EtudeActif[]>({
     queryKey: ["/api/am/marche/etude"],
-    queryFn: () => apiRequest("GET", "/api/am/marche/etude").then((r) => r.json()),
+    queryFn: () => apiRequest("/api/am/marche/etude"),
   });
 
   // Sync Phase 1 (DVF + ANIL + taux capi)
   const syncMutation = useMutation({
     mutationFn: async () => {
-      const dvf = await apiRequest("POST", "/api/am/marche/sync-dvf").then((r) => r.json());
-      const anil = await apiRequest("POST", "/api/am/marche/sync-anil").then((r) => r.json());
-      const capi = await apiRequest("POST", "/api/am/marche/compute-taux-capi").then((r) => r.json());
+      const dvf = await apiRequest("/api/am/marche/sync-dvf", { method: "POST" });
+      const anil = await apiRequest("/api/am/marche/sync-anil", { method: "POST" });
+      const capi = await apiRequest("/api/am/marche/compute-taux-capi", { method: "POST" });
       return { dvf, anil, capi };
     },
     onSuccess: (result) => {
@@ -493,7 +492,7 @@ export default function EtudeMarche() {
 
   // Analyse IA single asset
   const analyseSingleMutation = useMutation({
-    mutationFn: (actifId: string) => apiRequest("POST", `/api/am/marche/analyse-ia/${actifId}`).then((r) => r.json()),
+    mutationFn: (actifId: string) => apiRequest(`/api/am/marche/analyse-ia/${actifId}`, { method: "POST" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/am/marche/etude"] });
       setStatus({ type: "success", message: "Analyse IA terminée" });
@@ -504,7 +503,7 @@ export default function EtudeMarche() {
 
   // Analyse IA all assets
   const analyseAllMutation = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/am/marche/analyse-ia").then((r) => r.json()),
+    mutationFn: () => apiRequest("/api/am/marche/analyse-ia", { method: "POST" }),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["/api/am/marche/etude"] });
       setStatus({ type: "success", message: `Analyse IA terminée : ${result.analysed}/${result.total} actifs analysés` });
