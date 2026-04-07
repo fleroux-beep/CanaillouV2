@@ -5,7 +5,7 @@ import type { Express } from "express";
 import { requireAuth, requireWriteAdmin } from "../middleware/auth";
 import { logger } from "../lib/logger";
 import { rateLimit } from "../lib/rate-limit";
-import { syncIndicesINSEE, autoIndexBaux } from "../lib/sync-insee";
+import { syncIndicesINSEE, assignDefaultIndices, autoIndexBaux } from "../lib/sync-insee";
 
 const indexationLimiter = rateLimit(5, 10 * 60 * 1000, "indexation"); // 5 per 10 min
 
@@ -32,14 +32,16 @@ export function registerIndexationAutoRoutes(app: Express) {
     }
   });
 
-  // Full pipeline: sync + index
+  // Full pipeline: sync + assign defaults + index
   app.post("/api/indexation/full-pipeline", requireWriteAdmin, async (_req: any, res: any) => {
     try {
       const syncResult = await syncIndicesINSEE();
+      const assignResult = await assignDefaultIndices();
       const indexResult = await autoIndexBaux();
       res.json({
         message: "Pipeline complet terminé",
         sync: syncResult,
+        assignDefaults: assignResult,
         indexation: indexResult,
       });
     } catch (error: any) {

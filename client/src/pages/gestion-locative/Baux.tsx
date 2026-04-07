@@ -63,7 +63,14 @@ export default function BauxGLPage() {
     )},
   ];
 
-  const onChange = (name: string, value: string) => setForm((f) => ({ ...f, [name]: value }));
+  const onChange = (name: string, value: string) => setForm((f) => {
+    const next = { ...f, [name]: value };
+    // Auto-assign default index when typeBail changes and indiceReference is not yet set by user
+    if (name === "typeBail" && !f.indiceReference) {
+      next.indiceReference = value === "habitation" ? "ICC" : "ILC";
+    }
+    return next;
+  });
   const handleSubmit = async (e: React.FormEvent) => { e.preventDefault(); if (editing) { await update({ ...form, id: editing.id } as Bail); } else { await create(form); } setDialogOpen(false); };
 
   return (

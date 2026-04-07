@@ -28,6 +28,7 @@ interface DimensionScore {
 interface HealthScore {
   actifId: string;
   actifNom: string;
+  sciId: string | null;
   sciNom: string;
   scoreGlobal: number; // 0-100
   niveau: "Excellent" | "Bon" | "Attention" | "Critique";
@@ -79,12 +80,16 @@ export function registerScoreSanteRoutes(app: Express) {
         const nbActifsInSci = allActifs.filter((a: any) => a.sciId === actif.sciId).length || 1;
         const actifTravaux = allTravaux.filter((t: any) => t.actifId === actif.id);
 
-        // Calculate financials (use loyerAnnuel OR loyerMensuel*12, not both)
+        // Calculate financials — aligned with client-side getLoyerAnnuelActif
         const loyerFromBaux = actifBaux.reduce((s, b: any) => {
           const annuel = Number(b.loyerAnnuel || 0);
           return s + (annuel > 0 ? annuel : Number(b.loyerMensuel || 0) * 12);
         }, 0);
-        const loyerAnnuel = loyerFromBaux > 0 ? loyerFromBaux : actifLots.reduce((s, l: any) => {
+        // Fallback: only lots with statut "loué" (NFD-normalized), matching client logic
+        const lotsLouesForLoyer = actifLots.filter((l: any) =>
+          l.statut?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === "loue"
+        );
+        const loyerAnnuel = loyerFromBaux > 0 ? loyerFromBaux : lotsLouesForLoyer.reduce((s, l: any) => {
           const annuel = Number(l.loyerAnnuel || 0);
           return s + (annuel > 0 ? annuel : Number(l.loyerMensuel || 0) * 12);
         }, 0);
@@ -95,12 +100,20 @@ export function registerScoreSanteRoutes(app: Express) {
         const prixAcq = Number(actif.prixAcquisition || 0) + Number(actif.fraisNotaire || 0)
           + Number(actif.fraisAgence || 0) + Number(actif.montantTravaux || 0);
 
-        let valeur = prixAcq;
+        // Valorisation — aligned with client-side getValeurEstimee
+        // Method 1: capitalisation (loyerNet / taux capi)
         const tauxCapi = Number(actif.tauxCapitalisation || 0);
-        if (tauxCapi > 0) {
-          // If NOI <= 0, estimated value is 0 — do not mask the problem with prixAcq
-          valeur = noi > 0 ? noi / (tauxCapi / 100) : 0;
-        }
+        const loyerNet = loyerAnnuel - chargesTotal;
+        const valeurCapi = tauxCapi > 0 && loyerNet > 0 ? loyerNet / (tauxCapi / 100) : 0;
+        // Method 2: comparables (surface × prix/m² marché)
+        const surface = Number(actif.surfaceCarrez || actif.surface || 0);
+        const prixM2Marche = Number(actif.prixM2Marche || 0);
+        const valeurComp = surface > 0 && prixM2Marche > 0 ? surface * prixM2Marche : 0;
+        // Median of available methods, fallback to prixAcq
+        let valeur = prixAcq;
+        if (valeurCapi > 0 && valeurComp > 0) valeur = (valeurCapi + valeurComp) / 2;
+        else if (valeurCapi > 0) valeur = valeurCapi;
+        else if (valeurComp > 0) valeur = valeurComp;
 
         // Helper: calcul actuariel de la mensualité (même logique que la page Emprunts)
         function computeMensualite(e: any): number {
@@ -135,9 +148,11 @@ export function registerScoreSanteRoutes(app: Express) {
         const rendementBrut = prixAcq > 0 ? (loyerAnnuel / prixAcq) * 100 : 0;
         const cashFlowNet = noi - serviceDette;
 
-        // Occupation
+        // Occupation — normalize accents to match all variants (Loué, loué, LOUÉ, loue…)
         const lotsTotal = actifLots.length || 1;
-        const lotsOccupes = actifLots.filter((l: any) => l.statut === "loué").length;
+        const lotsOccupes = actifLots.filter((l: any) =>
+          l.statut?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === "loue"
+        ).length;
         const tauxOccupation = (lotsOccupes / lotsTotal) * 100;
 
         // ─── Dimension scores ───
@@ -205,18 +220,18 @@ export function registerScoreSanteRoutes(app: Express) {
         });
         if (tauxOccupation < 80 && actifLots.length > 1) recommandations.push(`Vacance de ${(100 - tauxOccupation).toFixed(0)}% — accélérer la commercialisation.`);
 
-        // 5. État / Complétude (15%)
+        // 5. Complétude (15%) — focus on financially impactful fields
         let scoreEtat = 100;
         const missing: string[] = [];
-        if (!actif.taxeFonciere) { scoreEtat -= 15; missing.push("taxe foncière"); }
-        if (!actif.assurancePno) { scoreEtat -= 10; missing.push("assurance PNO"); }
-        if (!actif.tauxCapitalisation) { scoreEtat -= 15; missing.push("taux capi"); }
-        if (!actif.dpe) { scoreEtat -= 10; missing.push("DPE"); }
-        if (!actif.anneeConstruction) { scoreEtat -= 5; missing.push("année construction"); }
-        if (!actif.surface && !actif.surfaceCarrez) { scoreEtat -= 15; missing.push("surface"); }
-        // Travaux en cours pénalisent légèrement
-        const travauxEnCours = actifTravaux.filter((t: any) => t.statut === "en cours");
-        if (travauxEnCours.length > 0) { scoreEtat -= 10; }
+        // High impact: directly affect financial calculations
+        if (!actif.taxeFonciere) { scoreEtat -= 20; missing.push("taxe foncière"); }
+        if (!actif.assurancePno) { scoreEtat -= 15; missing.push("assurance PNO"); }
+        if (!actif.surface && !actif.surfaceCarrez) { scoreEtat -= 20; missing.push("surface"); }
+        if (!actif.tauxCapitalisation && !actif.prixM2Marche) { scoreEtat -= 15; missing.push("taux capi ou prix/m²"); }
+        // Low impact: informational only
+        if (!actif.dpe) { scoreEtat -= 5; missing.push("DPE"); }
+        if (!actif.anneeConstruction) { scoreEtat -= 3; missing.push("année construction"); }
+        // Travaux en cours = information, not a penalty
         scoreEtat = Math.max(0, scoreEtat);
         dimensions.push({
           label: "Complétude",
@@ -242,6 +257,7 @@ export function registerScoreSanteRoutes(app: Express) {
         scores.push({
           actifId: actif.id,
           actifNom: actif.nom,
+          sciId: actif.sciId,
           sciNom: sci?.nom || "—",
           scoreGlobal,
           niveau,

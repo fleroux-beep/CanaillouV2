@@ -11,7 +11,7 @@ import {
   AlertTriangle, DollarSign, FolderOpen, ShieldCheck,
   TreePine, Hammer, ArrowLeftRight, FlaskConical, ClipboardList,
   ArrowUpDown, FileBarChart, Menu, X, Settings, Search,
-  Bell, Heart, FileUp, Zap, Brain,
+  Bell, Heart, FileUp, Zap, Brain, DatabaseBackup,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { ChatPanel } from "./ui/chat-panel";
@@ -73,6 +73,7 @@ const amNavGroups: NavGroup[] = [
   {
     label: "Outils",
     items: [
+      { label: "Import de données", href: "/asset-management/import", icon: DatabaseBackup },
       { label: "Extraction bail PDF", href: "/asset-management/extraction-bail", icon: FileUp },
       { label: "Indexation auto", href: "/asset-management/indexation-auto", icon: Zap },
     ],

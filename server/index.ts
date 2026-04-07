@@ -19,6 +19,7 @@ import { registerIndexationAutoRoutes } from "./routes/indexation-auto";
 import { registerScoreSanteRoutes } from "./routes/score-sante";
 import { registerBailPDFRoutes } from "./routes/bail-pdf";
 import { registerProjectionsPredictivesRoutes } from "./routes/projections-predictives";
+import { registerImportWizardRoutes } from "./routes/import-wizard";
 import { logger, requestLogger } from "./lib/logger";
 import { requireAdmin } from "./middleware/auth";
 import { startAutoSync, stopAutoSync } from "./lib/auto-sync-marche";
@@ -121,6 +122,7 @@ registerIndexationAutoRoutes(app);
 registerScoreSanteRoutes(app);
 registerBailPDFRoutes(app);
 registerProjectionsPredictivesRoutes(app);
+registerImportWizardRoutes(app);
 
 // Admin: import Excel SCI data (one-time migration)
 app.post("/api/admin/import-excel", requireAdmin, async (_req, res) => {
@@ -217,6 +219,8 @@ async function withRetry<T>(fn: () => Promise<T>, label: string, retries = 5, de
   throw new Error("unreachable");
 }
 
+let server: ReturnType<typeof app.listen> | undefined;
+
 // Start listening FIRST (so healthcheck passes), then run DB setup
 (async () => {
   // Log masked DATABASE_URL for debugging
@@ -271,8 +275,6 @@ function gracefulShutdown(signal: string) {
   // Force exit after 10s
   setTimeout(() => process.exit(1), 10_000);
 }
-
-let server: ReturnType<typeof app.listen> | undefined;
 
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
