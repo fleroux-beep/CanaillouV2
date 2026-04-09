@@ -107,6 +107,8 @@ app.use((req: any, res: any, next: any) => {
   // Also accept Content-Type: application/json as evidence of programmatic request
   const ct = req.headers["content-type"] || "";
   if (ct.includes("application/json")) return next();
+  // Accept multipart/form-data for file uploads (requires session cookie for auth)
+  if (ct.includes("multipart/form-data")) return next();
   return res.status(403).json({ error: "Requête refusée (CSRF)" });
 });
 

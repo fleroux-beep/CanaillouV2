@@ -192,7 +192,15 @@ export function registerImportWizardRoutes(app: Express) {
   });
 
   // POST upload Excel — parse sheets and return structure
-  app.post("/api/import-wizard/upload-excel", requireAuth, importLimiter, excelUpload.single("file"), async (req: any, res: any) => {
+  app.post("/api/import-wizard/upload-excel", requireAuth, importLimiter, (req: any, res: any, next: any) => {
+    excelUpload.single("file")(req, res, (err: any) => {
+      if (err) {
+        if (err.code === "LIMIT_FILE_SIZE") return res.status(413).json({ error: "Fichier trop volumineux (max 50 Mo)" });
+        return res.status(400).json({ error: err.message || "Erreur upload" });
+      }
+      next();
+    });
+  }, async (req: any, res: any) => {
     if (!req.file) return res.status(400).json({ error: "Aucun fichier fourni" });
 
     const filePath = req.file.path;
@@ -367,7 +375,16 @@ export function registerImportWizardRoutes(app: Express) {
   });
 
   // POST upload documents — classify with Claude
-  app.post("/api/import-wizard/upload-documents", requireAuth, docLimiter, docUpload.array("files", 10), async (req: any, res: any) => {
+  app.post("/api/import-wizard/upload-documents", requireAuth, docLimiter, (req: any, res: any, next: any) => {
+    docUpload.array("files", 10)(req, res, (err: any) => {
+      if (err) {
+        if (err.code === "LIMIT_FILE_SIZE") return res.status(413).json({ error: "Fichier trop volumineux (max 20 Mo)" });
+        if (err.code === "LIMIT_FILE_COUNT") return res.status(400).json({ error: "Maximum 10 fichiers par upload" });
+        return res.status(400).json({ error: err.message || "Erreur upload" });
+      }
+      next();
+    });
+  }, async (req: any, res: any) => {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) return res.status(503).json({ error: "ANTHROPIC_API_KEY non configurée" });
 

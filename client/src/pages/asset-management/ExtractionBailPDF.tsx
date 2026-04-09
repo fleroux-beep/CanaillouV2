@@ -61,6 +61,7 @@ export default function ExtractionBailPDFPage() {
     try {
       const response = await fetch("/api/bail-pdf/extract", {
         method: "POST",
+        headers: { "X-Requested-With": "fetch" },
         credentials: "include",
         body: formData,
       });
