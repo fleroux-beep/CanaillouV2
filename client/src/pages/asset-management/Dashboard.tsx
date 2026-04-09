@@ -163,12 +163,13 @@ function aggregateKpis(rows: KpiRow[], label: string): KpiRow {
 
 function HeroKpis({ kpi }: { kpi: KpiRow }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-      <KpiCard label="Valorisation" value={kpi.valorisation} formatFn={formatCurrency} icon={TrendingUp} variant="primary" gradient delay={0} metricKey="valorisation" />
-      <KpiCard label="Loyers annuels" value={kpi.loyerAnnuel} formatFn={formatCurrency} icon={CircleDollarSign} variant="success" gradient delay={1} metricKey="loyerHT" />
-      <KpiCard label="NOI" value={kpi.noi} formatFn={formatCurrency} icon={Activity} variant={kpi.noi >= 0 ? "success" : "danger"} gradient delay={2} metricKey="noi" subtitle={`Charges: ${formatCurrency(kpi.charges)}`} />
-      <KpiCard label="Dette (CRD)" value={kpi.crd} formatFn={formatCurrency} icon={PiggyBank} variant="warning" gradient delay={3} metricKey="crd" />
-      <KpiCard label="Cash-flow net" value={kpi.cashFlowNet} formatFn={formatCurrency} icon={Wallet} variant={kpi.cashFlowNet >= 0 ? "success" : "danger"} gradient delay={4} metricKey="cashFlowNet" />
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
+      <KpiCard label="Prix d'acquisition" value={kpi.prixAcquisition} formatFn={formatCurrency} icon={Building2} variant="default" gradient delay={0} metricKey="prixAcquisition" />
+      <KpiCard label="Valorisation" value={kpi.valorisation} formatFn={formatCurrency} icon={TrendingUp} variant="primary" gradient delay={1} metricKey="valorisation" subtitle={kpi.prixAcquisition > 0 ? `${kpi.plusValuePct >= 0 ? "+" : ""}${kpi.plusValuePct.toFixed(1)}% vs acq.` : undefined} />
+      <KpiCard label="Loyers annuels" value={kpi.loyerAnnuel} formatFn={formatCurrency} icon={CircleDollarSign} variant="success" gradient delay={2} metricKey="loyerHT" />
+      <KpiCard label="NOI" value={kpi.noi} formatFn={formatCurrency} icon={Activity} variant={kpi.noi >= 0 ? "success" : "danger"} gradient delay={3} metricKey="noi" subtitle={`Charges: ${formatCurrency(kpi.charges)}`} />
+      <KpiCard label="Dette (CRD)" value={kpi.crd} formatFn={formatCurrency} icon={PiggyBank} variant="warning" gradient delay={4} metricKey="crd" />
+      <KpiCard label="Cash-flow net" value={kpi.cashFlowNet} formatFn={formatCurrency} icon={Wallet} variant={kpi.cashFlowNet >= 0 ? "success" : "danger"} gradient delay={5} metricKey="cashFlowNet" />
     </div>
   );
 }
@@ -244,6 +245,8 @@ function DetailTable({ rows, total, sortKey, sortDir, onSort, onRowClick, entity
                 {entityLabel === "SCI" && <SH label="Actifs" sk="nbActifs" />}
                 <SH label="Lots" sk="nbLots" />
                 <SH label="Valorisation" sk="valorisation" />
+                <SH label="Prix acq." sk="prixAcquisition" />
+                <SH label="+/- Value" sk="plusValue" />
                 <SH label="Loyers/an" sk="loyerAnnuel" />
                 <SH label="NOI" sk="noi" />
                 <SH label="Cash-flow" sk="cashFlowNet" />
@@ -269,6 +272,10 @@ function DetailTable({ rows, total, sortKey, sortDir, onSort, onRowClick, entity
                   {entityLabel === "SCI" && <td className="px-3 py-3 text-right">{row.nbActifs}</td>}
                   <td className="px-3 py-3 text-right">{row.nbLotsLoues}/{row.nbLots}</td>
                   <td className="px-3 py-3 text-right font-semibold">{formatCurrency(row.valorisation)}</td>
+                  <td className="px-3 py-3 text-right">{formatCurrency(row.prixAcquisition)}</td>
+                  <td className={`px-3 py-3 text-right font-semibold ${row.plusValue >= 0 ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>
+                    {row.prixAcquisition > 0 ? `${row.plusValuePct >= 0 ? "+" : ""}${row.plusValuePct.toFixed(1)}%` : "—"}
+                  </td>
                   <td className="px-3 py-3 text-right">{formatCurrency(row.loyerAnnuel)}</td>
                   <td className={`px-3 py-3 text-right font-semibold ${row.noi < 0 ? "text-red-500" : ""}`}>{formatCurrency(row.noi)}</td>
                   <td className={`px-3 py-3 text-right font-semibold ${row.cashFlowNet < 0 ? "text-red-500" : "text-green-600 dark:text-green-400"}`}>{formatCurrency(row.cashFlowNet)}</td>
@@ -287,6 +294,10 @@ function DetailTable({ rows, total, sortKey, sortDir, onSort, onRowClick, entity
                 {entityLabel === "SCI" && <td className="px-3 py-3 text-right">{total.nbActifs}</td>}
                 <td className="px-3 py-3 text-right">{total.nbLotsLoues}/{total.nbLots}</td>
                 <td className="px-3 py-3 text-right">{formatCurrency(total.valorisation)}</td>
+                <td className="px-3 py-3 text-right">{formatCurrency(total.prixAcquisition)}</td>
+                <td className={`px-3 py-3 text-right font-semibold ${total.plusValue >= 0 ? "text-green-600" : "text-red-500"}`}>
+                  {total.prixAcquisition > 0 ? `${total.plusValuePct >= 0 ? "+" : ""}${total.plusValuePct.toFixed(1)}%` : "—"}
+                </td>
                 <td className="px-3 py-3 text-right">{formatCurrency(total.loyerAnnuel)}</td>
                 <td className="px-3 py-3 text-right">{formatCurrency(total.noi)}</td>
                 <td className={`px-3 py-3 text-right ${total.cashFlowNet < 0 ? "text-red-500" : "text-green-600"}`}>{formatCurrency(total.cashFlowNet)}</td>
@@ -424,8 +435,8 @@ export default function AMDashboard() {
   const viewDescription = dashboardView === "parc"
     ? "Vue d'ensemble du patrimoine immobilier"
     : dashboardView === "sci"
-    ? `${selectedSciName || "SCI"} — Détail`
-    : `${selectedActifName || "Actif"} — Détail`;
+    ? selectedSciName ? `${selectedSciName} — Détail` : "Vue par SCI"
+    : selectedActifName ? `${selectedActifName} — Détail` : "Vue par Actif";
 
   return (
     <AnimatePresence>
@@ -445,9 +456,12 @@ export default function AMDashboard() {
                 key={key}
                 onClick={() => {
                   if (key === "parc") goToParc();
-                  else if (key === "sci" && !selectedSciId) setDashboardView("parc"); // need to select SCI first
-                  else if (key === "actif" && !selectedActifId) {} // need to select actif first
-                  else setDashboardView(key);
+                  else if (key === "sci") {
+                    setSelectedActifId(null);
+                    setDashboardView("sci");
+                  } else if (key === "actif") {
+                    setDashboardView("actif");
+                  }
                 }}
                 className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-medium transition-all ${
                   dashboardView === key
@@ -465,6 +479,12 @@ export default function AMDashboard() {
           {(dashboardView === "sci" || dashboardView === "actif") && (
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <button onClick={goToParc} className="hover:text-foreground transition-colors">Parc</button>
+              {dashboardView === "sci" && !selectedSciId && (
+                <>
+                  <span>/</span>
+                  <span className="text-foreground font-medium">Toutes les SCI</span>
+                </>
+              )}
               {selectedSciName && (
                 <>
                   <span>/</span>
@@ -474,6 +494,12 @@ export default function AMDashboard() {
                   >
                     {selectedSciName}
                   </button>
+                </>
+              )}
+              {dashboardView === "actif" && !selectedActifId && (
+                <>
+                  {!selectedSciName && <span>/</span>}
+                  {!selectedSciName && <span className="text-foreground font-medium">Tous les actifs</span>}
                 </>
               )}
               {dashboardView === "actif" && selectedActifName && (
@@ -535,8 +561,25 @@ export default function AMDashboard() {
         )}
 
         {/* ═══════════════════════════════════════════════════════════ */}
-        {/* SCI VIEW — KPIs of selected SCI                           */}
+        {/* SCI VIEW — KPIs of selected SCI or all SCIs               */}
         {/* ═══════════════════════════════════════════════════════════ */}
+        {dashboardView === "sci" && !selectedSciId && (
+          <>
+            <HeroKpis kpi={parcGlobalKpi} />
+            <PerfAndRings kpi={parcGlobalKpi} />
+            <Waterfall kpi={parcGlobalKpi} />
+
+            <DetailTable
+              rows={sortData(sciKpiRows)}
+              total={parcGlobalKpi}
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onSort={handleSort}
+              onRowClick={goToSci}
+              entityLabel="SCI"
+            />
+          </>
+        )}
         {dashboardView === "sci" && selectedSciKpi && (
           <>
             <HeroKpis kpi={selectedSciKpi} />
@@ -556,8 +599,25 @@ export default function AMDashboard() {
         )}
 
         {/* ═══════════════════════════════════════════════════════════ */}
-        {/* ACTIF VIEW — KPIs of selected actif                       */}
+        {/* ACTIF VIEW — All actifs or selected actif                  */}
         {/* ═══════════════════════════════════════════════════════════ */}
+        {dashboardView === "actif" && !selectedActifId && (
+          <>
+            <HeroKpis kpi={parcGlobalKpi} />
+            <PerfAndRings kpi={parcGlobalKpi} />
+            <Waterfall kpi={parcGlobalKpi} />
+
+            <DetailTable
+              rows={sortData(allActifKpiRows)}
+              total={parcGlobalKpi}
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onSort={handleSort}
+              onRowClick={goToActif}
+              entityLabel="Actif"
+            />
+          </>
+        )}
         {dashboardView === "actif" && selectedActifKpi && (
           <>
             <HeroKpis kpi={selectedActifKpi} />

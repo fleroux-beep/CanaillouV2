@@ -27,55 +27,83 @@ interface InseeValue {
 
 /**
  * Fetch latest values from INSEE SDMX API for a given series.
+ * Tries both the V1 and the legacy endpoint format.
  * The API always returns XML (SDMX StructureSpecificData), regardless of Accept header.
  */
 async function fetchInseeSeriesValues(seriesId: string): Promise<InseeValue[]> {
-  const url = `https://api.insee.fr/series/BDM/V1/data/SERIES_BDM/${seriesId}?lastNObservations=12`;
+  // Primary URL: BDM V1 SDMX endpoint
+  const urls = [
+    `https://api.insee.fr/series/BDM/V1/data/SERIES_BDM/${seriesId}?lastNObservations=12`,
+    `https://api.insee.fr/series/BDM/V1/data/SERIES_BDM/${seriesId}`,
+  ];
 
-  try {
-    const response = await fetch(url, {
-      signal: AbortSignal.timeout(15000),
-    });
+  for (const url of urls) {
+    try {
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(15000),
+      });
 
-    if (!response.ok) {
-      throw new Error(`INSEE API returned ${response.status}`);
+      if (!response.ok) {
+        logger.warn(`INSEE API returned ${response.status} for ${url}`);
+        continue;
+      }
+
+      const text = await response.text();
+      const values = parseInseeXmlResponse(text);
+      if (values.length > 0) {
+        return values;
+      }
+      logger.warn(`INSEE API returned XML but no parseable observations for series ${seriesId}, response length: ${text.length}`);
+    } catch (err: any) {
+      logger.warn(`INSEE API fetch failed for series ${seriesId} (${url}): ${err.message}`);
     }
-
-    const text = await response.text();
-    return parseInseeXmlResponse(text);
-  } catch (err: any) {
-    logger.warn(`INSEE API fetch failed for series ${seriesId}: ${err.message}`);
-    return [];
   }
+
+  return [];
 }
 
 /**
  * Parse INSEE SDMX XML response.
  * The XML uses attributes on <Obs> elements:
  *   <Obs TIME_PERIOD="2025-Q4" OBS_VALUE="145.78" .../>
+ * Attribute order may vary between series — parse each <Obs> independently.
  */
 function parseInseeXmlResponse(text: string): InseeValue[] {
   const values: InseeValue[] = [];
-  const obsPattern = /TIME_PERIOD="([^"]+)"\s+OBS_VALUE="([^"]+)"/g;
-  let match;
-  while ((match = obsPattern.exec(text)) !== null) {
-    const trimestre = convertPeriod(match[1]);
-    const valeur = Number(match[2]);
-    if (trimestre && !isNaN(valeur)) {
-      values.push({ trimestre, valeur });
+  // Match each <Obs .../> or <Obs ...>...</Obs> element
+  const obsPattern = /<Obs\s+([^>]+)\/?>/g;
+  let obsMatch;
+  while ((obsMatch = obsPattern.exec(text)) !== null) {
+    const attrs = obsMatch[1];
+    const timePeriod = attrs.match(/TIME_PERIOD="([^"]+)"/)?.[1];
+    const obsValue = attrs.match(/OBS_VALUE="([^"]+)"/)?.[1];
+    if (timePeriod && obsValue) {
+      const trimestre = convertPeriod(timePeriod);
+      const valeur = Number(obsValue);
+      if (trimestre && !isNaN(valeur)) {
+        values.push({ trimestre, valeur });
+      }
     }
   }
   return values;
 }
 
 function convertPeriod(period: string): string | null {
-  // "2025-Q1" → "T1-2025" or "2025-T1" → "T1-2025"
+  // "2025-Q1" → "T1-2025"
   const m = period.match(/(\d{4})-Q(\d)/);
   if (m) return `T${m[2]}-${m[1]}`;
+  // "2025-T1" → "T1-2025"
   const m2 = period.match(/(\d{4})-T(\d)/);
   if (m2) return `T${m2[2]}-${m2[1]}`;
   // Already in "T1-2025" format
   if (/^T\d-\d{4}$/.test(period)) return period;
+  // Monthly format "2025-03" → convert to quarter "T1-2025"
+  const m3 = period.match(/^(\d{4})-(\d{2})$/);
+  if (m3) {
+    const month = parseInt(m3[2], 10);
+    const quarter = Math.ceil(month / 3);
+    return `T${quarter}-${m3[1]}`;
+  }
   return null;
 }
 
@@ -110,7 +138,8 @@ export async function syncIndicesINSEE(): Promise<{ synced: number; errors: stri
         }
       }
 
-      logger.info(`sync-insee: ${type} — ${values.length} valeurs, ${synced} nouvelles`);
+      const newForType = values.filter((v) => !existingMap.has(v.trimestre)).length;
+      logger.info(`sync-insee: ${type} — ${values.length} valeurs récupérées, ${newForType} nouvelles insérées`);
     } catch (err: any) {
       errors.push(`${type}: ${err.message}`);
       logger.error(`sync-insee: erreur pour ${type}`, { error: err.message });
