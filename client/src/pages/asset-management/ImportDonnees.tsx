@@ -179,6 +179,7 @@ export default function ImportDonneesPage() {
       fd.append("file", file);
       const res = await fetch("/api/import-wizard/upload-excel", {
         method: "POST",
+        headers: { "X-Requested-With": "fetch" },
         body: fd,
         credentials: "include",
       });
@@ -224,6 +225,7 @@ export default function ImportDonneesPage() {
       files.forEach((f) => fd.append("files", f));
       const res = await fetch("/api/import-wizard/upload-documents", {
         method: "POST",
+        headers: { "X-Requested-With": "fetch" },
         body: fd,
         credentials: "include",
       });

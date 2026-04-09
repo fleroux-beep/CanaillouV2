@@ -96,7 +96,15 @@ export function registerBailPDFRoutes(app: Express) {
     fs.mkdirSync(uploadDir, { recursive: true });
   }
 
-  app.post("/api/bail-pdf/extract", requireAuth, pdfExtractLimiter, upload.single("file"), async (req: any, res: any) => {
+  app.post("/api/bail-pdf/extract", requireAuth, pdfExtractLimiter, (req: any, res: any, next: any) => {
+    upload.single("file")(req, res, (err: any) => {
+      if (err) {
+        if (err.code === "LIMIT_FILE_SIZE") return res.status(413).json({ error: "Fichier trop volumineux (max 20 Mo)" });
+        return res.status(400).json({ error: err.message || "Erreur upload" });
+      }
+      next();
+    });
+  }, async (req: any, res: any) => {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
       return res.status(503).json({ error: "ANTHROPIC_API_KEY non configurée" });

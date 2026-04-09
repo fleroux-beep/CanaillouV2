@@ -39,8 +39,9 @@ export function CsvImport({ endpoint, onSuccess }: CsvImportProps) {
 
       const res = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Requested-With": "fetch" },
         body: JSON.stringify({ data: rows }),
+        credentials: "include",
       });
 
       const result = await res.json();
