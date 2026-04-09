@@ -150,6 +150,8 @@ interface EmpruntDetailRow {
   dateDebut: string | null;
   capitalRestantDu2025: number | null;
   echeanceAnnuelle2025: number | null;
+  dureeTotaleAns: number | null; // derived from amortization schedule
+  dateFin: string | null; // last year with significant payment → "YYYY-12-31"
 }
 
 // ── Parse combined "BDD" sheet (new format) ─────────────────────────
@@ -397,6 +399,17 @@ function parseEmpruntsDetailles(wb: XLSX.WorkBook): EmpruntDetailRow[] {
   // New format: data starts at row 3, old format: row 2
   const startRow = isNewFormat ? 3 : 2;
 
+  // Year columns for deriving loan end date from payment schedule
+  // New format: échéances at cols 9,11,13,15,17,19,21,23,...
+  // Old format: échéances at cols 7,9,11,13,15,17,...
+  const newYears =  [2020,2021,2022,2023,2024,2025,2026,2027,2028,2029,2030,2031,2032,2033,2034,2035,2036,2037,2038,2039,2040,2041,2042,2043];
+  const newEchCols = [9,   11,  13,  15,  17,  19,  21,  23,  25,  27,  29,  31,  33,  35,  37,  39,  41,  43,  45,  47,  49,  51,  53,  55];
+  const oldYears =  [2020,2021,2022,2023,2024,2025];
+  const oldEchCols = [7,  9,   11,  13,  15,  17];
+
+  const years = isNewFormat ? newYears : oldYears;
+  const echCols = isNewFormat ? newEchCols : oldEchCols;
+
   for (let i = startRow; i < raw.length; i++) {
     const r = raw[i];
     if (!r || !r[0] || String(r[0]) === "TOTAL") continue;
@@ -404,33 +417,52 @@ function parseEmpruntsDetailles(wb: XLSX.WorkBook): EmpruntDetailRow[] {
     const societe = str(r[1]) || "";
     if (societe.includes("HOCHE") || societe.includes("MADELI") || societe.includes("ARAGO")) continue;
 
+    // Derive loan end date from the last year with a significant payment (> 100€)
+    let lastPaymentYear = 0;
+    for (let y = 0; y < years.length && y < echCols.length; y++) {
+      const ech = num(r[echCols[y]]) || 0;
+      if (ech > 100) lastPaymentYear = years[y];
+    }
+
+    const dateDebutCol = isNewFormat ? 7 : 6;
+    const dateDebut = excelDateToISO(r[dateDebutCol]);
+
+    // Calculate total loan duration from first payment to last
+    let dureeTotaleAns: number | null = null;
+    let dateFin: string | null = null;
+    if (lastPaymentYear > 0) {
+      dateFin = `${lastPaymentYear}-12-31`;
+      if (dateDebut) {
+        const startYear = new Date(dateDebut).getFullYear();
+        dureeTotaleAns = lastPaymentYear - startYear + 1;
+      }
+    }
+
     if (isNewFormat) {
-      // New "Emprunts" sheet layout:
-      // 0=Nom prêt, 1=Société, 2=Banque, 3=(empty), 4=N°cpte, 5=Montant, 6=Taux, 7=Date 1ere échéance
-      // Then year pairs: 9/10=2020, 11/12=2021, 13/14=2022, 15/16=2023, 17/18=2024, 19/20=2025
       emprunts.push({
         nomPret: str(r[0])!,
         societe,
         banque: str(r[2]) || "",
         montant: num(r[5]) || 0,
         taux: num(r[6]) || 0,
-        dateDebut: excelDateToISO(r[7]),
+        dateDebut,
         echeanceAnnuelle2025: num(r[19]),
         capitalRestantDu2025: num(r[20]),
+        dureeTotaleAns,
+        dateFin,
       });
     } else {
-      // Old "Emprunts Détaillés" layout:
-      // 0=Nom, 1=Société, 2=Banque, ..., 4=Montant, 5=Taux, 6=DateDebut
-      // 7/8=2020, ..., 17/18=2025
       emprunts.push({
         nomPret: str(r[0])!,
         societe,
         banque: str(r[2]) || "",
         montant: num(r[4]) || 0,
         taux: num(r[5]) || 0,
-        dateDebut: excelDateToISO(r[6]),
+        dateDebut,
         echeanceAnnuelle2025: num(r[17]),
         capitalRestantDu2025: num(r[18]),
+        dureeTotaleAns,
+        dateFin,
       });
     }
   }
@@ -1071,6 +1103,16 @@ export async function importExcelData(): Promise<{
         }
       }
 
+      // Best source: duration derived from Emprunts amortization schedule
+      if (!dureeAns && e.dureeTotaleAns) {
+        dureeAns = e.dureeTotaleAns;
+      }
+
+      // Use date_fin from Emprunts schedule if not found in financement
+      if (!dateFin && e.dateFin) {
+        dateFin = e.dateFin;
+      }
+
       // Fallback: calculate durée from dateDebut + dateFin
       if (!dureeAns && e.dateDebut && dateFin) {
         const start = new Date(e.dateDebut);
@@ -1079,7 +1121,7 @@ export async function importExcelData(): Promise<{
         if (diffYears > 0) dureeAns = Math.round(diffYears);
       }
 
-      if (!dureeAns) dureeAns = 15; // Default for most of these loans
+      if (!dureeAns) dureeAns = 15; // Last resort default
 
       // IRA amount
       let iraAmount: number | null = null;
