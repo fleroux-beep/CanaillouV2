@@ -525,6 +525,69 @@ function parsePLCharges(wb: XLSX.WorkBook): PLCharges[] {
   return results;
 }
 
+// ── Parse Feuil1 (Garanties bancaires par SCI) ─────────────────────
+
+interface GarantieRow {
+  sciName: string;
+  banques: string;
+  garantie: string;
+}
+
+function parseGaranties(wb: XLSX.WorkBook): GarantieRow[] {
+  const sheet = wb.Sheets["Feuil1"];
+  if (!sheet) return [];
+  const raw = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+  const rows: GarantieRow[] = [];
+
+  for (let i = 1; i < raw.length; i++) {
+    const r = raw[i];
+    if (!r || !r[0] || r[0] === "SCI") continue;
+    const sciName = str(r[0]);
+    if (!sciName || SOLD_SCIS.has(sciName)) continue;
+
+    rows.push({
+      sciName,
+      banques: str(r[1]) || "",
+      garantie: str(r[2]) || "",
+    });
+  }
+  return rows;
+}
+
+// ── Parse SYNTH (CA/RN prévisionnel par SCI) ────────────────────────
+
+interface SynthFinancials {
+  sciName: string;
+  ca2025: number;
+  rn2025: number;
+  ca2026: number;
+  rn2026: number;
+}
+
+function parseSynthFinancials(wb: XLSX.WorkBook): SynthFinancials[] {
+  const sheet = wb.Sheets["SYNTH"];
+  if (!sheet) return [];
+  const raw = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+  const agg: Record<string, SynthFinancials> = {};
+
+  // Headers row 1: col 14=CA 2025, 15=RN 2025, 16=CA 2026BP, 17=RN 2026BP
+  for (let i = 2; i < raw.length; i++) {
+    const r = raw[i];
+    if (!r || !r[0]) continue;
+    const sciName = str(r[0])!;
+    if (SOLD_SCIS.has(sciName)) continue;
+
+    if (!agg[sciName]) {
+      agg[sciName] = { sciName, ca2025: 0, rn2025: 0, ca2026: 0, rn2026: 0 };
+    }
+    agg[sciName].ca2025 += num(r[14]) || 0;
+    agg[sciName].rn2025 += num(r[15]) || 0;
+    agg[sciName].ca2026 += num(r[16]) || 0;
+    agg[sciName].rn2026 += num(r[17]) || 0;
+  }
+  return Object.values(agg);
+}
+
 // ── Main import function ─────────────────────────────────────────────
 
 export async function importExcelData(): Promise<{
@@ -585,6 +648,10 @@ export async function importExcelData(): Promise<{
   const empruntRows = parseEmpruntsDetailles(wb);
   // P&L charges: works for both "P&L xxx" and "SCI xxx" sheet names
   const plCharges = parsePLCharges(wb);
+  // Garanties bancaires (Feuil1)
+  const garantieRows = parseGaranties(wb);
+  // CA/RN prévisionnel (SYNTH)
+  const synthFinancials = parseSynthFinancials(wb);
 
   logger.info("import: parsed sheets", {
     format: hasBDDSheet ? "BDD combined" : "separate sheets",
@@ -594,6 +661,8 @@ export async function importExcelData(): Promise<{
     detention: detentionRows.length,
     emprunts: empruntRows.length,
     plSheets: plCharges.length,
+    garanties: garantieRows.length,
+    synthFinancials: synthFinancials.length,
   });
 
   const client = await pool.connect();
@@ -619,11 +688,25 @@ export async function importExcelData(): Promise<{
     const sciIds: Record<string, string> = {};
     const uniqueScis = [...new Set(patrimoineRows.map((r) => r.sciName))];
 
+    // Index SYNTH financials by SCI name
+    const synthBySci: Record<string, SynthFinancials> = {};
+    for (const s of synthFinancials) synthBySci[s.sciName] = s;
+
     for (const sciName of uniqueScis) {
       const sciId = id();
       sciIds[sciName] = sciId;
 
       const firstRow = patrimoineRows.find((r) => r.sciName === sciName)!;
+
+      // Build notes: description + CA/RN prévisionnel
+      const noteParts: string[] = [];
+      if (firstRow.description) noteParts.push(firstRow.description);
+      const synth = synthBySci[sciName];
+      if (synth) {
+        const fmt = (n: number) => Math.round(n).toLocaleString("fr-FR");
+        noteParts.push(`CA 2025: ${fmt(synth.ca2025)} € | RN 2025: ${fmt(synth.rn2025)} €`);
+        noteParts.push(`CA 2026 (BP): ${fmt(synth.ca2026)} € | RN 2026 (BP): ${fmt(synth.rn2026)} €`);
+      }
 
       await client.query(
         `INSERT INTO am_scis (id, nom, forme_juridique, adresse, ville, code_postal, date_creation, notes, created_at, updated_at)
@@ -636,7 +719,7 @@ export async function importExcelData(): Promise<{
           firstRow.ville,
           firstRow.codePostal,
           firstRow.dateAcquisition,
-          firstRow.description,
+          noteParts.length > 0 ? noteParts.join("\n") : null,
         ]
       );
       counts.scis++;
@@ -912,6 +995,16 @@ export async function importExcelData(): Promise<{
     logger.info(`import: created ${counts.lots} lots, ${counts.baux} baux`);
 
     // ─── 7. Create Emprunts (from Emprunts Détaillés + Financement) ─
+    // Index garanties by "sciName|banque" for lookup
+    const garantieBySciBank: Record<string, string> = {};
+    for (const g of garantieRows) {
+      // "SG et CE" → split and index each bank separately
+      const banks = g.banques.split(/\s+et\s+|\s*,\s*/);
+      for (const b of banks) {
+        garantieBySciBank[`${g.sciName}|${b.trim()}`] = g.garantie;
+      }
+    }
+
     for (const e of empruntRows) {
       // Determine SCI from société code
       let sciName = SOCIETE_TO_SCI[e.societe];
@@ -975,11 +1068,15 @@ export async function importExcelData(): Promise<{
         }
       }
 
+      // Look up garantie from Feuil1
+      const garantieKey = `${sciName}|${e.banque}`;
+      const garantieText = garantieBySciBank[garantieKey] || null;
+
       await client.query(
         `INSERT INTO am_emprunts (id, sci_id, banque, montant_emprunte, capital_restant_du,
          taux_annuel, duree_ans, date_debut, date_fin, type_amortissement,
-         taux_assurance, ira, notes, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now(), now())`,
+         taux_assurance, ira, type_garantie, notes, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, now(), now())`,
         [
           id(),
           sciId,
@@ -993,6 +1090,7 @@ export async function importExcelData(): Promise<{
           "constant",
           tauxAssurance,
           iraAmount,
+          garantieText,
           `Prêt: ${e.nomPret}`,
         ]
       );
