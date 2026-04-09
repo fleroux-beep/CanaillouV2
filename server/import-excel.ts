@@ -451,6 +451,7 @@ interface PLCharges {
   entretien: number;
   honorairesComptables: number;
   fraisBancaires: number;
+  refacturations: number; // charges refacturées aux locataires (revenue offset)
 }
 
 function parsePLCharges(wb: XLSX.WorkBook): PLCharges[] {
@@ -483,6 +484,7 @@ function parsePLCharges(wb: XLSX.WorkBook): PLCharges[] {
       entretien: 0,
       honorairesComptables: 0,
       fraisBancaires: 0,
+      refacturations: 0,
     };
 
     // Find the most recent year column (typically column index 7 = 2026, or 6 = 2025)
@@ -495,7 +497,10 @@ function parsePLCharges(wb: XLSX.WorkBook): PLCharges[] {
       const label = String(row[3]).trim();
       const val = num(row[yearCol]) || num(row[yearCol - 1]) || 0;
 
-      if (label.includes("63512") || label.includes("TAXE FONCIERES")) {
+      // Refacturations de charges aux locataires (comptes 7088x)
+      if (label.includes("70880") || label.includes("70881") || label.includes("REFACT")) {
+        charges.refacturations += val;
+      } else if (label.includes("63512") || label.includes("TAXE FONCIERES")) {
         charges.taxeFonciere = val;
       } else if (label.includes("63513") || label.includes("TAXE ORDURES")) {
         charges.taxeOrduresMenageres = val;
@@ -830,11 +835,21 @@ export async function importExcelData(): Promise<{
       const vnc = firstFin?.vnc;
 
       // Charges from P&L, distributed evenly across actifs of same SCI
+      // NET of refacturations — charges récupérables are billed back to tenants,
+      // so the net cash impact is (charges brutes - refacturations).
+      // We distribute the refacturation proportionally across charge categories.
       const sciCharges = chargesBySci[sciName];
       const actifCount = actifCountBySci[sciName] || 1;
-      const taxeFonciere = sciCharges ? sciCharges.taxeFonciere / actifCount : 0;
-      const assurance = sciCharges ? sciCharges.assurance / actifCount : 0;
-      const chargesCopro = sciCharges ? sciCharges.chargesCopro / actifCount : 0;
+      let taxeFonciere = 0, assurance = 0, chargesCopro = 0;
+      if (sciCharges) {
+        const totalBrut = sciCharges.taxeFonciere + sciCharges.assurance + sciCharges.chargesCopro;
+        const refactRatio = totalBrut > 0 ? Math.min(sciCharges.refacturations / totalBrut, 1) : 0;
+        // Net charges = brut × (1 - ratio de refacturation)
+        const netFactor = (1 - refactRatio) / actifCount;
+        taxeFonciere = sciCharges.taxeFonciere * netFactor;
+        assurance = sciCharges.assurance * netFactor;
+        chargesCopro = sciCharges.chargesCopro * netFactor;
+      }
 
       const isCopro = first.copro === "oui";
       const surface = first.surfacesPrivatives || first.surfaceTerrain || totalSurfaceLouee;
@@ -1035,9 +1050,16 @@ export async function importExcelData(): Promise<{
       for (const f of sciFinRows) {
         if (f.banques?.includes(e.banque)) {
           if (f.duree) {
-            // Parse "15 CE et 7 SG" or "15" or "15.5" or "20"
-            const dMatch = f.duree.match(/(\d+(?:\.\d+)?)/);
-            if (dMatch) dureeAns = Math.round(parseFloat(dMatch[1]));
+            // Parse "15 CE et 7 SG" — find the duration segment matching this bank
+            const dureeStr = String(f.duree);
+            const bankDureeMatch = dureeStr.match(new RegExp(`(\\d+(?:\\.\\d+)?)\\s*${e.banque}`, "i"));
+            if (bankDureeMatch) {
+              dureeAns = Math.round(parseFloat(bankDureeMatch[1]));
+            } else {
+              // Fallback: first number (e.g. "15" or "20")
+              const dMatch = dureeStr.match(/(\d+(?:\.\d+)?)/);
+              if (dMatch) dureeAns = Math.round(parseFloat(dMatch[1]));
+            }
           }
           if (f.dateFinEmprunt) dateFin = f.dateFinEmprunt;
           if (f.tauxAssurance) {
@@ -1072,11 +1094,15 @@ export async function importExcelData(): Promise<{
       const garantieKey = `${sciName}|${e.banque}`;
       const garantieText = garantieBySciBank[garantieKey] || null;
 
+      // Use real annual payment from Excel as mensualité for accurate cash-flow
+      // getAnnuiteEmprunt() prioritises mensualité over the actuarial formula
+      const mensualiteReelle = e.echeanceAnnuelle2025 ? (e.echeanceAnnuelle2025 / 12) : null;
+
       await client.query(
         `INSERT INTO am_emprunts (id, sci_id, banque, montant_emprunte, capital_restant_du,
          taux_annuel, duree_ans, date_debut, date_fin, type_amortissement,
-         taux_assurance, ira, type_garantie, notes, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, now(), now())`,
+         mensualite, taux_assurance, ira, type_garantie, notes, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, now(), now())`,
         [
           id(),
           sciId,
@@ -1088,6 +1114,7 @@ export async function importExcelData(): Promise<{
           e.dateDebut,
           dateFin,
           "constant",
+          mensualiteReelle,
           tauxAssurance,
           iraAmount,
           garantieText,
