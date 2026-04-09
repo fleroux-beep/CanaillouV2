@@ -77,7 +77,7 @@ const SOCIETE_TO_SCI: Record<string, string> = {
 // Sold SCIs to skip
 const SOLD_SCIS = new Set(["HOCHE ERMONT", "MADELI", "22 RUE ARAGO"]);
 
-// ── Parse Patrimoine sheet ──────────────────────────────────────────
+// ── Data row interfaces ─────────────────────────────────────────────
 
 interface PatrimoineRow {
   sciName: string;
@@ -97,8 +97,172 @@ interface PatrimoineRow {
   statut: string | null;
 }
 
+interface BailRow {
+  sciName: string;
+  adresse: string | null;
+  destination: string | null;
+  typeBail: string | null;
+  locataire: string | null;
+  dateDebut: string | null;
+  dateFin: string | null;
+  loyerAnnuelDepart: number | null;
+  soumisTVA: string | null;
+  indiceRevalorisation: string | null;
+  loyerActuelHC: number | null;
+  surfaceLouee: number | null;
+}
+
+interface FinancementRow {
+  sciName: string;
+  adresse: string | null;
+  quotePartPrixAchat: number | null;
+  apport: number | null;
+  totalEmprunts: number | null;
+  vo: number | null;
+  vnc: number | null;
+  quotePartEmprunt: number | null;
+  empruntRestantFin2025: number | null;
+  banques: string | null;
+  garantie: string | null;
+  duree: string | null;
+  dateFinEmprunt: string | null;
+  tauxInteret: string | null;
+  tauxAssurance: string | null;
+  tauxIRA: string | null;
+  comptesCourants: number | null;
+}
+
+interface DetentionRow {
+  sciName: string;
+  damien: number;
+  sebastien: number;
+  hio: number;
+  axoriel: number;
+  demembrement: string | null;
+}
+
+interface EmpruntDetailRow {
+  nomPret: string;
+  societe: string;
+  banque: string;
+  montant: number;
+  taux: number;
+  dateDebut: string | null;
+  capitalRestantDu2025: number | null;
+  echeanceAnnuelle2025: number | null;
+}
+
+// ── Parse combined "BDD" sheet (new format) ─────────────────────────
+// The BDD sheet combines Patrimoine + Baux + Financement + Détention in one
+// Row 0 = group headers, Row 1 = column headers, data starts at row 2
+
+interface BDDResult {
+  patrimoine: PatrimoineRow[];
+  baux: BailRow[];
+  financement: FinancementRow[];
+  detention: DetentionRow[];
+}
+
+function parseBDDSheet(wb: XLSX.WorkBook): BDDResult {
+  const sheet = wb.Sheets["BDD"];
+  const raw = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+
+  const patrimoine: PatrimoineRow[] = [];
+  const baux: BailRow[] = [];
+  const financement: FinancementRow[] = [];
+  const detentionMap: Record<string, DetentionRow> = {};
+
+  // Data rows start at index 2 (row 0=group headers, row 1=column headers)
+  for (let i = 2; i < raw.length; i++) {
+    const r = raw[i];
+    if (!r || !r[0]) continue;
+    const sciName = str(r[0])!;
+    if (SOLD_SCIS.has(sciName)) continue;
+    // Skip "VENDU" rows
+    if (str(r[1]) === "VENDU") continue;
+
+    // Patrimoine data
+    patrimoine.push({
+      sciName,
+      dateAcquisition: excelDateToISO(r[1]),
+      codePostal: str(r[2]),
+      ville: str(r[3]),
+      adresse: str(r[4]),
+      numLot: str(r[5]),
+      destination: str(r[6]),
+      surfaceTerrain: num(r[7]),
+      surfacesPrivatives: num(r[8]),
+      usage: str(r[9]),
+      copro: str(r[10]),
+      prixAcquisition: num(r[11]),
+      description: str(r[12]),
+      cadastre: str(r[13]),
+      statut: null,
+    });
+
+    // Bail data (columns 14-22)
+    baux.push({
+      sciName,
+      adresse: str(r[4]),
+      destination: str(r[6]),
+      typeBail: str(r[14]),
+      locataire: str(r[15]),
+      dateDebut: excelDateToISO(r[16]),
+      dateFin: excelDateToISO(r[17]),
+      loyerAnnuelDepart: num(r[18]),
+      soumisTVA: str(r[19]),
+      indiceRevalorisation: str(r[20]),
+      loyerActuelHC: num(r[21]),
+      surfaceLouee: num(r[22]),
+    });
+
+    // Financement data (columns 23-37)
+    financement.push({
+      sciName,
+      adresse: str(r[4]),
+      quotePartPrixAchat: num(r[23]),
+      apport: num(r[24]),
+      totalEmprunts: num(r[25]),
+      vo: num(r[26]),
+      vnc: num(r[27]),
+      quotePartEmprunt: num(r[28]),
+      empruntRestantFin2025: num(r[29]),
+      banques: str(r[30]),
+      garantie: str(r[31]),
+      duree: str(r[32]),
+      dateFinEmprunt: excelDateToISO(r[33]),
+      tauxInteret: str(r[34]),
+      tauxAssurance: str(r[35]),
+      tauxIRA: str(r[36]),
+      comptesCourants: num(r[37]),
+    });
+
+    // Détention capital (columns 38-41, 44=démembrement)
+    if (!detentionMap[sciName]) {
+      detentionMap[sciName] = {
+        sciName,
+        damien: num(r[38]) || 0,
+        sebastien: num(r[39]) || 0,
+        hio: num(r[40]) || 0,
+        axoriel: num(r[41]) || 0,
+        demembrement: str(r[44]),
+      };
+    }
+  }
+
+  return {
+    patrimoine,
+    baux,
+    financement,
+    detention: Object.values(detentionMap),
+  };
+}
+
+// ── Fallback parsers for old format (separate sheets) ───────────────
+
 function parsePatrimoine(wb: XLSX.WorkBook): PatrimoineRow[] {
   const sheet = wb.Sheets["Patrimoine"];
+  if (!sheet) return [];
   const raw = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
   const rows: PatrimoineRow[] = [];
 
@@ -130,25 +294,9 @@ function parsePatrimoine(wb: XLSX.WorkBook): PatrimoineRow[] {
   return rows;
 }
 
-// ── Parse Baux sheet ────────────────────────────────────────────────
-
-interface BailRow {
-  sciName: string;
-  adresse: string | null;
-  destination: string | null;
-  typeBail: string | null;
-  locataire: string | null;
-  dateDebut: string | null;
-  dateFin: string | null;
-  loyerAnnuelDepart: number | null;
-  soumisTVA: string | null;
-  indiceRevalorisation: string | null;
-  loyerActuelHC: number | null;
-  surfaceLouee: number | null;
-}
-
 function parseBaux(wb: XLSX.WorkBook): BailRow[] {
   const sheet = wb.Sheets["Baux"];
+  if (!sheet) return [];
   const raw = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
   const rows: BailRow[] = [];
 
@@ -176,30 +324,9 @@ function parseBaux(wb: XLSX.WorkBook): BailRow[] {
   return rows;
 }
 
-// ── Parse Financement sheet ─────────────────────────────────────────
-
-interface FinancementRow {
-  sciName: string;
-  adresse: string | null;
-  quotePartPrixAchat: number | null;
-  apport: number | null;
-  totalEmprunts: number | null;
-  vo: number | null;
-  vnc: number | null;
-  quotePartEmprunt: number | null;
-  empruntRestantFin2025: number | null;
-  banques: string | null;
-  garantie: string | null;
-  duree: string | null;
-  dateFinEmprunt: string | null;
-  tauxInteret: string | null;
-  tauxAssurance: string | null;
-  tauxIRA: string | null;
-  comptesCourants: number | null;
-}
-
 function parseFinancement(wb: XLSX.WorkBook): FinancementRow[] {
   const sheet = wb.Sheets["Financement"];
+  if (!sheet) return [];
   const raw = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
   const rows: FinancementRow[] = [];
 
@@ -232,19 +359,9 @@ function parseFinancement(wb: XLSX.WorkBook): FinancementRow[] {
   return rows;
 }
 
-// ── Parse Détention Capital sheet ───────────────────────────────────
-
-interface DetentionRow {
-  sciName: string;
-  damien: number;
-  sebastien: number;
-  hio: number;
-  axoriel: number;
-  demembrement: string | null;
-}
-
 function parseDetention(wb: XLSX.WorkBook): DetentionRow[] {
   const sheet = wb.Sheets["Détention Capital"];
+  if (!sheet) return [];
   const raw = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
   const rows: DetentionRow[] = [];
 
@@ -266,44 +383,56 @@ function parseDetention(wb: XLSX.WorkBook): DetentionRow[] {
   return rows;
 }
 
-// ── Parse Emprunts Détaillés sheet ──────────────────────────────────
-
-interface EmpruntDetailRow {
-  nomPret: string;
-  societe: string;
-  banque: string;
-  montant: number;
-  taux: number;
-  dateDebut: string | null;
-  capitalRestantDu2025: number | null;
-  echeanceAnnuelle2025: number | null;
-}
-
 function parseEmpruntsDetailles(wb: XLSX.WorkBook): EmpruntDetailRow[] {
-  const sheet = wb.Sheets["Emprunts Détaillés"];
+  // Try old format first ("Emprunts Détaillés"), then new format ("Emprunts")
+  const oldSheet = wb.Sheets["Emprunts Détaillés"];
+  const newSheet = wb.Sheets["Emprunts"];
+  const sheet = oldSheet || newSheet;
+  if (!sheet) return [];
+
+  const isNewFormat = !oldSheet && !!newSheet;
   const raw = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
   const emprunts: EmpruntDetailRow[] = [];
 
-  // Row 0 = headers, Row 1 = sub-headers, data from row 2
-  for (let i = 2; i < raw.length; i++) {
+  // New format: data starts at row 3, old format: row 2
+  const startRow = isNewFormat ? 3 : 2;
+
+  for (let i = startRow; i < raw.length; i++) {
     const r = raw[i];
     if (!r || !r[0] || String(r[0]) === "TOTAL") continue;
 
     const societe = str(r[1]) || "";
-    // Skip sold SCIs
     if (societe.includes("HOCHE") || societe.includes("MADELI") || societe.includes("ARAGO")) continue;
 
-    emprunts.push({
-      nomPret: str(r[0])!,
-      societe,
-      banque: str(r[2]) || "",
-      montant: num(r[4]) || 0,
-      taux: num(r[5]) || 0,
-      dateDebut: excelDateToISO(r[6]),
-      // Columns: 7=2020 ech, 8=2020 solde, 9=2021 ech, 10=2021 solde, ..., 17=2025 ech, 18=2025 solde
-      echeanceAnnuelle2025: num(r[17]),
-      capitalRestantDu2025: num(r[18]),
-    });
+    if (isNewFormat) {
+      // New "Emprunts" sheet layout:
+      // 0=Nom prêt, 1=Société, 2=Banque, 3=(empty), 4=N°cpte, 5=Montant, 6=Taux, 7=Date 1ere échéance
+      // Then year pairs: 9/10=2020, 11/12=2021, 13/14=2022, 15/16=2023, 17/18=2024, 19/20=2025
+      emprunts.push({
+        nomPret: str(r[0])!,
+        societe,
+        banque: str(r[2]) || "",
+        montant: num(r[5]) || 0,
+        taux: num(r[6]) || 0,
+        dateDebut: excelDateToISO(r[7]),
+        echeanceAnnuelle2025: num(r[19]),
+        capitalRestantDu2025: num(r[20]),
+      });
+    } else {
+      // Old "Emprunts Détaillés" layout:
+      // 0=Nom, 1=Société, 2=Banque, ..., 4=Montant, 5=Taux, 6=DateDebut
+      // 7/8=2020, ..., 17/18=2025
+      emprunts.push({
+        nomPret: str(r[0])!,
+        societe,
+        banque: str(r[2]) || "",
+        montant: num(r[4]) || 0,
+        taux: num(r[5]) || 0,
+        dateDebut: excelDateToISO(r[6]),
+        echeanceAnnuelle2025: num(r[17]),
+        capitalRestantDu2025: num(r[18]),
+      });
+    }
   }
   return emprunts;
 }
@@ -325,19 +454,20 @@ interface PLCharges {
 }
 
 function parsePLCharges(wb: XLSX.WorkBook): PLCharges[] {
-  const plSheets = [
-    { sheet: "P&L 34 RUE HAUTE", sci: "34 RUE HAUTE" },
-    { sheet: "P&L LEGRAND", sci: "LEGRAND" },
-    { sheet: "P&L ARMEE ORIENT", sci: "ARMEE ORIENT" },
-    { sheet: "P&L CHENNEVIERES", sci: "CHENNEVIERES" },
-    { sheet: "P&L TAVERNY", sci: "TAVERNY" },
-    { sheet: "P&L GENERAL JULES BRIMON", sci: "GENERAL JULES BRIMONT" },
+  // Support both old "P&L xxx" and new "SCI xxx" sheet name formats
+  const sciKeys = [
+    { names: ["P&L 34 RUE HAUTE", "SCI 34 RUE HAUTE"], sci: "34 RUE HAUTE" },
+    { names: ["P&L LEGRAND", "SCI LEGRAND"], sci: "LEGRAND" },
+    { names: ["P&L ARMEE ORIENT", "SCI ARMEE ORIENT"], sci: "ARMEE ORIENT" },
+    { names: ["P&L CHENNEVIERES", "SCI CHENNEVIERES"], sci: "CHENNEVIERES" },
+    { names: ["P&L TAVERNY", "SCI TAVERNY"], sci: "TAVERNY" },
+    { names: ["P&L GENERAL JULES BRIMON", "SCI GENERAL JULES BRIMONT"], sci: "GENERAL JULES BRIMONT" },
   ];
 
   const results: PLCharges[] = [];
 
-  for (const { sheet: sheetName, sci } of plSheets) {
-    const ws = wb.Sheets[sheetName];
+  for (const { names, sci } of sciKeys) {
+    const ws = names.map((n) => wb.Sheets[n]).find(Boolean);
     if (!ws) continue;
 
     const raw = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
@@ -407,27 +537,57 @@ export async function importExcelData(): Promise<{
   associes: number;
   participations: number;
 }> {
-  const fileName = "BDD_SCI_restructuree.xlsx";
-  const candidatePaths = [
-    path.resolve(__dirname, fileName),
-    path.resolve(__dirname, "..", fileName),
+  // Try multiple possible file names (newest first)
+  const fileNames = [
+    "BDD_SCI_restructuree.xlsx",
+    "BDD SCI 07.04.26 - BDD - loyers actuels complétés.xlsx",
+    "BDD SCI 04 01 2026 - proposition FLE new BDD (5).xlsx",
   ];
   const fs = await import("fs");
-  const xlsxPath = candidatePaths.find((p) => fs.existsSync(p));
-  if (!xlsxPath) {
-    throw new Error(`Fichier Excel introuvable. Chemins vérifiés: ${candidatePaths.join(", ")}`);
+  let xlsxPath: string | undefined;
+  for (const fn of fileNames) {
+    const candidates = [
+      path.resolve(__dirname, fn),
+      path.resolve(__dirname, "..", fn),
+    ];
+    xlsxPath = candidates.find((p) => fs.existsSync(p));
+    if (xlsxPath) break;
   }
+  if (!xlsxPath) {
+    throw new Error(`Fichier Excel introuvable. Noms recherchés: ${fileNames.join(", ")}`);
+  }
+  logger.info("import: using Excel file", { path: xlsxPath });
   const wb = XLSX.readFile(xlsxPath);
 
-  // Parse all sheets
-  const patrimoineRows = parsePatrimoine(wb);
-  const bauxRows = parseBaux(wb);
-  const financementRows = parseFinancement(wb);
-  const detentionRows = parseDetention(wb);
+  // Detect format: new combined "BDD" sheet vs old separate sheets
+  const hasBDDSheet = !!wb.Sheets["BDD"];
+  let patrimoineRows: PatrimoineRow[];
+  let bauxRows: BailRow[];
+  let financementRows: FinancementRow[];
+  let detentionRows: DetentionRow[];
+
+  if (hasBDDSheet) {
+    logger.info("import: detected combined BDD sheet format");
+    const bddResult = parseBDDSheet(wb);
+    patrimoineRows = bddResult.patrimoine;
+    bauxRows = bddResult.baux;
+    financementRows = bddResult.financement;
+    detentionRows = bddResult.detention;
+  } else {
+    logger.info("import: using separate sheets format (old)");
+    patrimoineRows = parsePatrimoine(wb);
+    bauxRows = parseBaux(wb);
+    financementRows = parseFinancement(wb);
+    detentionRows = parseDetention(wb);
+  }
+
+  // Emprunts: works for both old ("Emprunts Détaillés") and new ("Emprunts") sheets
   const empruntRows = parseEmpruntsDetailles(wb);
+  // P&L charges: works for both "P&L xxx" and "SCI xxx" sheet names
   const plCharges = parsePLCharges(wb);
 
   logger.info("import: parsed sheets", {
+    format: hasBDDSheet ? "BDD combined" : "separate sheets",
     patrimoine: patrimoineRows.length,
     baux: bauxRows.length,
     financement: financementRows.length,
