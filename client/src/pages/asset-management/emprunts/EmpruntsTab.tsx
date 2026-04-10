@@ -8,8 +8,8 @@ import { ConfirmDialog } from "../../../components/ui/confirm-dialog";
 import { FormField, FormGrid } from "../../../components/ui/form-field";
 import { Badge } from "../../../components/ui/badge";
 import { formatCurrency, formatPercent } from "../../../lib/utils";
-import { Plus, Pencil, Trash2, Search, Download, ChevronDown, ChevronRight, Inbox } from "lucide-react";
-import { getAnnuiteEmprunt, type AMEmprunt } from "../../../lib/am-calculations";
+import { Plus, Pencil, Trash2, Search, Download, ChevronDown, ChevronRight, Inbox, CheckCircle2, AlertTriangle, AlertCircle } from "lucide-react";
+import { getAnnuiteEmprunt, reconcileEmprunt, type AMEmprunt } from "../../../lib/am-calculations";
 import { findRefTauxEmprunt, compareTauxEmprunt, badgeVariant, type RefTauxEmprunt } from "../../../lib/market-utils";
 import { InfoTooltip } from "../../../components/ui/info-tooltip";
 import type { Emprunt, SCI, Actif } from "../../../types";
@@ -194,7 +194,9 @@ export function EmpruntsTab() {
                     </motion.tr>
                     {/* Emprunt rows */}
                     {!isCollapsed && group.emprunts.map((emp, i) => {
-                      const annuite = getAnnuiteEmprunt(emp as unknown as AMEmprunt);
+                      const amEmprunt = emp as unknown as AMEmprunt;
+                      const annuite = getAnnuiteEmprunt(amEmprunt);
+                      const recon = reconcileEmprunt(amEmprunt);
                       return (
                         <motion.tr
                           key={emp.id}
@@ -218,7 +220,18 @@ export function EmpruntsTab() {
                               return <span title={cmp.detail}><Badge variant={badgeVariant(cmp.level)}>{cmp.label}</Badge></span>;
                             })()}
                           </td>
-                          <td className="px-4 py-3.5 text-right">{annuite > 0 ? formatCurrency(annuite) : "—"}</td>
+                          <td className="px-4 py-3.5 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {annuite > 0 ? formatCurrency(annuite) : "—"}
+                              {recon && (
+                                <span title={recon.detail} className="cursor-help">
+                                  {recon.status === "ok" && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />}
+                                  {recon.status === "warning" && <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />}
+                                  {recon.status === "error" && <AlertCircle className="h-3.5 w-3.5 text-red-500" />}
+                                </span>
+                              )}
+                            </div>
+                          </td>
                           <td className="px-4 py-3.5 text-right">{emp.tauxAssurance ? formatPercent(emp.tauxAssurance) : "—"}</td>
                           <td className="px-4 py-3.5 text-right">{emp.ira ? formatCurrency(emp.ira) : "—"}</td>
                           <td className="px-4 py-3.5">{emp.dateFin || "—"}</td>

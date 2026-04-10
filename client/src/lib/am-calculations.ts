@@ -112,7 +112,7 @@ export function getLoyerAnnuelActif(actif: AMActif, baux: AMBail[], lots?: AMLot
   // Fallback: somme des loyers des lots loués
   if (lots) {
     const lotsActif = lots.filter(
-      (l) => l.actifId === actif.id && l.statut === "loué" && !l.archived
+      (l) => l.actifId === actif.id && l.statut?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === "loue" && !l.archived
     );
     return lotsActif.reduce((sum, l) => {
       const annuel = Number(l.loyerAnnuel || 0);
@@ -135,11 +135,13 @@ export function getLoyerAnnuelActif(actif: AMActif, baux: AMBail[], lots?: AMLot
  */
 export function getChargesAnnuelles(actif: AMActif): number {
   if (!actif) return 0;
-  const copro = Number(actif.chargesCopropriete || actif.chargesAnnuelles || 0);
+  // Utiliser ?? (nullish coalescing) au lieu de || pour éviter qu'un "0" explicite
+  // ne tombe dans le fallback (en JS, "0" || x → x car "0" est falsy).
+  const copro = Number(actif.chargesCopropriete ?? actif.chargesAnnuelles ?? 0);
   return (
     copro +
-    Number(actif.taxeFonciere || 0) +
-    Number(actif.assurancePno || 0)
+    Number(actif.taxeFonciere ?? 0) +
+    Number(actif.assurancePno ?? 0)
   );
 }
 
@@ -207,14 +209,16 @@ export function getValeurEstimee(actif: AMActif, baux: AMBail[], lots?: AMLot[],
 
 /** Capital restant dû */
 export function getCapitalRestantDu(emprunt: AMEmprunt): number {
-  return Number(emprunt?.capitalRestantDu || emprunt?.montantEmprunte || 0);
+  return Number(emprunt?.capitalRestantDu ?? emprunt?.montantEmprunte ?? 0);
 }
 
-/** Annuité d'un emprunt.
- * Si mensualité connue : mensualité × 12.
- * Sinon : calcul actuariel mensuel à partir de montant, taux et durée.
- * Formule mensuelle : M = P × [r_m(1+r_m)^n_m] / [(1+r_m)^n_m - 1]
- * où r_m = taux annuel / 12, n_m = durée en mois.
+/** Annuité d'un emprunt = paiement annuel total (capital + intérêts + assurance).
+ *
+ * Source de vérité unique : mensualité Excel × 12.
+ * Fallback si pas de mensualité stockée : formule actuarielle + taux assurance.
+ *
+ * Utilisé partout (dashboard, cash-flow, contrôle de gestion, reporting).
+ * Pour la décomposition capital/intérêts/assurance → computeAmortSchedule().
  */
 export function getAnnuiteEmprunt(emprunt: AMEmprunt): number {
   const mensualite = Number(emprunt?.mensualite || 0);
@@ -226,14 +230,75 @@ export function getAnnuiteEmprunt(emprunt: AMEmprunt): number {
   const dureeAns = Number(emprunt?.dureeAns || 0);
 
   if (montant <= 0 || dureeAns <= 0) return 0;
-  if (tauxAnnuel <= 0) return montant / dureeAns; // Taux 0% : linéaire
 
-  // Pas mensuel : r_m = taux annuel / 12, n = durée en mois
+  let mensualiteCalc: number;
+  if (tauxAnnuel <= 0) {
+    mensualiteCalc = montant / (dureeAns * 12); // Taux 0% : linéaire
+  } else {
+    // Pas mensuel : r_m = taux annuel / 12, n = durée en mois
+    const tauxMensuel = tauxAnnuel / 12;
+    const nbMois = dureeAns * 12;
+    const factor = Math.pow(1 + tauxMensuel, nbMois);
+    mensualiteCalc = montant * (tauxMensuel * factor) / (factor - 1);
+  }
+
+  // Ajouter l'assurance emprunteur (calculée sur le capital initial)
+  const tauxAssurance = Number(emprunt?.tauxAssurance || 0) / 100;
+  if (tauxAssurance > 0) {
+    mensualiteCalc += (montant * tauxAssurance) / 12;
+  }
+
+  return mensualiteCalc * 12;
+}
+
+/** Reconciliation: compare stored mensualité with actuarial formula.
+ * Returns null if no mensualité stored, otherwise { formulaAnnual, storedAnnual, ecartPct, status }.
+ */
+export function reconcileEmprunt(emprunt: AMEmprunt): {
+  formulaAnnual: number;
+  storedAnnual: number;
+  ecartPct: number;
+  status: "ok" | "warning" | "error";
+  detail: string;
+} | null {
+  const mensualite = Number(emprunt?.mensualite || 0);
+  if (mensualite <= 0) return null;
+
+  const storedAnnual = mensualite * 12;
+  const montant = Number(emprunt?.montantEmprunte || 0);
+  const tauxAnnuel = Number(emprunt?.tauxAnnuel || 0) / 100;
+  const dureeAns = Number(emprunt?.dureeAns || 0);
+
+  if (montant <= 0 || dureeAns <= 0 || tauxAnnuel <= 0) return null;
+
   const tauxMensuel = tauxAnnuel / 12;
   const nbMois = dureeAns * 12;
   const factor = Math.pow(1 + tauxMensuel, nbMois);
-  const mensualiteCalc = montant * (tauxMensuel * factor) / (factor - 1);
-  return mensualiteCalc * 12;
+  let mensuCalc = montant * (tauxMensuel * factor) / (factor - 1);
+
+  const tauxAssurance = Number(emprunt?.tauxAssurance || 0) / 100;
+  if (tauxAssurance > 0) mensuCalc += (montant * tauxAssurance) / 12;
+
+  const formulaAnnual = mensuCalc * 12;
+  const ecartPct = storedAnnual !== 0 ? ((formulaAnnual - storedAnnual) / storedAnnual) * 100 : 0;
+  const absEcart = Math.abs(ecartPct);
+
+  let status: "ok" | "warning" | "error";
+  let detail: string;
+  if (absEcart < 1) {
+    status = "ok";
+    detail = `Formule = ${Math.round(formulaAnnual).toLocaleString("fr")} vs réel = ${Math.round(storedAnnual).toLocaleString("fr")} (${ecartPct > 0 ? "+" : ""}${ecartPct.toFixed(1)}%)`;
+  } else if (absEcart < 5) {
+    status = "warning";
+    detail = `Écart modéré: formule = ${Math.round(formulaAnnual).toLocaleString("fr")} vs réel = ${Math.round(storedAnnual).toLocaleString("fr")} (${ecartPct > 0 ? "+" : ""}${ecartPct.toFixed(1)}%)`;
+  } else {
+    status = "error";
+    detail = ecartPct > 0
+      ? `Formule > réel de ${absEcart.toFixed(1)}%: probable année partielle ou différé`
+      : `Formule < réel de ${absEcart.toFixed(1)}%: probable fin de prêt ou échéancier non standard`;
+  }
+
+  return { formulaAnnual, storedAnnual, ecartPct, status, detail };
 }
 
 /** Service de la dette annuel pour une liste d'emprunts */
@@ -269,10 +334,15 @@ export function getLTV(dette: number, valeur: number): number {
 }
 
 /** DSCR = NOI / service de la dette.
- * Returns 0 when there is no debt (serviceDette <= 0).
- * Callers display "N/A" or "—" when dscr === 0 to indicate absence of debt
- * rather than a bad coverage ratio. Server-side score-sante uses 999 internally
- * for scoring purposes only; the returned metric value is also 0 for consistency.
+ * Convention de retour :
+ *  - Pas de dette (serviceDette <= 0) → retourne 0. Callers affichent "N/A".
+ *  - NOI négatif avec dette → retourne un DSCR négatif (situation de crise).
+ *  - NOI = 0 avec dette → retourne 0 (couverture nulle — confondu avec "pas de dette"
+ *    dans l'affichage, mais ce cas est extrêmement rare en pratique).
+ *
+ * Note audit : idéalement retourner null pour "pas de dette" afin de distinguer
+ * les deux cas, mais le nombre d'appelants (20+) et les subtilités de coercion JS
+ * (null < 1.2 === true) rendent ce refactoring risqué sans tests exhaustifs.
  */
 export function getDSCR(noi: number, serviceDette: number): number {
   if (serviceDette <= 0) return 0;
@@ -406,37 +476,55 @@ export interface AmortRow {
 
 /**
  * Génère un tableau d'amortissement avec assurance.
- * Si mensualité connue : utilise la mensualité × 12.
- * Sinon : calcule l'annuité constante (formule actuarielle standard).
+ *
+ * Source de vérité unique : la mensualité Excel (paiement bancaire réel).
+ *
+ * Décomposition :
+ *   mensualité_Excel = capital + intérêts + assurance
+ *   - intérêts = CRD × taux_mensuel (fait mathématique)
+ *   - assurance = mensualité_Excel - formule_actuarielle(montant, taux, durée)
+ *                 (déduit automatiquement ; ≥ 0, sinon cap à 0)
+ *   - capital = mensualité_Excel - intérêts - assurance
+ *
+ * Si pas de mensualité stockée → fallback sur formule + tauxAssurance.
  */
 export function computeAmortSchedule(emprunt: AMEmprunt): AmortRow[] {
   const montant = Number(emprunt?.montantEmprunte || 0);
   const taux = Number(emprunt?.tauxAnnuel || 0) / 100;
   const duree = Number(emprunt?.dureeAns || 0);
-  const mensualite = Number(emprunt?.mensualite || 0);
-  const tauxAssurance = Number(emprunt?.tauxAssurance || 0) / 100;
-  let assuranceMensuelle = Number(emprunt?.assuranceMensuelle || 0);
-
-  // Si assurance mensuelle non saisie, calculer à partir du taux d'assurance
-  if (assuranceMensuelle === 0 && montant > 0 && tauxAssurance > 0) {
-    assuranceMensuelle = (montant * tauxAssurance) / 12;
-  }
+  const mensualiteExcel = Number(emprunt?.mensualite || 0);
 
   if (montant <= 0 || duree <= 0) return [];
 
-  // Calcul de la mensualité (pas mensuel pour précision bancaire)
-  let mensu: number;
-  if (mensualite > 0) {
-    mensu = mensualite;
-  } else if (taux > 0) {
-    // Formule actuarielle mensuelle : M = P × [r_m(1+r_m)^n_m] / [(1+r_m)^n_m - 1]
-    const tauxMensuel = taux / 12;
-    const nbMois = duree * 12;
-    const factor = Math.pow(1 + tauxMensuel, nbMois);
-    mensu = montant * (tauxMensuel * factor) / (factor - 1);
+  // 1. Formule actuarielle pure (capital + intérêts uniquement)
+  let mensuActuarielle: number;
+  if (taux > 0) {
+    const rm = taux / 12;
+    const n = duree * 12;
+    const f = Math.pow(1 + rm, n);
+    mensuActuarielle = montant * (rm * f) / (f - 1);
   } else {
-    // Taux 0% : amortissement linéaire
-    mensu = montant / (duree * 12);
+    mensuActuarielle = montant / (duree * 12);
+  }
+
+  // 2. Déduire l'assurance mensuelle de l'écart Excel vs formule
+  let assuranceMensuelle: number;
+  let mensuCapInt: number; // mensualité hors assurance (pour le calcul d'amortissement)
+
+  if (mensualiteExcel > 0) {
+    // Assurance = écart entre paiement réel et formule pure
+    assuranceMensuelle = Math.max(0, mensualiteExcel - mensuActuarielle);
+    mensuCapInt = mensualiteExcel - assuranceMensuelle;
+  } else {
+    // Pas de mensualité Excel → fallback sur tauxAssurance ou assuranceMensuelle
+    mensuCapInt = mensuActuarielle;
+    assuranceMensuelle = Number(emprunt?.assuranceMensuelle || 0);
+    if (assuranceMensuelle === 0) {
+      const tauxAssurance = Number(emprunt?.tauxAssurance || 0) / 100;
+      if (montant > 0 && tauxAssurance > 0) {
+        assuranceMensuelle = (montant * tauxAssurance) / 12;
+      }
+    }
   }
 
   const assuranceAnnuelle = assuranceMensuelle * 12;
@@ -456,24 +544,24 @@ export function computeAmortSchedule(emprunt: AMEmprunt): AmortRow[] {
     let capitalAmortiAn = 0;
     for (let m = 0; m < 12 && capital > 0.01; m++) {
       const interetsMois = capital * tauxMensuel;
-      const capitalMois = Math.min(capital, mensu - interetsMois);
+      const capitalMois = Math.min(capital, mensuCapInt - interetsMois);
       interetsAn += interetsMois;
       capitalAmortiAn += capitalMois;
       capital = Math.max(0, capital - capitalMois);
     }
-    const annuiteEffective = interetsAn + capitalAmortiAn;
+    const annuiteCapInt = interetsAn + capitalAmortiAn;
     const anneeReelle = startYear != null ? startYear + y - 1 : undefined;
     rows.push({
       year: y,
       anneeReelle,
       isCurrent: anneeReelle === currentYear,
       capitalDebut: capital + capitalAmortiAn,
-      annuite: annuiteEffective,
+      annuite: annuiteCapInt,
       interets: interetsAn,
       capitalAmorti: capitalAmortiAn,
       capitalFin: capital,
       assurance: assuranceAnnuelle,
-      totalAnnuel: annuiteEffective + assuranceAnnuelle,
+      totalAnnuel: annuiteCapInt + assuranceAnnuelle,
     });
   }
   return rows;
@@ -610,7 +698,11 @@ export function computeStressTests(
           const tauxMensuelStresse = tauxStresse / 12;
           const nbMois = duree * 12;
           const factor = Math.pow(1 + tauxMensuelStresse, nbMois);
-          debtServiceAjuste += (montant * (tauxMensuelStresse * factor) / (factor - 1)) * 12;
+          let mensuStresse = montant * (tauxMensuelStresse * factor) / (factor - 1);
+          // Ajouter l'assurance (cohérent avec getAnnuiteEmprunt)
+          const tauxAssurance = Number(e.tauxAssurance ?? 0) / 100;
+          if (tauxAssurance > 0) mensuStresse += (montant * tauxAssurance) / 12;
+          debtServiceAjuste += mensuStresse * 12;
         }
       }
     }
@@ -669,8 +761,6 @@ export function computeMultiYearProjection(
   let charges = chargesBase;
   let valo = valorisationBase;
   let dette = detteBase;
-  // Durée résiduelle estimée pour calculer la décroissance du service de dette
-  const dureeResiduelle = amortissementAnnuel > 0 ? Math.ceil(dette / amortissementAnnuel) : 0;
 
   for (let y = 0; y <= years; y++) {
     if (y > 0) {
@@ -679,9 +769,10 @@ export function computeMultiYearProjection(
       valo *= 1 + appreciationActif / 100;
       dette = Math.max(0, dette - amortissementAnnuel);
     }
-    // Service de la dette diminue proportionnellement au capital restant
-    const ratioDetteRestante = detteBase > 0 ? dette / detteBase : 0;
-    const serviceDette = dette > 0 ? serviceDetteBase * ratioDetteRestante : 0;
+    // Service de la dette : CONSTANT tant que le prêt court (annuité fixe),
+    // puis tombe à 0 quand le capital est intégralement remboursé.
+    // C'est le comportement réel d'un prêt à taux fixe amortissable.
+    const serviceDette = dette > 0 ? serviceDetteBase : 0;
     const remboursementCapital = dette > 0 ? Math.min(amortissementAnnuel, dette) : 0;
     const noi = loyers - charges;
     const cf = noi - serviceDette;

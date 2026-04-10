@@ -150,6 +150,8 @@ interface EmpruntDetailRow {
   dateDebut: string | null;
   capitalRestantDu2025: number | null;
   echeanceAnnuelle2025: number | null;
+  dureeTotaleAns: number | null; // derived from amortization schedule
+  dateFin: string | null; // last year with significant payment → "YYYY-12-31"
 }
 
 // ── Parse combined "BDD" sheet (new format) ─────────────────────────
@@ -397,6 +399,17 @@ function parseEmpruntsDetailles(wb: XLSX.WorkBook): EmpruntDetailRow[] {
   // New format: data starts at row 3, old format: row 2
   const startRow = isNewFormat ? 3 : 2;
 
+  // Year columns for deriving loan end date from payment schedule
+  // New format: échéances at cols 9,11,13,15,17,19,21,23,...
+  // Old format: échéances at cols 7,9,11,13,15,17,...
+  const newYears =  [2020,2021,2022,2023,2024,2025,2026,2027,2028,2029,2030,2031,2032,2033,2034,2035,2036,2037,2038,2039,2040,2041,2042,2043];
+  const newEchCols = [9,   11,  13,  15,  17,  19,  21,  23,  25,  27,  29,  31,  33,  35,  37,  39,  41,  43,  45,  47,  49,  51,  53,  55];
+  const oldYears =  [2020,2021,2022,2023,2024,2025];
+  const oldEchCols = [7,  9,   11,  13,  15,  17];
+
+  const years = isNewFormat ? newYears : oldYears;
+  const echCols = isNewFormat ? newEchCols : oldEchCols;
+
   for (let i = startRow; i < raw.length; i++) {
     const r = raw[i];
     if (!r || !r[0] || String(r[0]) === "TOTAL") continue;
@@ -404,33 +417,52 @@ function parseEmpruntsDetailles(wb: XLSX.WorkBook): EmpruntDetailRow[] {
     const societe = str(r[1]) || "";
     if (societe.includes("HOCHE") || societe.includes("MADELI") || societe.includes("ARAGO")) continue;
 
+    // Derive loan end date from the last year with a significant payment (> 100€)
+    let lastPaymentYear = 0;
+    for (let y = 0; y < years.length && y < echCols.length; y++) {
+      const ech = num(r[echCols[y]]) || 0;
+      if (ech > 100) lastPaymentYear = years[y];
+    }
+
+    const dateDebutCol = isNewFormat ? 7 : 6;
+    const dateDebut = excelDateToISO(r[dateDebutCol]);
+
+    // Calculate total loan duration from first payment to last
+    let dureeTotaleAns: number | null = null;
+    let dateFin: string | null = null;
+    if (lastPaymentYear > 0) {
+      dateFin = `${lastPaymentYear}-12-31`;
+      if (dateDebut) {
+        const startYear = new Date(dateDebut).getFullYear();
+        dureeTotaleAns = lastPaymentYear - startYear + 1;
+      }
+    }
+
     if (isNewFormat) {
-      // New "Emprunts" sheet layout:
-      // 0=Nom prêt, 1=Société, 2=Banque, 3=(empty), 4=N°cpte, 5=Montant, 6=Taux, 7=Date 1ere échéance
-      // Then year pairs: 9/10=2020, 11/12=2021, 13/14=2022, 15/16=2023, 17/18=2024, 19/20=2025
       emprunts.push({
         nomPret: str(r[0])!,
         societe,
         banque: str(r[2]) || "",
         montant: num(r[5]) || 0,
         taux: num(r[6]) || 0,
-        dateDebut: excelDateToISO(r[7]),
+        dateDebut,
         echeanceAnnuelle2025: num(r[19]),
         capitalRestantDu2025: num(r[20]),
+        dureeTotaleAns,
+        dateFin,
       });
     } else {
-      // Old "Emprunts Détaillés" layout:
-      // 0=Nom, 1=Société, 2=Banque, ..., 4=Montant, 5=Taux, 6=DateDebut
-      // 7/8=2020, ..., 17/18=2025
       emprunts.push({
         nomPret: str(r[0])!,
         societe,
         banque: str(r[2]) || "",
         montant: num(r[4]) || 0,
         taux: num(r[5]) || 0,
-        dateDebut: excelDateToISO(r[6]),
+        dateDebut,
         echeanceAnnuelle2025: num(r[17]),
         capitalRestantDu2025: num(r[18]),
+        dureeTotaleAns,
+        dateFin,
       });
     }
   }
@@ -451,6 +483,7 @@ interface PLCharges {
   entretien: number;
   honorairesComptables: number;
   fraisBancaires: number;
+  refacturations: number; // charges refacturées aux locataires (revenue offset)
 }
 
 function parsePLCharges(wb: XLSX.WorkBook): PLCharges[] {
@@ -483,6 +516,7 @@ function parsePLCharges(wb: XLSX.WorkBook): PLCharges[] {
       entretien: 0,
       honorairesComptables: 0,
       fraisBancaires: 0,
+      refacturations: 0,
     };
 
     // Find the most recent year column (typically column index 7 = 2026, or 6 = 2025)
@@ -495,7 +529,10 @@ function parsePLCharges(wb: XLSX.WorkBook): PLCharges[] {
       const label = String(row[3]).trim();
       const val = num(row[yearCol]) || num(row[yearCol - 1]) || 0;
 
-      if (label.includes("63512") || label.includes("TAXE FONCIERES")) {
+      // Refacturations de charges aux locataires (comptes 7088x)
+      if (label.includes("70880") || label.includes("70881") || label.includes("REFACT")) {
+        charges.refacturations += val;
+      } else if (label.includes("63512") || label.includes("TAXE FONCIERES")) {
         charges.taxeFonciere = val;
       } else if (label.includes("63513") || label.includes("TAXE ORDURES")) {
         charges.taxeOrduresMenageres = val;
@@ -830,11 +867,21 @@ export async function importExcelData(): Promise<{
       const vnc = firstFin?.vnc;
 
       // Charges from P&L, distributed evenly across actifs of same SCI
+      // NET of refacturations — charges récupérables are billed back to tenants,
+      // so the net cash impact is (charges brutes - refacturations).
+      // We distribute the refacturation proportionally across charge categories.
       const sciCharges = chargesBySci[sciName];
       const actifCount = actifCountBySci[sciName] || 1;
-      const taxeFonciere = sciCharges ? sciCharges.taxeFonciere / actifCount : 0;
-      const assurance = sciCharges ? sciCharges.assurance / actifCount : 0;
-      const chargesCopro = sciCharges ? sciCharges.chargesCopro / actifCount : 0;
+      let taxeFonciere = 0, assurance = 0, chargesCopro = 0;
+      if (sciCharges) {
+        const totalBrut = sciCharges.taxeFonciere + sciCharges.assurance + sciCharges.chargesCopro;
+        const refactRatio = totalBrut > 0 ? Math.min(sciCharges.refacturations / totalBrut, 1) : 0;
+        // Net charges = brut × (1 - ratio de refacturation)
+        const netFactor = (1 - refactRatio) / actifCount;
+        taxeFonciere = sciCharges.taxeFonciere * netFactor;
+        assurance = sciCharges.assurance * netFactor;
+        chargesCopro = sciCharges.chargesCopro * netFactor;
+      }
 
       const isCopro = first.copro === "oui";
       const surface = first.surfacesPrivatives || first.surfaceTerrain || totalSurfaceLouee;
@@ -1035,9 +1082,16 @@ export async function importExcelData(): Promise<{
       for (const f of sciFinRows) {
         if (f.banques?.includes(e.banque)) {
           if (f.duree) {
-            // Parse "15 CE et 7 SG" or "15" or "15.5" or "20"
-            const dMatch = f.duree.match(/(\d+(?:\.\d+)?)/);
-            if (dMatch) dureeAns = Math.round(parseFloat(dMatch[1]));
+            // Parse "15 CE et 7 SG" — find the duration segment matching this bank
+            const dureeStr = String(f.duree);
+            const bankDureeMatch = dureeStr.match(new RegExp(`(\\d+(?:\\.\\d+)?)\\s*${e.banque}`, "i"));
+            if (bankDureeMatch) {
+              dureeAns = Math.round(parseFloat(bankDureeMatch[1]));
+            } else {
+              // Fallback: first number (e.g. "15" or "20")
+              const dMatch = dureeStr.match(/(\d+(?:\.\d+)?)/);
+              if (dMatch) dureeAns = Math.round(parseFloat(dMatch[1]));
+            }
           }
           if (f.dateFinEmprunt) dateFin = f.dateFinEmprunt;
           if (f.tauxAssurance) {
@@ -1049,6 +1103,16 @@ export async function importExcelData(): Promise<{
         }
       }
 
+      // Best source: duration derived from Emprunts amortization schedule
+      if (!dureeAns && e.dureeTotaleAns) {
+        dureeAns = e.dureeTotaleAns;
+      }
+
+      // Use date_fin from Emprunts schedule if not found in financement
+      if (!dateFin && e.dateFin) {
+        dateFin = e.dateFin;
+      }
+
       // Fallback: calculate durée from dateDebut + dateFin
       if (!dureeAns && e.dateDebut && dateFin) {
         const start = new Date(e.dateDebut);
@@ -1057,7 +1121,7 @@ export async function importExcelData(): Promise<{
         if (diffYears > 0) dureeAns = Math.round(diffYears);
       }
 
-      if (!dureeAns) dureeAns = 15; // Default for most of these loans
+      if (!dureeAns) dureeAns = 15; // Last resort default
 
       // IRA amount
       let iraAmount: number | null = null;
@@ -1072,11 +1136,44 @@ export async function importExcelData(): Promise<{
       const garantieKey = `${sciName}|${e.banque}`;
       const garantieText = garantieBySciBank[garantieKey] || null;
 
+      // Use real annual payment from Excel as mensualité for accurate cash-flow
+      // getAnnuiteEmprunt() prioritises mensualité over the actuarial formula
+      const mensualiteReelle = e.echeanceAnnuelle2025 ? (e.echeanceAnnuelle2025 / 12) : null;
+
+      // Back-derive implied assurance rate from gap between actuarial formula and real payment
+      // Excel échéances = capital + intérêts + assurance emprunteur
+      // impliedAssurance% = (échéance_Excel - formule_actuarielle) / montant × 100
+      let reconNote = "";
+      if (!tauxAssurance && e.echeanceAnnuelle2025 && e.montant > 0 && e.taux > 0 && dureeAns > 0) {
+        const rm = e.taux / 12; // taux is already decimal from Excel
+        const n = dureeAns * 12;
+        const factor = Math.pow(1 + rm, n);
+        const annuiteActuarielle = e.montant * (rm * factor) / (factor - 1) * 12;
+        const gap = e.echeanceAnnuelle2025 - annuiteActuarielle;
+        const impliedRate = (gap / e.montant) * 100; // as percentage
+        // Only use if plausible (0% to 2% — typical assurance rates)
+        if (impliedRate > 0.01 && impliedRate < 2) {
+          tauxAssurance = Math.round(impliedRate * 1000) / 1000; // round to 3 decimals
+          reconNote = `[auto] Taux assurance dérivé: ${tauxAssurance}%`;
+          logger.info(`import: derived assurance rate ${tauxAssurance}% for ${e.nomPret} (${e.banque})`);
+        } else if (impliedRate <= 0) {
+          // Formula > Excel: likely partial first year or deferred amortization
+          reconNote = `[recon] Écart négatif (${impliedRate.toFixed(2)}%): probable année partielle ou différé`;
+          logger.info(`import: negative gap for ${e.nomPret} (${e.banque}): implied ${impliedRate.toFixed(2)}% — partial year?`);
+        } else {
+          // impliedRate >= 2%: loan near maturity or non-standard schedule
+          const crd = e.capitalRestantDu2025 || 0;
+          const crdRatio = e.montant > 0 ? (crd / e.montant) * 100 : 0;
+          reconNote = `[recon] Écart élevé (${impliedRate.toFixed(2)}%): CRD=${crdRatio.toFixed(0)}% du montant — prêt en fin de vie?`;
+          logger.info(`import: high gap for ${e.nomPret} (${e.banque}): implied ${impliedRate.toFixed(2)}%, CRD ratio ${crdRatio.toFixed(0)}%`);
+        }
+      }
+
       await client.query(
         `INSERT INTO am_emprunts (id, sci_id, banque, montant_emprunte, capital_restant_du,
          taux_annuel, duree_ans, date_debut, date_fin, type_amortissement,
-         taux_assurance, ira, type_garantie, notes, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, now(), now())`,
+         mensualite, taux_assurance, ira, type_garantie, notes, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, now(), now())`,
         [
           id(),
           sciId,
@@ -1088,10 +1185,11 @@ export async function importExcelData(): Promise<{
           e.dateDebut,
           dateFin,
           "constant",
+          mensualiteReelle,
           tauxAssurance,
           iraAmount,
           garantieText,
-          `Prêt: ${e.nomPret}`,
+          [`Prêt: ${e.nomPret}`, reconNote].filter(Boolean).join(" | "),
         ]
       );
       counts.emprunts++;

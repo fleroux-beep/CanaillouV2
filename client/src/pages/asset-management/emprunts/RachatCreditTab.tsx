@@ -43,12 +43,31 @@ export function RachatCreditTab() {
     if (!emp) return null;
 
     const crd = emp.capitalRestantDu ? parseFloat(emp.capitalRestantDu) : (emp.montantEmprunte ? parseFloat(emp.montantEmprunte) : 0);
-    const ancienneMens = emp.mensualite ? parseFloat(emp.mensualite) : 0;
-    const ancienneAssurance = emp.assuranceMensuelle ? parseFloat(emp.assuranceMensuelle) : 0;
     const ancienneDureeRestante = emp.dureeMois || (emp.dureeAns ? emp.dureeAns * 12 : 240);
 
-    // Calcul ancien cout restant
-    const ancienCoutRestant = (ancienneMens + ancienneAssurance) * ancienneDureeRestante;
+    // Mensualité totale = mensualité stockée (Excel, inclut déjà l'assurance)
+    // Si pas de mensualité stockée, calculer par formule + assurance
+    let ancienneMensTotale = emp.mensualite ? parseFloat(emp.mensualite) : 0;
+    if (ancienneMensTotale === 0) {
+      const montantOrig = emp.montantEmprunte ? parseFloat(emp.montantEmprunte) : 0;
+      const tauxAnnuel = emp.tauxAnnuel ? parseFloat(emp.tauxAnnuel) / 100 : 0;
+      const dureeOrig = emp.dureeAns ? emp.dureeAns * 12 : 240;
+      if (montantOrig > 0 && tauxAnnuel > 0) {
+        const rm = tauxAnnuel / 12;
+        const factor = Math.pow(1 + rm, dureeOrig);
+        ancienneMensTotale = montantOrig * (rm * factor) / (factor - 1);
+      }
+      // Ajouter assurance seulement si calculée (pas déjà dans mensualité)
+      let assur = emp.assuranceMensuelle ? parseFloat(emp.assuranceMensuelle) : 0;
+      if (assur === 0 && montantOrig > 0) {
+        const ta = emp.tauxAssurance ? parseFloat(emp.tauxAssurance) / 100 : 0;
+        if (ta > 0) assur = (montantOrig * ta) / 12;
+      }
+      ancienneMensTotale += assur;
+    }
+
+    // Calcul ancien cout restant (mensualité totale × mois restants)
+    const ancienCoutRestant = ancienneMensTotale * ancienneDureeRestante;
 
     // Nouveau prêt
     const nTaux = parseFloat(nouveauTaux) / 100;
@@ -66,7 +85,9 @@ export function RachatCreditTab() {
 
     const nouveauCoutTotal = nouvelleMensualite * nDuree + totalFrais;
     const economie = ancienCoutRestant - nouveauCoutTotal;
-    const pointMort = economie > 0 ? Math.ceil(totalFrais / (ancienneMens - nouvelleMensualite)) : 0;
+    const pointMort = economie > 0 && ancienneMensTotale > nouvelleMensualite
+      ? Math.ceil(totalFrais / (ancienneMensTotale - nouvelleMensualite))
+      : 0;
 
     // Tableau amortissement simplifie (annuel)
     const amortissement: Array<{ annee: number; crdDebut: number; interets: number; capital: number; crdFin: number }> = [];
@@ -93,7 +114,7 @@ export function RachatCreditTab() {
     }
 
     return {
-      crd, ancienneMens, ancienneAssurance, ancienneDureeRestante,
+      crd, ancienneMensTotale, ancienneDureeRestante,
       ancienCoutRestant, nouvelleMensualite, nDuree, totalFrais,
       ira, dossier, garantie, nouveauCoutTotal, economie, pointMort,
       amortissement,
@@ -155,7 +176,7 @@ export function RachatCreditTab() {
           <>
             {/* Résultat KPIs */}
             <div className="grid gap-4 sm:grid-cols-4">
-              <KpiCard label="Ancienne mensualité" value={simulation.ancienneMens + simulation.ancienneAssurance} formatFn={(n) => formatCurrency(n)} icon={TrendingDown} variant="warning" gradient delay={0} metricKey="mensualite" />
+              <KpiCard label="Ancienne mensualité" value={simulation.ancienneMensTotale} formatFn={(n) => formatCurrency(n)} icon={TrendingDown} variant="warning" gradient delay={0} metricKey="mensualite" />
               <KpiCard label="Nouvelle mensualité" value={simulation.nouvelleMensualite} formatFn={(n) => formatCurrency(n)} icon={RefreshCw} variant="primary" gradient delay={1} metricKey="mensualite" />
               <KpiCard label="Économie totale" value={simulation.economie} formatFn={(n) => formatCurrency(n)} icon={Calculator} variant={simulation.economie > 0 ? "success" : "danger"} gradient delay={2} />
               <KpiCard label="Point mort" value={simulation.pointMort} formatFn={(n) => n > 0 ? `${n} mois` : "N/A"} icon={Percent} variant="primary" gradient delay={3} />
@@ -183,10 +204,10 @@ export function RachatCreditTab() {
                       </tr>
                       <tr className="border-t">
                         <td className="px-4 py-3 font-medium">Mensualité</td>
-                        <td className="px-4 py-3 text-right">{formatCurrency(simulation.ancienneMens + simulation.ancienneAssurance)}</td>
+                        <td className="px-4 py-3 text-right">{formatCurrency(simulation.ancienneMensTotale)}</td>
                         <td className="px-4 py-3 text-right">{formatCurrency(simulation.nouvelleMensualite)}</td>
-                        <td className={`px-4 py-3 text-right font-medium ${simulation.nouvelleMensualite < simulation.ancienneMens + simulation.ancienneAssurance ? "text-green-600" : "text-red-600"}`}>
-                          {formatCurrency(simulation.nouvelleMensualite - simulation.ancienneMens - simulation.ancienneAssurance)}
+                        <td className={`px-4 py-3 text-right font-medium ${simulation.nouvelleMensualite < simulation.ancienneMensTotale ? "text-green-600" : "text-red-600"}`}>
+                          {formatCurrency(simulation.nouvelleMensualite - simulation.ancienneMensTotale)}
                         </td>
                       </tr>
                       <tr className="border-t">
