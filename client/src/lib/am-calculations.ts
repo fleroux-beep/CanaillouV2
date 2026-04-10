@@ -239,7 +239,7 @@ export function getAnnuiteEmprunt(emprunt: AMEmprunt): number {
     const tauxMensuel = tauxAnnuel / 12;
     const nbMois = dureeAns * 12;
     const factor = Math.pow(1 + tauxMensuel, nbMois);
-    mensualiteCalc = montant * (tauxMensuel * factor) / (factor - 1);
+    mensualiteCalc = factor > 1 ? montant * (tauxMensuel * factor) / (factor - 1) : montant / nbMois;
   }
 
   // Ajouter l'assurance emprunteur (calculée sur le capital initial)
@@ -274,7 +274,7 @@ export function reconcileEmprunt(emprunt: AMEmprunt): {
   const tauxMensuel = tauxAnnuel / 12;
   const nbMois = dureeAns * 12;
   const factor = Math.pow(1 + tauxMensuel, nbMois);
-  let mensuCalc = montant * (tauxMensuel * factor) / (factor - 1);
+  let mensuCalc = factor > 1 ? montant * (tauxMensuel * factor) / (factor - 1) : montant / nbMois;
 
   const tauxAssurance = Number(emprunt?.tauxAssurance || 0) / 100;
   if (tauxAssurance > 0) mensuCalc += (montant * tauxAssurance) / 12;
@@ -444,7 +444,7 @@ export function computeDCF(
   // Gordon Growth Model: TV = NOI_(n+1) / (cap_rate - growth_rate)
   const terminalNOI = currentNOI * Math.pow(1 + g, years + 1);
   const exitCap = exitCapRate / 100;
-  const terminalValue = exitCap > g + 0.001 ? terminalNOI / (exitCap - g) : 0;
+  const terminalValue = exitCap > g + 0.01 ? terminalNOI / (exitCap - g) : 0;
   const pvTerminal = terminalValue / Math.pow(1 + r, years);
   const totalPV = pvCashFlows + pvTerminal;
 
@@ -698,7 +698,7 @@ export function computeStressTests(
           const tauxMensuelStresse = tauxStresse / 12;
           const nbMois = duree * 12;
           const factor = Math.pow(1 + tauxMensuelStresse, nbMois);
-          let mensuStresse = montant * (tauxMensuelStresse * factor) / (factor - 1);
+          let mensuStresse = factor > 1 ? montant * (tauxMensuelStresse * factor) / (factor - 1) : montant / nbMois;
           // Ajouter l'assurance (cohérent avec getAnnuiteEmprunt)
           const tauxAssurance = Number(e.tauxAssurance ?? 0) / 100;
           if (tauxAssurance > 0) mensuStresse += (montant * tauxAssurance) / 12;
