@@ -135,11 +135,13 @@ export function getLoyerAnnuelActif(actif: AMActif, baux: AMBail[], lots?: AMLot
  */
 export function getChargesAnnuelles(actif: AMActif): number {
   if (!actif) return 0;
-  const copro = Number(actif.chargesCopropriete || actif.chargesAnnuelles || 0);
+  // Utiliser ?? (nullish coalescing) au lieu de || pour éviter qu'un "0" explicite
+  // ne tombe dans le fallback (en JS, "0" || x → x car "0" est falsy).
+  const copro = Number(actif.chargesCopropriete ?? actif.chargesAnnuelles ?? 0);
   return (
     copro +
-    Number(actif.taxeFonciere || 0) +
-    Number(actif.assurancePno || 0)
+    Number(actif.taxeFonciere ?? 0) +
+    Number(actif.assurancePno ?? 0)
   );
 }
 
@@ -207,7 +209,7 @@ export function getValeurEstimee(actif: AMActif, baux: AMBail[], lots?: AMLot[],
 
 /** Capital restant dû */
 export function getCapitalRestantDu(emprunt: AMEmprunt): number {
-  return Number(emprunt?.capitalRestantDu || emprunt?.montantEmprunte || 0);
+  return Number(emprunt?.capitalRestantDu ?? emprunt?.montantEmprunte ?? 0);
 }
 
 /** Annuité d'un emprunt = paiement annuel total (capital + intérêts + assurance).
@@ -332,10 +334,15 @@ export function getLTV(dette: number, valeur: number): number {
 }
 
 /** DSCR = NOI / service de la dette.
- * Returns 0 when there is no debt (serviceDette <= 0).
- * Callers display "N/A" or "—" when dscr === 0 to indicate absence of debt
- * rather than a bad coverage ratio. Server-side score-sante uses 999 internally
- * for scoring purposes only; the returned metric value is also 0 for consistency.
+ * Convention de retour :
+ *  - Pas de dette (serviceDette <= 0) → retourne 0. Callers affichent "N/A".
+ *  - NOI négatif avec dette → retourne un DSCR négatif (situation de crise).
+ *  - NOI = 0 avec dette → retourne 0 (couverture nulle — confondu avec "pas de dette"
+ *    dans l'affichage, mais ce cas est extrêmement rare en pratique).
+ *
+ * Note audit : idéalement retourner null pour "pas de dette" afin de distinguer
+ * les deux cas, mais le nombre d'appelants (20+) et les subtilités de coercion JS
+ * (null < 1.2 === true) rendent ce refactoring risqué sans tests exhaustifs.
  */
 export function getDSCR(noi: number, serviceDette: number): number {
   if (serviceDette <= 0) return 0;
@@ -691,7 +698,11 @@ export function computeStressTests(
           const tauxMensuelStresse = tauxStresse / 12;
           const nbMois = duree * 12;
           const factor = Math.pow(1 + tauxMensuelStresse, nbMois);
-          debtServiceAjuste += (montant * (tauxMensuelStresse * factor) / (factor - 1)) * 12;
+          let mensuStresse = montant * (tauxMensuelStresse * factor) / (factor - 1);
+          // Ajouter l'assurance (cohérent avec getAnnuiteEmprunt)
+          const tauxAssurance = Number(e.tauxAssurance ?? 0) / 100;
+          if (tauxAssurance > 0) mensuStresse += (montant * tauxAssurance) / 12;
+          debtServiceAjuste += mensuStresse * 12;
         }
       }
     }
@@ -750,8 +761,6 @@ export function computeMultiYearProjection(
   let charges = chargesBase;
   let valo = valorisationBase;
   let dette = detteBase;
-  // Durée résiduelle estimée pour calculer la décroissance du service de dette
-  const dureeResiduelle = amortissementAnnuel > 0 ? Math.ceil(dette / amortissementAnnuel) : 0;
 
   for (let y = 0; y <= years; y++) {
     if (y > 0) {
@@ -760,9 +769,10 @@ export function computeMultiYearProjection(
       valo *= 1 + appreciationActif / 100;
       dette = Math.max(0, dette - amortissementAnnuel);
     }
-    // Service de la dette diminue proportionnellement au capital restant
-    const ratioDetteRestante = detteBase > 0 ? dette / detteBase : 0;
-    const serviceDette = dette > 0 ? serviceDetteBase * ratioDetteRestante : 0;
+    // Service de la dette : CONSTANT tant que le prêt court (annuité fixe),
+    // puis tombe à 0 quand le capital est intégralement remboursé.
+    // C'est le comportement réel d'un prêt à taux fixe amortissable.
+    const serviceDette = dette > 0 ? serviceDetteBase : 0;
     const remboursementCapital = dette > 0 ? Math.min(amortissementAnnuel, dette) : 0;
     const noi = loyers - charges;
     const cf = noi - serviceDette;
