@@ -1140,6 +1140,23 @@ export async function importExcelData(): Promise<{
       // getAnnuiteEmprunt() prioritises mensualité over the actuarial formula
       const mensualiteReelle = e.echeanceAnnuelle2025 ? (e.echeanceAnnuelle2025 / 12) : null;
 
+      // Back-derive implied assurance rate from gap between actuarial formula and real payment
+      // Excel échéances = capital + intérêts + assurance emprunteur
+      // impliedAssurance% = (échéance_Excel - formule_actuarielle) / montant × 100
+      if (!tauxAssurance && e.echeanceAnnuelle2025 && e.montant > 0 && e.taux > 0 && dureeAns > 0) {
+        const rm = e.taux / 12; // taux is already decimal from Excel
+        const n = dureeAns * 12;
+        const factor = Math.pow(1 + rm, n);
+        const annuiteActuarielle = e.montant * (rm * factor) / (factor - 1) * 12;
+        const gap = e.echeanceAnnuelle2025 - annuiteActuarielle;
+        const impliedRate = (gap / e.montant) * 100; // as percentage
+        // Only use if plausible (0% to 2% — typical assurance rates)
+        if (impliedRate > 0.01 && impliedRate < 2) {
+          tauxAssurance = Math.round(impliedRate * 1000) / 1000; // round to 3 decimals
+          logger.info(`import: derived assurance rate ${tauxAssurance}% for ${e.nomPret} (${e.banque})`);
+        }
+      }
+
       await client.query(
         `INSERT INTO am_emprunts (id, sci_id, banque, montant_emprunte, capital_restant_du,
          taux_annuel, duree_ans, date_debut, date_fin, type_amortissement,

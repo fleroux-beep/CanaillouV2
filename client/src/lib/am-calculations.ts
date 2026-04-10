@@ -210,11 +210,12 @@ export function getCapitalRestantDu(emprunt: AMEmprunt): number {
   return Number(emprunt?.capitalRestantDu || emprunt?.montantEmprunte || 0);
 }
 
-/** Annuité d'un emprunt.
+/** Annuité d'un emprunt (capital + intérêts + assurance).
  * Si mensualité connue : mensualité × 12.
- * Sinon : calcul actuariel mensuel à partir de montant, taux et durée.
+ * Sinon : calcul actuariel mensuel + assurance emprunteur.
  * Formule mensuelle : M = P × [r_m(1+r_m)^n_m] / [(1+r_m)^n_m - 1]
  * où r_m = taux annuel / 12, n_m = durée en mois.
+ * Assurance : montant_emprunté × taux_assurance / 12 par mois.
  */
 export function getAnnuiteEmprunt(emprunt: AMEmprunt): number {
   const mensualite = Number(emprunt?.mensualite || 0);
@@ -226,13 +227,24 @@ export function getAnnuiteEmprunt(emprunt: AMEmprunt): number {
   const dureeAns = Number(emprunt?.dureeAns || 0);
 
   if (montant <= 0 || dureeAns <= 0) return 0;
-  if (tauxAnnuel <= 0) return montant / dureeAns; // Taux 0% : linéaire
 
-  // Pas mensuel : r_m = taux annuel / 12, n = durée en mois
-  const tauxMensuel = tauxAnnuel / 12;
-  const nbMois = dureeAns * 12;
-  const factor = Math.pow(1 + tauxMensuel, nbMois);
-  const mensualiteCalc = montant * (tauxMensuel * factor) / (factor - 1);
+  let mensualiteCalc: number;
+  if (tauxAnnuel <= 0) {
+    mensualiteCalc = montant / (dureeAns * 12); // Taux 0% : linéaire
+  } else {
+    // Pas mensuel : r_m = taux annuel / 12, n = durée en mois
+    const tauxMensuel = tauxAnnuel / 12;
+    const nbMois = dureeAns * 12;
+    const factor = Math.pow(1 + tauxMensuel, nbMois);
+    mensualiteCalc = montant * (tauxMensuel * factor) / (factor - 1);
+  }
+
+  // Ajouter l'assurance emprunteur (calculée sur le capital initial)
+  const tauxAssurance = Number(emprunt?.tauxAssurance || 0) / 100;
+  if (tauxAssurance > 0) {
+    mensualiteCalc += (montant * tauxAssurance) / 12;
+  }
+
   return mensualiteCalc * 12;
 }
 
