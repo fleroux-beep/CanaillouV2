@@ -48,7 +48,20 @@ export default function LotsPage() {
 
   const openCreate = () => { setEditing(null); setForm(emptyLot); setDialogOpen(true); };
   const openEdit = (l: Lot) => { setEditing(l); setForm(l); setDialogOpen(true); };
-  const onChange = (name: string, value: string) => setForm((f) => ({ ...f, [name]: value }));
+  const onChange = (name: string, value: string) => {
+    setForm((f) => {
+      const updated = { ...f, [name]: value };
+      // Auto-calc loyer: mensuel → annuel (et vice-versa)
+      if (name === "loyerMensuel" && value) {
+        const mensuel = parseFloat(value);
+        if (!isNaN(mensuel)) updated.loyerAnnuel = String(Math.round(mensuel * 12 * 100) / 100);
+      } else if (name === "loyerAnnuel" && value) {
+        const annuel = parseFloat(value);
+        if (!isNaN(annuel)) updated.loyerMensuel = String(Math.round((annuel / 12) * 100) / 100);
+      }
+      return updated;
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
