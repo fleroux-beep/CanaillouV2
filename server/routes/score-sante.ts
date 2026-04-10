@@ -94,8 +94,8 @@ export function registerScoreSanteRoutes(app: Express) {
           return s + (annuel > 0 ? annuel : Number(l.loyerMensuel || 0) * 12);
         }, 0);
 
-        const chargesTotal = Number(actif.chargesCopropriete || actif.chargesAnnuelles || 0)
-          + Number(actif.taxeFonciere || 0) + Number(actif.assurancePno || 0);
+        const chargesTotal = Number(actif.chargesCopropriete ?? actif.chargesAnnuelles ?? 0)
+          + Number(actif.taxeFonciere ?? 0) + Number(actif.assurancePno ?? 0);
         const noi = loyerAnnuel - chargesTotal;
         const prixAcq = Number(actif.prixAcquisition || 0) + Number(actif.fraisNotaire || 0)
           + Number(actif.fraisAgence || 0) + Number(actif.montantTravaux || 0);

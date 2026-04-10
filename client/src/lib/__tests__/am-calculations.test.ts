@@ -471,18 +471,23 @@ describe("computeAmortSchedule", () => {
     expect(rows[0].interets).toBeCloseTo(0, 5);
   });
 
-  it("uses pre-filled mensualite instead of calculating", () => {
+  it("uses pre-filled mensualite — annuite is capital+interest, totalAnnuel includes assurance", () => {
     const e = makeEmprunt({
       montantEmprunte: "200000",
       tauxAnnuel: "3",
       dureeAns: 20,
-      mensualite: "1500", // Override calculated mensualite
+      mensualite: "1500", // Override: higher than actuarial formula (~1109)
     });
     const rows = computeAmortSchedule(e);
     expect(rows.length).toBeGreaterThan(0);
-    // The annuite for the first year should be based on 1500/month
-    // interets + capitalAmorti = annuite, and annuite ~ 1500*12 = 18000
-    expect(rows[0].annuite).toBeCloseTo(18000, -1);
+    // annuite = actuarial capital+interest portion (not full mensualité)
+    // Formula for 200k@3%/20y ≈ 1109/month → 13310/year
+    expect(rows[0].annuite).toBeGreaterThan(13200);
+    expect(rows[0].annuite).toBeLessThan(13400);
+    // totalAnnuel = full Excel mensualité × 12 = 1500*12 = 18000
+    expect(rows[0].totalAnnuel).toBeCloseTo(18000, -1);
+    // assurance derived from gap = (1500 - 1109) * 12 ≈ 4690
+    expect(rows[0].assurance).toBeGreaterThan(4500);
   });
 
   it("includes assurance from tauxAssurance", () => {
@@ -706,5 +711,155 @@ describe("Null/undefined handling", () => {
   it("getCapitalRestantDu falls back correctly", () => {
     expect(getCapitalRestantDu(makeEmprunt({ capitalRestantDu: null, montantEmprunte: "200000" }))).toBe(200000);
     expect(getCapitalRestantDu(makeEmprunt({ capitalRestantDu: null, montantEmprunte: null }))).toBe(0);
+  });
+});
+
+// ============================================================
+// 14. AUDIT FIXES — Regression tests
+// ============================================================
+
+describe("AUDIT FIX W6: Multi-year projection — constant debt service", () => {
+  it("debt service stays constant while debt > 0", () => {
+    // 100k loyer, 20k charges, 30k dette service, 500k valo, 300k dette
+    // 15k amortissement/an → dette paid off in 20 years
+    const result = computeMultiYearProjection(100000, 20000, 30000, 500000, 300000, 0, 0, 0, 15000, 10);
+    // Year 1 through 10: dette > 0, so service must be constant 30000
+    for (let i = 1; i <= 10; i++) {
+      expect(result[i].serviceDette).toBe(30000);
+    }
+  });
+
+  it("debt service drops to 0 after debt fully repaid", () => {
+    // 50k dette, 15k amortissement/an → repaid by year 4
+    const result = computeMultiYearProjection(100000, 20000, 30000, 500000, 50000, 0, 0, 0, 15000, 6);
+    // Year 0-3: dette > 0, service = 30000
+    expect(result[0].serviceDette).toBe(30000);
+    expect(result[1].serviceDette).toBe(30000);
+    expect(result[2].serviceDette).toBe(30000);
+    expect(result[3].serviceDette).toBe(30000);
+    // Year 4: dette = 50000 - 4*15000 = -10000 → clamped to 0 → service = 0
+    expect(result[4].serviceDette).toBe(0);
+    expect(result[5].serviceDette).toBe(0);
+  });
+
+  it("cash flow improves after debt repayment", () => {
+    const result = computeMultiYearProjection(100000, 20000, 30000, 500000, 30000, 0, 0, 0, 15000, 5);
+    // After year 2 the 30k debt is paid off, so cash flow = NOI instead of NOI - 30k
+    expect(result[3].cashFlow).toBeGreaterThan(result[1].cashFlow);
+    expect(result[3].serviceDette).toBe(0);
+  });
+});
+
+describe("AUDIT FIX INFO-3: Nullish coalescing for '0' string values", () => {
+  it("getChargesAnnuelles treats '0' as zero, not fallback", () => {
+    // chargesCopropriete="0" should yield 0, not fall through to chargesAnnuelles
+    const actif = makeActif({
+      chargesCopropriete: "0",
+      chargesAnnuelles: "5000",
+      taxeFonciere: "1000",
+    });
+    // With ??, "0" is not nullish → copro = 0, not 5000
+    expect(getChargesAnnuelles(actif)).toBe(1000); // 0 + 1000 + 0
+  });
+
+  it("getChargesAnnuelles falls back to chargesAnnuelles when copro is null", () => {
+    const actif = makeActif({
+      chargesCopropriete: null,
+      chargesAnnuelles: "3000",
+      taxeFonciere: "500",
+    });
+    expect(getChargesAnnuelles(actif)).toBe(3500); // 3000 + 500
+  });
+
+  it("getCapitalRestantDu treats '0' as zero, not fallback", () => {
+    // CRD="0" means fully repaid, should not fall back to montantEmprunte
+    const e = makeEmprunt({ capitalRestantDu: "0", montantEmprunte: "200000" });
+    expect(getCapitalRestantDu(e)).toBe(0);
+  });
+});
+
+describe("AUDIT FIX INFO-9: Stress test includes insurance in stressed debt", () => {
+  it("stress test with insurance produces higher debt service", () => {
+    const empruntsBase = [makeEmprunt({
+      montantEmprunte: "200000",
+      tauxAnnuel: "3",
+      dureeAns: 20,
+      tauxAssurance: "0.36",
+    })];
+    const empruntsNoInsurance = [makeEmprunt({
+      montantEmprunte: "200000",
+      tauxAnnuel: "3",
+      dureeAns: 20,
+    })];
+
+    const withIns = computeStressTests(100000, 20000, 30000, 500000, 200000, empruntsBase);
+    const noIns = computeStressTests(100000, 20000, 30000, 500000, 200000, empruntsNoInsurance);
+
+    // The "+200bp" scenario recalculates debt service per emprunt
+    const stressWithIns = withIns.find(s => s.label === "Taux +200bp")!;
+    const stressNoIns = noIns.find(s => s.label === "Taux +200bp")!;
+
+    // With insurance, cash flow should be lower (more debt service)
+    expect(stressWithIns.cashFlowAjuste).toBeLessThan(stressNoIns.cashFlowAjuste);
+  });
+
+  it("base scenario is not affected by insurance (uses flat serviceDette)", () => {
+    const empruntsIns = [makeEmprunt({
+      montantEmprunte: "200000",
+      tauxAnnuel: "3",
+      dureeAns: 20,
+      tauxAssurance: "0.36",
+    })];
+
+    const result = computeStressTests(100000, 20000, 30000, 500000, 200000, empruntsIns);
+    const base = result.find(s => s.label === "Base")!;
+    // Base scenario uses flat serviceDette=30000, not recalculated
+    expect(base.noiAjuste).toBe(80000); // 100000 - 20000
+  });
+});
+
+describe("AUDIT FIX B1c: Lot statut accent-agnostic matching", () => {
+  it("getLoyerAnnuelActif counts lots with accent variants", () => {
+    const actif = makeActif();
+    // No baux match → falls back to lots
+    const lots: AMLot[] = [
+      { id: "l1", actifId: "a1", statut: "loué", loyerAnnuel: "6000" },
+      { id: "l2", actifId: "a1", statut: "loue", loyerAnnuel: "4000" }, // no accent
+      { id: "l3", actifId: "a1", statut: "Loué", loyerAnnuel: "3000" }, // capitalized
+    ];
+    const result = getLoyerAnnuelActif(actif, [], lots);
+    expect(result).toBe(13000); // all three should match
+  });
+});
+
+describe("Amortization schedule — Excel single source of truth", () => {
+  it("derives assurance from gap between Excel mensualite and formula", () => {
+    // Excel mensualite = 1200, formula for 200k@3%/20y ≈ 1109
+    // Assurance = 1200 - 1109 ≈ 91/month ≈ 1092/year
+    const e = makeEmprunt({
+      montantEmprunte: "200000",
+      tauxAnnuel: "3",
+      dureeAns: 20,
+      mensualite: "1200",
+    });
+    const rows = computeAmortSchedule(e);
+    expect(rows.length).toBe(20);
+    // Assurance should be derived (not zero)
+    expect(rows[0].assurance).toBeGreaterThan(1000);
+    expect(rows[0].assurance).toBeLessThan(1200);
+    // Total annuel should match 1200 * 12 = 14400
+    expect(rows[0].totalAnnuel).toBeCloseTo(14400, -1);
+  });
+
+  it("total capital amorti equals montant even with Excel mensualite", () => {
+    const e = makeEmprunt({
+      montantEmprunte: "200000",
+      tauxAnnuel: "3",
+      dureeAns: 20,
+      mensualite: "1200",
+    });
+    const rows = computeAmortSchedule(e);
+    const totalAmorti = rows.reduce((s, r) => s + r.capitalAmorti, 0);
+    expect(totalAmorti).toBeCloseTo(200000, 0);
   });
 });

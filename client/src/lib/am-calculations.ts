@@ -112,7 +112,7 @@ export function getLoyerAnnuelActif(actif: AMActif, baux: AMBail[], lots?: AMLot
   // Fallback: somme des loyers des lots loués
   if (lots) {
     const lotsActif = lots.filter(
-      (l) => l.actifId === actif.id && l.statut === "loué" && !l.archived
+      (l) => l.actifId === actif.id && l.statut?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === "loue" && !l.archived
     );
     return lotsActif.reduce((sum, l) => {
       const annuel = Number(l.loyerAnnuel || 0);
