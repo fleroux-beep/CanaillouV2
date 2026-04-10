@@ -248,6 +248,56 @@ export function getAnnuiteEmprunt(emprunt: AMEmprunt): number {
   return mensualiteCalc * 12;
 }
 
+/** Reconciliation: compare stored mensualité with actuarial formula.
+ * Returns null if no mensualité stored, otherwise { formulaAnnual, storedAnnual, ecartPct, status }.
+ */
+export function reconcileEmprunt(emprunt: AMEmprunt): {
+  formulaAnnual: number;
+  storedAnnual: number;
+  ecartPct: number;
+  status: "ok" | "warning" | "error";
+  detail: string;
+} | null {
+  const mensualite = Number(emprunt?.mensualite || 0);
+  if (mensualite <= 0) return null;
+
+  const storedAnnual = mensualite * 12;
+  const montant = Number(emprunt?.montantEmprunte || 0);
+  const tauxAnnuel = Number(emprunt?.tauxAnnuel || 0) / 100;
+  const dureeAns = Number(emprunt?.dureeAns || 0);
+
+  if (montant <= 0 || dureeAns <= 0 || tauxAnnuel <= 0) return null;
+
+  const tauxMensuel = tauxAnnuel / 12;
+  const nbMois = dureeAns * 12;
+  const factor = Math.pow(1 + tauxMensuel, nbMois);
+  let mensuCalc = montant * (tauxMensuel * factor) / (factor - 1);
+
+  const tauxAssurance = Number(emprunt?.tauxAssurance || 0) / 100;
+  if (tauxAssurance > 0) mensuCalc += (montant * tauxAssurance) / 12;
+
+  const formulaAnnual = mensuCalc * 12;
+  const ecartPct = storedAnnual !== 0 ? ((formulaAnnual - storedAnnual) / storedAnnual) * 100 : 0;
+  const absEcart = Math.abs(ecartPct);
+
+  let status: "ok" | "warning" | "error";
+  let detail: string;
+  if (absEcart < 1) {
+    status = "ok";
+    detail = `Formule = ${Math.round(formulaAnnual).toLocaleString("fr")} vs réel = ${Math.round(storedAnnual).toLocaleString("fr")} (${ecartPct > 0 ? "+" : ""}${ecartPct.toFixed(1)}%)`;
+  } else if (absEcart < 5) {
+    status = "warning";
+    detail = `Écart modéré: formule = ${Math.round(formulaAnnual).toLocaleString("fr")} vs réel = ${Math.round(storedAnnual).toLocaleString("fr")} (${ecartPct > 0 ? "+" : ""}${ecartPct.toFixed(1)}%)`;
+  } else {
+    status = "error";
+    detail = ecartPct > 0
+      ? `Formule > réel de ${absEcart.toFixed(1)}%: probable année partielle ou différé`
+      : `Formule < réel de ${absEcart.toFixed(1)}%: probable fin de prêt ou échéancier non standard`;
+  }
+
+  return { formulaAnnual, storedAnnual, ecartPct, status, detail };
+}
+
 /** Service de la dette annuel pour une liste d'emprunts */
 export function getServiceDette(emprunts: AMEmprunt[]): number {
   return emprunts.reduce((sum, e) => sum + getAnnuiteEmprunt(e), 0);

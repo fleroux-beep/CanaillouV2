@@ -1143,6 +1143,7 @@ export async function importExcelData(): Promise<{
       // Back-derive implied assurance rate from gap between actuarial formula and real payment
       // Excel échéances = capital + intérêts + assurance emprunteur
       // impliedAssurance% = (échéance_Excel - formule_actuarielle) / montant × 100
+      let reconNote = "";
       if (!tauxAssurance && e.echeanceAnnuelle2025 && e.montant > 0 && e.taux > 0 && dureeAns > 0) {
         const rm = e.taux / 12; // taux is already decimal from Excel
         const n = dureeAns * 12;
@@ -1153,7 +1154,18 @@ export async function importExcelData(): Promise<{
         // Only use if plausible (0% to 2% — typical assurance rates)
         if (impliedRate > 0.01 && impliedRate < 2) {
           tauxAssurance = Math.round(impliedRate * 1000) / 1000; // round to 3 decimals
+          reconNote = `[auto] Taux assurance dérivé: ${tauxAssurance}%`;
           logger.info(`import: derived assurance rate ${tauxAssurance}% for ${e.nomPret} (${e.banque})`);
+        } else if (impliedRate <= 0) {
+          // Formula > Excel: likely partial first year or deferred amortization
+          reconNote = `[recon] Écart négatif (${impliedRate.toFixed(2)}%): probable année partielle ou différé`;
+          logger.info(`import: negative gap for ${e.nomPret} (${e.banque}): implied ${impliedRate.toFixed(2)}% — partial year?`);
+        } else {
+          // impliedRate >= 2%: loan near maturity or non-standard schedule
+          const crd = e.capitalRestantDu2025 || 0;
+          const crdRatio = e.montant > 0 ? (crd / e.montant) * 100 : 0;
+          reconNote = `[recon] Écart élevé (${impliedRate.toFixed(2)}%): CRD=${crdRatio.toFixed(0)}% du montant — prêt en fin de vie?`;
+          logger.info(`import: high gap for ${e.nomPret} (${e.banque}): implied ${impliedRate.toFixed(2)}%, CRD ratio ${crdRatio.toFixed(0)}%`);
         }
       }
 
@@ -1177,7 +1189,7 @@ export async function importExcelData(): Promise<{
           tauxAssurance,
           iraAmount,
           garantieText,
-          `Prêt: ${e.nomPret}`,
+          [`Prêt: ${e.nomPret}`, reconNote].filter(Boolean).join(" | "),
         ]
       );
       counts.emprunts++;
