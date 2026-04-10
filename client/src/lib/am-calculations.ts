@@ -210,12 +210,13 @@ export function getCapitalRestantDu(emprunt: AMEmprunt): number {
   return Number(emprunt?.capitalRestantDu || emprunt?.montantEmprunte || 0);
 }
 
-/** Annuité d'un emprunt (capital + intérêts + assurance).
- * Si mensualité connue : mensualité × 12.
- * Sinon : calcul actuariel mensuel + assurance emprunteur.
- * Formule mensuelle : M = P × [r_m(1+r_m)^n_m] / [(1+r_m)^n_m - 1]
- * où r_m = taux annuel / 12, n_m = durée en mois.
- * Assurance : montant_emprunté × taux_assurance / 12 par mois.
+/** Annuité d'un emprunt pour le CASH-FLOW COURANT.
+ *
+ * Priorité : mensualité Excel (réelle) > formule actuarielle + assurance.
+ * Utilisé par : dashboard, contrôle de gestion, reporting (trésorerie réelle).
+ *
+ * Pour les projections et tableaux d'amortissement, voir computeAmortSchedule()
+ * qui utilise toujours la formule pour décomposer capital/intérêts/assurance.
  */
 export function getAnnuiteEmprunt(emprunt: AMEmprunt): number {
   const mensualite = Number(emprunt?.mensualite || 0);
@@ -468,14 +469,19 @@ export interface AmortRow {
 
 /**
  * Génère un tableau d'amortissement avec assurance.
- * Si mensualité connue : utilise la mensualité × 12.
- * Sinon : calcule l'annuité constante (formule actuarielle standard).
+ *
+ * IMPORTANT — Architecture de cohérence :
+ * - Le tableau d'amortissement utilise TOUJOURS la formule actuarielle pour
+ *   décomposer proprement capital / intérêts / assurance.
+ * - La mensualité stockée (Excel) est utilisée uniquement par getAnnuiteEmprunt()
+ *   pour le cash-flow courant (ce qui sort réellement du compte bancaire).
+ * - Cela évite le double-comptage de l'assurance et garantit que les projections,
+ *   stress tests et DCF sont mathématiquement cohérents.
  */
 export function computeAmortSchedule(emprunt: AMEmprunt): AmortRow[] {
   const montant = Number(emprunt?.montantEmprunte || 0);
   const taux = Number(emprunt?.tauxAnnuel || 0) / 100;
   const duree = Number(emprunt?.dureeAns || 0);
-  const mensualite = Number(emprunt?.mensualite || 0);
   const tauxAssurance = Number(emprunt?.tauxAssurance || 0) / 100;
   let assuranceMensuelle = Number(emprunt?.assuranceMensuelle || 0);
 
@@ -486,12 +492,11 @@ export function computeAmortSchedule(emprunt: AMEmprunt): AmortRow[] {
 
   if (montant <= 0 || duree <= 0) return [];
 
-  // Calcul de la mensualité (pas mensuel pour précision bancaire)
+  // Toujours utiliser la formule actuarielle (capital + intérêts uniquement)
+  // pour une décomposition propre. Ne JAMAIS injecter la mensualité Excel ici
+  // car elle inclut l'assurance, ce qui fausserait l'amortissement du capital.
   let mensu: number;
-  if (mensualite > 0) {
-    mensu = mensualite;
-  } else if (taux > 0) {
-    // Formule actuarielle mensuelle : M = P × [r_m(1+r_m)^n_m] / [(1+r_m)^n_m - 1]
+  if (taux > 0) {
     const tauxMensuel = taux / 12;
     const nbMois = duree * 12;
     const factor = Math.pow(1 + tauxMensuel, nbMois);

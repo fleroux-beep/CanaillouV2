@@ -30,6 +30,9 @@ export function CoutCreditTab() {
   const activeEmprunts = emprunts.filter((e) => !e.archived);
 
   // Calcul du cout total pour chaque emprunt
+  // IMPORTANT : toujours utiliser la formule actuarielle pour décomposer
+  // capital / intérêts / assurance. La mensualité stockée (Excel) inclut
+  // l'assurance et ne permet pas une décomposition propre.
   const coutData = useMemo(() => {
     return activeEmprunts.map((emp) => {
       const montant = emp.montantEmprunte ? parseFloat(emp.montantEmprunte) : 0;
@@ -37,9 +40,9 @@ export function CoutCreditTab() {
       const tauxAnnuel = emp.tauxAnnuel ? parseFloat(emp.tauxAnnuel) / 100 : 0;
       const tauxAssurance = emp.tauxAssurance ? parseFloat(emp.tauxAssurance) / 100 : 0;
 
-      // Mensualité : valeur saisie ou calcul actuariel à partir du taux
-      let mens = emp.mensualite ? parseFloat(emp.mensualite) : 0;
-      if (mens === 0 && montant > 0 && duree > 0) {
+      // Mensualité capital+intérêts : toujours par formule actuarielle
+      let mens = 0;
+      if (montant > 0 && duree > 0) {
         if (tauxAnnuel > 0) {
           const rm = tauxAnnuel / 12;
           const factor = Math.pow(1 + rm, duree);
@@ -49,7 +52,7 @@ export function CoutCreditTab() {
         }
       }
 
-      // Assurance mensuelle : valeur saisie ou calcul à partir du taux d'assurance (sur capital initial / 12)
+      // Assurance mensuelle séparée
       let assurance = emp.assuranceMensuelle ? parseFloat(emp.assuranceMensuelle) : 0;
       if (assurance === 0 && montant > 0 && tauxAssurance > 0) {
         assurance = (montant * tauxAssurance) / 12;
