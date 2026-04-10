@@ -145,11 +145,14 @@ interface EmpruntDetailRow {
   nomPret: string;
   societe: string;
   banque: string;
+  comptaNo: string | null;
   montant: number;
   taux: number;
   dateDebut: string | null;
   capitalRestantDu2025: number | null;
   echeanceAnnuelle2025: number | null;
+  capitalRestantDu2026: number | null;
+  echeanceAnnuelle2026: number | null;
   dureeTotaleAns: number | null; // derived from amortization schedule
   dateFin: string | null; // last year with significant payment → "YYYY-12-31"
 }
@@ -443,11 +446,14 @@ function parseEmpruntsDetailles(wb: XLSX.WorkBook): EmpruntDetailRow[] {
         nomPret: str(r[0])!,
         societe,
         banque: str(r[2]) || "",
+        comptaNo: str(r[4]),
         montant: num(r[5]) || 0,
         taux: num(r[6]) || 0,
         dateDebut,
         echeanceAnnuelle2025: num(r[19]),
         capitalRestantDu2025: num(r[20]),
+        echeanceAnnuelle2026: num(r[21]),
+        capitalRestantDu2026: num(r[22]),
         dureeTotaleAns,
         dateFin,
       });
@@ -456,11 +462,14 @@ function parseEmpruntsDetailles(wb: XLSX.WorkBook): EmpruntDetailRow[] {
         nomPret: str(r[0])!,
         societe,
         banque: str(r[2]) || "",
+        comptaNo: null,
         montant: num(r[4]) || 0,
         taux: num(r[5]) || 0,
         dateDebut,
         echeanceAnnuelle2025: num(r[17]),
         capitalRestantDu2025: num(r[18]),
+        echeanceAnnuelle2026: null,
+        capitalRestantDu2026: null,
         dureeTotaleAns,
         dateFin,
       });
@@ -484,6 +493,11 @@ interface PLCharges {
   honorairesComptables: number;
   fraisBancaires: number;
   refacturations: number; // charges refacturées aux locataires (revenue offset)
+  dotationAmortissement: number;
+  interetsBancaires: number;
+  depotGarantieLots: number; // DG logements + crèches
+  // Per-lot 2026 rents from P&L locations section
+  lotRents2026: { label: string; loyer: number }[];
 }
 
 function parsePLCharges(wb: XLSX.WorkBook): PLCharges[] {
@@ -517,17 +531,49 @@ function parsePLCharges(wb: XLSX.WorkBook): PLCharges[] {
       honorairesComptables: 0,
       fraisBancaires: 0,
       refacturations: 0,
+      dotationAmortissement: 0,
+      interetsBancaires: 0,
+      depotGarantieLots: 0,
+      lotRents2026: [],
     };
 
-    // Find the most recent year column (typically column index 7 = 2026, or 6 = 2025)
     // Row 3 has year headers: [null, null, "nb m²", "LOCATIONS", 2023, 2024, 2025, 2026]
-    // Use 2025 data (column 6) as most reliable, or 2024 (column 5) as fallback
-    const yearCol = 6; // 2025
+    // Use 2026 BP data (column 7) as primary, fall back to 2025 (column 6) then 2024 (column 5)
+    const yearCol = 7; // 2026
 
+    // Pass 1: Extract per-lot rents from LOCATIONS section (rows 4-13)
+    // and dépôts de garantie from DG rows
+    let inLocationsSection = false;
+    for (let i = 0; i < raw.length; i++) {
+      const row = raw[i];
+      if (!row) continue;
+      const label3 = String(row[3] ?? "").trim();
+
+      // Detect LOCATIONS section start (row 3 has "LOCATIONS" header)
+      if (label3 === "LOCATIONS") { inLocationsSection = true; continue; }
+      // Detect CHARGES LOCATIVES section — end of locations
+      if (label3 === "CHARGES LOCATIVES" || label3.includes("CHARGES LOCATIVES")) { inLocationsSection = false; }
+
+      // Capture per-lot rents in LOCATIONS section
+      if (inLocationsSection && label3 && !label3.startsWith("Location ")) {
+        const rentVal = num(row[yearCol]) || num(row[yearCol - 1]) || 0;
+        if (rentVal > 0) {
+          charges.lotRents2026.push({ label: label3, loyer: rentVal });
+        }
+      }
+
+      // Capture dépôts de garantie
+      if (label3.startsWith("DG ")) {
+        const dgVal = num(row[yearCol]) || num(row[yearCol - 1]) || num(row[yearCol - 2]) || 0;
+        charges.depotGarantieLots += dgVal;
+      }
+    }
+
+    // Pass 2: Extract P&L line items (charges, revenues, etc.)
     for (const row of raw) {
       if (!row || !row[3]) continue;
       const label = String(row[3]).trim();
-      const val = num(row[yearCol]) || num(row[yearCol - 1]) || 0;
+      const val = num(row[yearCol]) || num(row[yearCol - 1]) || num(row[yearCol - 2]) || 0;
 
       // Refacturations de charges aux locataires (comptes 7088x)
       if (label.includes("70880") || label.includes("70881") || label.includes("REFACT")) {
@@ -554,6 +600,10 @@ function parsePLCharges(wb: XLSX.WorkBook): PLCharges[] {
         charges.honorairesComptables = val;
       } else if (label.includes("62780") || label.includes("FRAIS BANCAIRES")) {
         charges.fraisBancaires = val;
+      } else if (label.includes("68112") || label.includes("DOTATION AMORT")) {
+        charges.dotationAmortissement = val;
+      } else if (label.includes("66112") || label.includes("INTERETS DES EMPRUNTS")) {
+        charges.interetsBancaires += val;
       }
     }
 
@@ -593,6 +643,16 @@ function parseGaranties(wb: XLSX.WorkBook): GarantieRow[] {
 
 // ── Parse SYNTH (CA/RN prévisionnel par SCI) ────────────────────────
 
+interface SynthRow {
+  sciName: string;
+  destination: string | null;
+  fraisNotaire: number;
+  loyerActuelHC: number;
+  tauxRendement: number;
+  valeurM2Acqui: number;
+  valeurM2Actuelle: number;
+}
+
 interface SynthFinancials {
   sciName: string;
   ca2025: number;
@@ -601,13 +661,16 @@ interface SynthFinancials {
   rn2026: number;
 }
 
-function parseSynthFinancials(wb: XLSX.WorkBook): SynthFinancials[] {
+function parseSynthFinancials(wb: XLSX.WorkBook): { financials: SynthFinancials[]; rows: SynthRow[] } {
   const sheet = wb.Sheets["SYNTH"];
-  if (!sheet) return [];
+  if (!sheet) return { financials: [], rows: [] };
   const raw = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
   const agg: Record<string, SynthFinancials> = {};
+  const synthRows: SynthRow[] = [];
 
-  // Headers row 1: col 14=CA 2025, 15=RN 2025, 16=CA 2026BP, 17=RN 2026BP
+  // Headers row 1: col 4=frais notaire, col 9=loyer actuel HC, col 14=CA 2025,
+  // col 15=RN 2025, col 16=CA 2026BP, col 17=RN 2026BP,
+  // col 18=taux rendement, col 19=valeur m² acqui, col 20=valeur m² actuelle
   for (let i = 2; i < raw.length; i++) {
     const r = raw[i];
     if (!r || !r[0]) continue;
@@ -621,8 +684,19 @@ function parseSynthFinancials(wb: XLSX.WorkBook): SynthFinancials[] {
     agg[sciName].rn2025 += num(r[15]) || 0;
     agg[sciName].ca2026 += num(r[16]) || 0;
     agg[sciName].rn2026 += num(r[17]) || 0;
+
+    // Capture per-row enrichment data (frais notaire, valorisation, etc.)
+    synthRows.push({
+      sciName,
+      destination: str(r[2]),
+      fraisNotaire: num(r[4]) || 0,
+      loyerActuelHC: num(r[9]) || 0,
+      tauxRendement: num(r[18]) || 0,
+      valeurM2Acqui: num(r[19]) || 0,
+      valeurM2Actuelle: num(r[20]) || 0,
+    });
   }
-  return Object.values(agg);
+  return { financials: Object.values(agg), rows: synthRows };
 }
 
 // ── Main import function ─────────────────────────────────────────────
@@ -637,11 +711,9 @@ export async function importExcelData(): Promise<{
   associes: number;
   participations: number;
 }> {
-  // Try multiple possible file names (newest first)
+  // Only the canonical Excel file should be used
   const fileNames = [
-    "BDD_SCI_restructuree.xlsx",
     "BDD SCI 07.04.26 - BDD - loyers actuels complétés.xlsx",
-    "BDD SCI 04 01 2026 - proposition FLE new BDD (5).xlsx",
   ];
   const fs = await import("fs");
   let xlsxPath: string | undefined;
@@ -687,8 +759,8 @@ export async function importExcelData(): Promise<{
   const plCharges = parsePLCharges(wb);
   // Garanties bancaires (Feuil1)
   const garantieRows = parseGaranties(wb);
-  // CA/RN prévisionnel (SYNTH)
-  const synthFinancials = parseSynthFinancials(wb);
+  // CA/RN prévisionnel + enrichment (SYNTH)
+  const { financials: synthFinancials, rows: synthRows } = parseSynthFinancials(wb);
 
   logger.info("import: parsed sheets", {
     format: hasBDDSheet ? "BDD combined" : "separate sheets",
@@ -700,6 +772,7 @@ export async function importExcelData(): Promise<{
     plSheets: plCharges.length,
     garanties: garantieRows.length,
     synthFinancials: synthFinancials.length,
+    synthRows: synthRows.length,
   });
 
   const client = await pool.connect();
@@ -901,12 +974,24 @@ export async function importExcelData(): Promise<{
         ? first.destination
         : `${first.adresse}, ${first.ville}`;
 
+      // SYNTH enrichment: frais notaire, taux rendement, prix m²
+      // Match SYNTH rows by SCI + destination substring
+      const matchingSynthRows = synthRows.filter((sr) => sr.sciName === sciName);
+      let fraisNotaire = 0;
+      let tauxRendement = 0;
+      let prixM2Actuelle = 0;
+      for (const sr of matchingSynthRows) {
+        if (sr.fraisNotaire > 0) fraisNotaire += sr.fraisNotaire;
+        if (sr.tauxRendement > 0 && tauxRendement === 0) tauxRendement = sr.tauxRendement;
+        if (sr.valeurM2Actuelle > 0 && prixM2Actuelle === 0) prixM2Actuelle = sr.valeurM2Actuelle;
+      }
+
       await client.query(
         `INSERT INTO am_actifs (id, sci_id, nom, adresse, ville, code_postal, type, surface, surface_carrez,
-         reference_cadastrale, prix_acquisition, date_acquisition, regime_juridique,
-         taxe_fonciere, assurance_pno, charges_copropriete,
+         reference_cadastrale, prix_acquisition, frais_notaire, date_acquisition, regime_juridique,
+         taxe_fonciere, assurance_pno, charges_copropriete, prix_m2_marche,
          notes, erp, pmi, taux_capitalisation, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, now(), now())`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, now(), now())`,
         [
           actifId,
           sciIds[sciName],
@@ -919,16 +1004,18 @@ export async function importExcelData(): Promise<{
           first.surfacesPrivatives || totalSurfaceLouee,
           first.cadastre,
           prixAcquisition > 0 ? prixAcquisition : null,
+          fraisNotaire > 0 ? fraisNotaire : null,
           first.dateAcquisition,
           isCopro ? "copropriété" : "pleine propriété",
           taxeFonciere > 0 ? taxeFonciere : null,
           assurance > 0 ? assurance : null,
           chargesCopro > 0 ? chargesCopro : null,
+          prixM2Actuelle > 0 ? prixM2Actuelle : null,
           [first.description, vo ? `VO: ${vo}€` : null, vnc ? `VNC: ${vnc}€` : null]
             .filter(Boolean).join("\n") || null,
           false,
           false,
-          7, // Taux de capitalisation par défaut : 7% (from Valorisation sheet)
+          tauxRendement > 0 ? tauxRendement * 100 : 7, // SYNTH taux rendement, default 7%
         ]
       );
       counts.actifs++;
@@ -952,6 +1039,18 @@ export async function importExcelData(): Promise<{
     logger.info(`import: created ${counts.locataires} locataires`);
 
     // ─── 6. Create Lots + Baux (from Baux sheet) ─────────────────
+    // Index P&L per-lot rents by SCI for fallback when BDD loyerActuelHC is missing
+    const lotRentsBySci: Record<string, { label: string; loyer: number }[]> = {};
+    for (const c of plCharges) {
+      if (c.lotRents2026.length > 0) lotRentsBySci[c.sciName] = c.lotRents2026;
+    }
+
+    // Index DG totals per SCI, distributed per lot count
+    const dgBySci: Record<string, number> = {};
+    for (const c of plCharges) {
+      if (c.depotGarantieLots > 0) dgBySci[c.sciName] = c.depotGarantieLots;
+    }
+
     for (const b of bauxRows) {
       const actifKey = `${b.sciName}|${b.adresse}`;
       const actifId = actifIds[actifKey];
@@ -962,7 +1061,20 @@ export async function importExcelData(): Promise<{
         continue;
       }
 
-      const loyerAnnuel = b.loyerActuelHC || b.loyerAnnuelDepart;
+      // Priority: BDD loyerActuelHC (col 21) → P&L 2026 rent by matching lot label → BDD loyerDepart
+      let loyerAnnuel = b.loyerActuelHC;
+      if (!loyerAnnuel && b.destination) {
+        const sciRents = lotRentsBySci[b.sciName] || [];
+        const match = sciRents.find((lr) =>
+          lr.label.includes(b.destination!.substring(0, 15)) ||
+          b.destination!.includes(lr.label.substring(0, 15))
+        );
+        if (match) {
+          loyerAnnuel = match.loyer;
+          logger.info(`import: P&L 2026 rent fallback for ${b.destination}: ${loyerAnnuel}`);
+        }
+      }
+      if (!loyerAnnuel) loyerAnnuel = b.loyerAnnuelDepart;
 
       // Create Lot
       const lotId = id();
@@ -1010,11 +1122,16 @@ export async function importExcelData(): Promise<{
           if (trimMatch) trimestreRef = `T${trimMatch[1]} ${trimMatch[2]}`;
         }
 
+        // Distribute P&L dépôt de garantie across lots of this SCI
+        const sciDgTotal = dgBySci[b.sciName] || 0;
+        const sciBauxCount = bauxRows.filter((x) => x.sciName === b.sciName && x.locataire).length || 1;
+        const depotGarantie = sciDgTotal > 0 ? Math.round(sciDgTotal / sciBauxCount) : null;
+
         await client.query(
           `INSERT INTO am_baux (id, lot_id, actif_id, sci_id, locataire_id, type_bail,
-           date_debut, date_fin, loyer_mensuel, loyer_annuel, indice_reference,
+           date_debut, date_fin, loyer_mensuel, loyer_annuel, depot_garantie, indice_reference,
            trimestre_ref, valeur_indice_base, statut, loyer_theorique, notes, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, now(), now())`,
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, now(), now())`,
           [
             id(),
             lotId,
@@ -1026,6 +1143,7 @@ export async function importExcelData(): Promise<{
             b.dateFin,
             loyerAnnuel ? (loyerAnnuel / 12).toFixed(2) : null,
             loyerAnnuel,
+            depotGarantie,
             indiceRef,
             trimestreRef,
             valeurIndice,
@@ -1136,20 +1254,25 @@ export async function importExcelData(): Promise<{
       const garantieKey = `${sciName}|${e.banque}`;
       const garantieText = garantieBySciBank[garantieKey] || null;
 
-      // Use real annual payment from Excel as mensualité for accurate cash-flow
-      // getAnnuiteEmprunt() prioritises mensualité over the actuarial formula
-      const mensualiteReelle = e.echeanceAnnuelle2025 ? (e.echeanceAnnuelle2025 / 12) : null;
+      // Use 2026 annual payment if available (more representative full-year),
+      // otherwise fall back to 2025
+      const echeanceAnnuelle = e.echeanceAnnuelle2026 && e.echeanceAnnuelle2026 > 0
+        ? e.echeanceAnnuelle2026 : e.echeanceAnnuelle2025;
+      const mensualiteReelle = echeanceAnnuelle ? (echeanceAnnuelle / 12) : null;
+
+      // Capital restant dû: use end-2025 (= start 2026) as the reference snapshot
+      const capitalRestant = e.capitalRestantDu2025;
 
       // Back-derive implied assurance rate from gap between actuarial formula and real payment
       // Excel échéances = capital + intérêts + assurance emprunteur
       // impliedAssurance% = (échéance_Excel - formule_actuarielle) / montant × 100
       let reconNote = "";
-      if (!tauxAssurance && e.echeanceAnnuelle2025 && e.montant > 0 && e.taux > 0 && dureeAns > 0) {
+      if (!tauxAssurance && echeanceAnnuelle && e.montant > 0 && e.taux > 0 && dureeAns > 0) {
         const rm = e.taux / 12; // taux is already decimal from Excel
         const n = dureeAns * 12;
         const factor = Math.pow(1 + rm, n);
         const annuiteActuarielle = e.montant * (rm * factor) / (factor - 1) * 12;
-        const gap = e.echeanceAnnuelle2025 - annuiteActuarielle;
+        const gap = echeanceAnnuelle - annuiteActuarielle;
         const impliedRate = (gap / e.montant) * 100; // as percentage
         // Only use if plausible (0% to 2% — typical assurance rates)
         if (impliedRate > 0.01 && impliedRate < 2) {
@@ -1157,17 +1280,20 @@ export async function importExcelData(): Promise<{
           reconNote = `[auto] Taux assurance dérivé: ${tauxAssurance}%`;
           logger.info(`import: derived assurance rate ${tauxAssurance}% for ${e.nomPret} (${e.banque})`);
         } else if (impliedRate <= 0) {
-          // Formula > Excel: likely partial first year or deferred amortization
           reconNote = `[recon] Écart négatif (${impliedRate.toFixed(2)}%): probable année partielle ou différé`;
           logger.info(`import: negative gap for ${e.nomPret} (${e.banque}): implied ${impliedRate.toFixed(2)}% — partial year?`);
         } else {
-          // impliedRate >= 2%: loan near maturity or non-standard schedule
-          const crd = e.capitalRestantDu2025 || 0;
+          const crd = capitalRestant || 0;
           const crdRatio = e.montant > 0 ? (crd / e.montant) * 100 : 0;
           reconNote = `[recon] Écart élevé (${impliedRate.toFixed(2)}%): CRD=${crdRatio.toFixed(0)}% du montant — prêt en fin de vie?`;
           logger.info(`import: high gap for ${e.nomPret} (${e.banque}): implied ${impliedRate.toFixed(2)}%, CRD ratio ${crdRatio.toFixed(0)}%`);
         }
       }
+
+      // Build notes with all available metadata
+      const noteParts = [`Prêt: ${e.nomPret}`];
+      if (e.comptaNo && e.comptaNo !== "0") noteParts.push(`Cpte: ${e.comptaNo}`);
+      if (reconNote) noteParts.push(reconNote);
 
       await client.query(
         `INSERT INTO am_emprunts (id, sci_id, banque, montant_emprunte, capital_restant_du,
@@ -1179,7 +1305,7 @@ export async function importExcelData(): Promise<{
           sciId,
           e.banque,
           e.montant,
-          e.capitalRestantDu2025,
+          capitalRestant,
           e.taux * 100, // Convert from decimal to percentage
           dureeAns,
           e.dateDebut,
@@ -1189,7 +1315,7 @@ export async function importExcelData(): Promise<{
           tauxAssurance,
           iraAmount,
           garantieText,
-          [`Prêt: ${e.nomPret}`, reconNote].filter(Boolean).join(" | "),
+          noteParts.join(" | "),
         ]
       );
       counts.emprunts++;

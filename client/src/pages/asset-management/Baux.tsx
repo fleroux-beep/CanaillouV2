@@ -37,8 +37,8 @@ const emptyBail: Partial<BailAM> = {};
 
 export default function BauxAMPage() {
   const { data, create, update, remove, creating, updating, deleting } = useCrud<BailAM>("/api/am/baux", "Bail");
-  const { data: actifs } = useCrud<{ id: string; nom?: string }>("/api/am/actifs", "Actif");
-  const { data: lots } = useCrud<{ id: string; nom?: string }>("/api/am/lots", "Lot");
+  const { data: actifs } = useCrud<{ id: string; nom?: string; sciId?: string }>("/api/am/actifs", "Actif");
+  const { data: lots } = useCrud<{ id: string; nom?: string; actifId?: string; designation?: string }>("/api/am/lots", "Lot");
   const { data: locataires } = useCrud<{ id: string; nom?: string }>("/api/am/locataires", "Locataire");
   const { data: scis } = useCrud<{ id: string; nom?: string }>("/api/am/scis", "SCI");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -80,7 +80,34 @@ export default function BauxAMPage() {
 
   const openCreate = () => { setEditing(null); setForm(emptyBail); setDialogOpen(true); };
   const openEdit = (bail: BailAM) => { setEditing(bail); setForm(bail); setDialogOpen(true); };
-  const onChange = (name: string, value: string) => setForm((f) => ({ ...f, [name]: value }));
+  const onChange = (name: string, value: string) => {
+    setForm((f) => {
+      const updated = { ...f, [name]: value };
+      // Cascading: selecting actif → auto-fill SCI
+      if (name === "actifId" && value) {
+        const actif = actifs.find((a) => a.id === value);
+        if (actif?.sciId) updated.sciId = actif.sciId;
+      }
+      // Cascading: selecting lot → auto-fill actif + SCI
+      if (name === "lotId" && value) {
+        const lot = lots.find((l) => l.id === value);
+        if (lot?.actifId) {
+          updated.actifId = lot.actifId;
+          const actif = actifs.find((a) => a.id === lot.actifId);
+          if (actif?.sciId) updated.sciId = actif.sciId;
+        }
+      }
+      // Auto-calc loyer: mensuel → annuel (et vice-versa)
+      if (name === "loyerMensuel" && value) {
+        const mensuel = parseFloat(value);
+        if (!isNaN(mensuel)) updated.loyerAnnuel = String(Math.round(mensuel * 12 * 100) / 100);
+      } else if (name === "loyerAnnuel" && value) {
+        const annuel = parseFloat(value);
+        if (!isNaN(annuel)) updated.loyerMensuel = String(Math.round((annuel / 12) * 100) / 100);
+      }
+      return updated;
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,9 +153,12 @@ export default function BauxAMPage() {
         size="lg"
       >
         <FormGrid>
-          <FormField label="Lot" name="lotId" value={form.lotId} onChange={onChange} options={lots.map((l) => ({ value: l.id, label: l.nom || l.id }))} />
           <FormField label="Actif" name="actifId" value={form.actifId} onChange={onChange} options={actifs.map((a) => ({ value: a.id, label: a.nom || a.id }))} />
-          <FormField label="SCI" name="sciId" value={form.sciId} onChange={onChange} options={scis.map((s) => ({ value: s.id, label: s.nom || s.id }))} />
+          <FormField label="Lot" name="lotId" value={form.lotId} onChange={onChange} options={
+            (form.actifId ? lots.filter((l) => l.actifId === form.actifId) : lots)
+              .map((l) => ({ value: l.id, label: l.designation || l.nom || l.id }))
+          } />
+          <FormField label="SCI (auto)" name="sciId" value={form.sciId} onChange={onChange} options={scis.map((s) => ({ value: s.id, label: s.nom || s.id }))} />
           <FormField label="Locataire" name="locataireId" value={form.locataireId} onChange={onChange} options={locataires.map((l) => ({ value: l.id, label: l.nom || l.id }))} />
           <FormField label="Type de bail" name="typeBail" value={form.typeBail} onChange={onChange} options={[
             { value: "habitation", label: "Habitation" },
@@ -139,8 +169,11 @@ export default function BauxAMPage() {
           <FormField label="Date début" name="dateDebut" value={form.dateDebut} onChange={onChange} type="date" />
           <FormField label="Date fin" name="dateFin" value={form.dateFin} onChange={onChange} type="date" />
           <FormField label="Date signature" name="dateSignature" value={form.dateSignature} onChange={onChange} type="date" />
+          <FormField label="Statut" name="statut" value={form.statut} onChange={onChange} options={[
+            { value: "actif", label: "Actif" }, { value: "expiré", label: "Expiré" }, { value: "résilié", label: "Résilié" },
+          ]} />
           <FormField label="Loyer mensuel" name="loyerMensuel" value={form.loyerMensuel} onChange={onChange} type="number" suffix="EUR" />
-          <FormField label="Loyer annuel" name="loyerAnnuel" value={form.loyerAnnuel} onChange={onChange} type="number" suffix="EUR" />
+          <FormField label="Loyer annuel (auto)" name="loyerAnnuel" value={form.loyerAnnuel} onChange={onChange} type="number" suffix="EUR" />
           <FormField label="Charges" name="charges" value={form.charges} onChange={onChange} type="number" suffix="EUR" />
           <FormField label="Dépôt de garantie" name="depotGarantie" value={form.depotGarantie} onChange={onChange} type="number" suffix="EUR" />
         </FormGrid>

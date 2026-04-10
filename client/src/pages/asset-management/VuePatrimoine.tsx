@@ -12,7 +12,7 @@ import { Badge } from "../../components/ui/badge";
 import { formatCurrency } from "../../lib/utils";
 import {
   TreePine, Building2, Key, FileText, Users, ChevronRight,
-  Landmark, MapPin,
+  Landmark, MapPin, ExternalLink, TrendingUp, Home,
 } from "lucide-react";
 import ActifsPage from "./Actifs";
 import LotsPage from "./Lots";
@@ -22,7 +22,7 @@ import CartePage from "./Carte";
 
 interface SCI { id: string; nom: string; }
 interface Actif { id: string; nom: string; sciId?: string; ville?: string; type?: string; surface?: string; prixAcquisition?: string; archived?: boolean; }
-interface Lot { id: string; actifId: string; designation: string; type?: string; surface?: string; statut?: string; loyerMensuel?: string; archived?: boolean; }
+interface Lot { id: string; actifId: string; designation: string; type?: string; surface?: string; statut?: string; loyerMensuel?: string; loyerAnnuel?: string; archived?: boolean; }
 interface BailAM { id: string; lotId?: string; actifId?: string; sciId?: string; locataireId?: string; loyerMensuel?: string; loyerAnnuel?: string; statut?: string; typeBail?: string; }
 interface Locataire { id: string; nom: string; prenom?: string; }
 
@@ -79,19 +79,28 @@ function ArbrePatrimoine() {
           const sciActifs = activeActifs.filter((a) => a.sciId === sci.id);
           const sciKey = `sci-${sci.id}`;
           const sciExpanded = expanded[sciKey] !== false; // expanded by default
+          const sciLots = activeLots.filter((l) => sciActifs.some((a) => a.id === l.actifId));
+          const sciLotsLoues = sciLots.filter((l) => l.statut?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === "loue").length;
+          const sciPrixTotal = sciActifs.reduce((s, a) => s + (a.prixAcquisition ? parseFloat(a.prixAcquisition) : 0), 0);
 
           return (
             <Section key={sci.id} title="" delay={si}>
               <GlassCard>
-                <button
-                  onClick={() => toggle(sciKey)}
-                  className="flex w-full items-center gap-3 text-left"
-                >
-                  <ChevronRight className={`h-4 w-4 transition-transform ${sciExpanded ? "rotate-90" : ""}`} />
-                  <Landmark className="h-5 w-5 text-orange-500" />
-                  <span className="text-lg font-semibold">{sci.nom}</span>
-                  <Badge variant="primary" className="ml-2">{sciActifs.length} actif(s)</Badge>
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => toggle(sciKey)}
+                    className="flex flex-1 items-center gap-3 text-left"
+                  >
+                    <ChevronRight className={`h-4 w-4 transition-transform ${sciExpanded ? "rotate-90" : ""}`} />
+                    <Landmark className="h-5 w-5 text-orange-500" />
+                    <span className="text-lg font-semibold">{sci.nom}</span>
+                    <Badge variant="primary" className="ml-2">{sciActifs.length} actif(s)</Badge>
+                  </button>
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                    {sciLots.length > 0 && <span>{sciLotsLoues}/{sciLots.length} lots loués</span>}
+                    {sciPrixTotal > 0 && <span>{formatCurrency(sciPrixTotal)}</span>}
+                  </div>
+                </div>
 
                 {sciExpanded && (
                   <div className="ml-8 mt-4 space-y-3">
@@ -100,27 +109,60 @@ function ArbrePatrimoine() {
                     )}
                     {sciActifs.map((actif) => {
                       const actifLots = activeLots.filter((l) => l.actifId === actif.id);
-                      const actifBaux = baux.filter((b) => b.actifId === actif.id);
+                      const actifBaux = baux.filter((b) => b.actifId === actif.id && b.statut !== "résilié");
                       const actifKey = `actif-${actif.id}`;
                       const actifExpanded = expanded[actifKey] !== false;
 
+                      // Financial summary
+                      const lotsLoues = actifLots.filter((l) => l.statut?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === "loue").length;
+                      const loyerTotal = actifBaux.reduce((s, b: any) => {
+                        const annuel = Number(b.loyerAnnuel || 0);
+                        return s + (annuel > 0 ? annuel : Number(b.loyerMensuel || 0) * 12);
+                      }, 0) || actifLots.reduce((s, l) => {
+                        const annuel = Number(l.loyerAnnuel || 0);
+                        return s + (annuel > 0 ? annuel : Number(l.loyerMensuel || 0) * 12);
+                      }, 0);
+                      const occupation = actifLots.length > 0 ? Math.round((lotsLoues / actifLots.length) * 100) : (actifBaux.length > 0 ? 100 : 0);
+
                       return (
                         <div key={actif.id} className="rounded-lg border border-border/50 bg-muted/10 p-3">
-                          <button
-                            onClick={() => toggle(actifKey)}
-                            className="flex w-full items-center gap-3 text-left"
-                          >
-                            <ChevronRight className={`h-3.5 w-3.5 transition-transform ${actifExpanded ? "rotate-90" : ""}`} />
-                            <Building2 className="h-4 w-4 text-rose-500" />
-                            <span className="font-medium">{actif.nom}</span>
-                            {actif.ville && (
-                              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                <MapPin className="h-3 w-3" />{actif.ville}
-                              </span>
-                            )}
-                            {actif.type && <Badge variant="outline" className="text-xs">{actif.type}</Badge>}
-                            {actif.surface && <span className="text-xs text-muted-foreground">{actif.surface} m²</span>}
-                          </button>
+                          <div className="flex items-center gap-3">
+                            <button
+                              onClick={() => toggle(actifKey)}
+                              className="flex flex-1 items-center gap-3 text-left min-w-0"
+                            >
+                              <ChevronRight className={`h-3.5 w-3.5 flex-shrink-0 transition-transform ${actifExpanded ? "rotate-90" : ""}`} />
+                              <Building2 className="h-4 w-4 flex-shrink-0 text-rose-500" />
+                              <span className="font-medium truncate">{actif.nom}</span>
+                              {actif.ville && (
+                                <span className="text-xs text-muted-foreground flex items-center gap-1 flex-shrink-0">
+                                  <MapPin className="h-3 w-3" />{actif.ville}
+                                </span>
+                              )}
+                              {actif.type && <Badge variant="outline" className="text-xs flex-shrink-0">{actif.type}</Badge>}
+                            </button>
+                            {/* Financial summary */}
+                            <div className="flex items-center gap-3 flex-shrink-0 text-xs">
+                              {actifLots.length > 0 && (
+                                <span className={`font-medium ${occupation === 100 ? "text-green-600" : occupation >= 70 ? "text-amber-600" : "text-red-600"}`}>
+                                  {occupation}% occ.
+                                </span>
+                              )}
+                              {loyerTotal > 0 && (
+                                <span className="text-muted-foreground">{formatCurrency(loyerTotal)}/an</span>
+                              )}
+                              {actifLots.length > 0 && (
+                                <span className="text-muted-foreground">{actifLots.length} lot{actifLots.length > 1 ? "s" : ""}</span>
+                              )}
+                              <button
+                                onClick={(e) => { e.stopPropagation(); navigate(`/asset-management/actifs/${actif.id}`); }}
+                                className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                                title="Voir le détail"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
 
                           {actifExpanded && (
                             <div className="ml-8 mt-3 space-y-2">
@@ -136,7 +178,7 @@ function ArbrePatrimoine() {
                                         {lot.type && <Badge variant="outline" className="text-xs">{lot.type}</Badge>}
                                         {lot.surface && <span className="text-xs text-muted-foreground">{lot.surface} m²</span>}
                                         {lot.statut && (
-                                          <Badge variant={lot.statut === "loué" ? "success" : "warning"} className="text-xs">
+                                          <Badge variant={lot.statut?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === "loue" ? "success" : "warning"} className="text-xs">
                                             {lot.statut}
                                           </Badge>
                                         )}

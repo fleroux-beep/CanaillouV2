@@ -165,7 +165,7 @@ export function AmortissementTab() {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-muted-foreground">Taux annuel</span>
-                        <span className="text-sm font-semibold">{formatPercent(parseFloat(selectedEmprunt.tauxAnnuel || "0") / 100, 2)}</span>
+                        <span className="text-sm font-semibold">{formatPercent(parseFloat(selectedEmprunt.tauxAnnuel || "0"), 2)}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-muted-foreground">Mensualité</span>
