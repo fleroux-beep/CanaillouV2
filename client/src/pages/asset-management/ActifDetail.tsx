@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "../../lib/queryClient";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatCurrency, formatDate } from "../../lib/utils";
+import { getChargesAnnuelles, getLoyerAnnuelActif, getPrixAcquisition } from "../../lib/am-calculations";
 import { KpiCard } from "../../components/ui/kpi-card";
 import { GlassCard } from "../../components/ui/glass-card";
 import { PageHeader } from "../../components/ui/page-header";
@@ -38,6 +39,7 @@ interface Actif {
   fraisAgence?: string;
   montantTravaux?: string;
   dateAcquisition?: string;
+  chargesCopropriete?: string;
   chargesAnnuelles?: string;
   taxeFonciere?: string;
   assurancePno?: string;
@@ -102,11 +104,11 @@ export default function ActifDetailPage() {
   }
 
   const sciName = scis.find((s) => s.id === actif.sciId)?.nom;
-  const prixAcq = Number(actif.prixAcquisition || 0);
-  const fraisTotal = prixAcq + Number(actif.fraisNotaire || 0) + Number(actif.fraisAgence || 0) + Number(actif.montantTravaux || 0);
-  const chargesTotal = Number(actif.chargesAnnuelles || 0) + Number(actif.taxeFonciere || 0) + Number(actif.assurancePno || 0);
-  const loyerAnnuelTotal = lots.reduce((sum, l) => sum + Number(l.loyerAnnuel || 0) + Number(l.loyerMensuel || 0) * 12, 0);
-  const lotsLoues = lots.filter((l) => l.statut === "loué").length;
+  const prixAcq = Number(actif.prixAcquisition ?? 0);
+  const fraisTotal = getPrixAcquisition(actif as any);
+  const chargesTotal = getChargesAnnuelles(actif as any);
+  const loyerAnnuelTotal = getLoyerAnnuelActif(actif as any, [], lots as any[]);
+  const lotsLoues = lots.filter((l) => l.statut?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === "loue").length;
 
   const descParts = [actif.type, sciName, actif.ville].filter(Boolean);
 
@@ -213,7 +215,7 @@ export default function ActifDetailPage() {
                         <td className="py-3 text-right">{lot.loyerMensuel ? formatCurrency(lot.loyerMensuel) : "—"}</td>
                         <td className="py-3">
                           {lot.statut ? (
-                            <Badge variant={lot.statut === "loué" ? "success" : "warning"}>{lot.statut}</Badge>
+                            <Badge variant={lot.statut?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === "loue" ? "success" : "warning"}>{lot.statut}</Badge>
                           ) : "—"}
                         </td>
                       </tr>

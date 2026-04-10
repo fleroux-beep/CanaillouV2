@@ -76,8 +76,8 @@ export default function ValorisationPage() {
 
     // Méthode capitalisation
     const tauxCapi = Number(a.tauxCapitalisation || 0);
-    const loyerNet = Math.max(0, loyerAnnuel - charges);
-    const valeurCapitalisation = tauxCapi > 0 && loyerNet > 0 ? loyerNet / (tauxCapi / 100) : 0;
+    const noi = loyerAnnuel - charges;
+    const valeurCapitalisation = tauxCapi > 0 && noi > 0 ? noi / (tauxCapi / 100) : 0;
 
     // Méthode comparables
     const valeurComparables = surface > 0 && prixM2Marche > 0 ? surface * prixM2Marche : 0;
@@ -93,7 +93,7 @@ export default function ValorisationPage() {
       plusValuePct: prixAcquisition > 0 ? (plusValue / prixAcquisition) * 100 : 0,
       loyerAnnuel,
       charges,
-      noi: loyerNet,
+      noi,
       rendementBrut,
       rendementNet,
       prixM2,

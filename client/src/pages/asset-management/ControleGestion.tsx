@@ -133,9 +133,9 @@ export default function ControleGestionPage() {
       const noi = loyerAnnuel - charges;
       const rendementNet = getRendementNet(loyerAnnuel, charges, prixAcq);
 
-      const taxeFonciere = Number(a.taxeFonciere || 0);
-      const assurancePno = Number(a.assurancePno || 0);
-      const chargesCopro = Number(a.chargesCopropriete || a.chargesAnnuelles || 0);
+      const taxeFonciere = Number(a.taxeFonciere ?? 0);
+      const assurancePno = Number(a.assurancePno ?? 0);
+      const chargesCopro = Number(a.chargesCopropriete ?? a.chargesAnnuelles ?? 0);
 
       totalLoyers += loyerAnnuel;
       totalCharges += charges;

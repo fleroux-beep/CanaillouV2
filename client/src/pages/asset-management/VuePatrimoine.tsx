@@ -136,7 +136,7 @@ function ArbrePatrimoine() {
                                         {lot.type && <Badge variant="outline" className="text-xs">{lot.type}</Badge>}
                                         {lot.surface && <span className="text-xs text-muted-foreground">{lot.surface} m²</span>}
                                         {lot.statut && (
-                                          <Badge variant={lot.statut === "loué" ? "success" : "warning"} className="text-xs">
+                                          <Badge variant={lot.statut?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === "loue" ? "success" : "warning"} className="text-xs">
                                             {lot.statut}
                                           </Badge>
                                         )}
