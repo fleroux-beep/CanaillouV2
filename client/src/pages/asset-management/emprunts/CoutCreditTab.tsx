@@ -29,33 +29,41 @@ export function CoutCreditTab() {
   const actifMap = Object.fromEntries(actifsList.map((a) => [a.id, a.nom]));
   const activeEmprunts = emprunts.filter((e) => !e.archived);
 
-  // Calcul du cout total pour chaque emprunt
-  // IMPORTANT : toujours utiliser la formule actuarielle pour décomposer
-  // capital / intérêts / assurance. La mensualité stockée (Excel) inclut
-  // l'assurance et ne permet pas une décomposition propre.
+  // Calcul du coût total pour chaque emprunt.
+  // Source de vérité : mensualité Excel (paiement réel).
+  // Décomposition : assurance = mensualité_Excel - formule_actuarielle
   const coutData = useMemo(() => {
     return activeEmprunts.map((emp) => {
       const montant = emp.montantEmprunte ? parseFloat(emp.montantEmprunte) : 0;
       const duree = emp.dureeMois || (emp.dureeAns ? emp.dureeAns * 12 : 0);
       const tauxAnnuel = emp.tauxAnnuel ? parseFloat(emp.tauxAnnuel) / 100 : 0;
-      const tauxAssurance = emp.tauxAssurance ? parseFloat(emp.tauxAssurance) / 100 : 0;
+      const mensualiteExcel = emp.mensualite ? parseFloat(emp.mensualite) : 0;
 
-      // Mensualité capital+intérêts : toujours par formule actuarielle
-      let mens = 0;
+      // Formule actuarielle pure (capital + intérêts)
+      let mensuActuarielle = 0;
       if (montant > 0 && duree > 0) {
         if (tauxAnnuel > 0) {
           const rm = tauxAnnuel / 12;
           const factor = Math.pow(1 + rm, duree);
-          mens = montant * (rm * factor) / (factor - 1);
+          mensuActuarielle = montant * (rm * factor) / (factor - 1);
         } else {
-          mens = montant / duree;
+          mensuActuarielle = montant / duree;
         }
       }
 
-      // Assurance mensuelle séparée
-      let assurance = emp.assuranceMensuelle ? parseFloat(emp.assuranceMensuelle) : 0;
-      if (assurance === 0 && montant > 0 && tauxAssurance > 0) {
-        assurance = (montant * tauxAssurance) / 12;
+      // Déduire l'assurance de l'écart Excel vs formule
+      let mens: number;
+      let assurance: number;
+      if (mensualiteExcel > 0) {
+        assurance = Math.max(0, mensualiteExcel - mensuActuarielle);
+        mens = mensualiteExcel - assurance;
+      } else {
+        mens = mensuActuarielle;
+        assurance = 0;
+        const tauxAssurance = emp.tauxAssurance ? parseFloat(emp.tauxAssurance) / 100 : 0;
+        if (montant > 0 && tauxAssurance > 0) {
+          assurance = (montant * tauxAssurance) / 12;
+        }
       }
 
       const totalRembourse = (mens + assurance) * duree;

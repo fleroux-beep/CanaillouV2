@@ -210,13 +210,13 @@ export function getCapitalRestantDu(emprunt: AMEmprunt): number {
   return Number(emprunt?.capitalRestantDu || emprunt?.montantEmprunte || 0);
 }
 
-/** Annuité d'un emprunt pour le CASH-FLOW COURANT.
+/** Annuité d'un emprunt = paiement annuel total (capital + intérêts + assurance).
  *
- * Priorité : mensualité Excel (réelle) > formule actuarielle + assurance.
- * Utilisé par : dashboard, contrôle de gestion, reporting (trésorerie réelle).
+ * Source de vérité unique : mensualité Excel × 12.
+ * Fallback si pas de mensualité stockée : formule actuarielle + taux assurance.
  *
- * Pour les projections et tableaux d'amortissement, voir computeAmortSchedule()
- * qui utilise toujours la formule pour décomposer capital/intérêts/assurance.
+ * Utilisé partout (dashboard, cash-flow, contrôle de gestion, reporting).
+ * Pour la décomposition capital/intérêts/assurance → computeAmortSchedule().
  */
 export function getAnnuiteEmprunt(emprunt: AMEmprunt): number {
   const mensualite = Number(emprunt?.mensualite || 0);
@@ -470,40 +470,54 @@ export interface AmortRow {
 /**
  * Génère un tableau d'amortissement avec assurance.
  *
- * IMPORTANT — Architecture de cohérence :
- * - Le tableau d'amortissement utilise TOUJOURS la formule actuarielle pour
- *   décomposer proprement capital / intérêts / assurance.
- * - La mensualité stockée (Excel) est utilisée uniquement par getAnnuiteEmprunt()
- *   pour le cash-flow courant (ce qui sort réellement du compte bancaire).
- * - Cela évite le double-comptage de l'assurance et garantit que les projections,
- *   stress tests et DCF sont mathématiquement cohérents.
+ * Source de vérité unique : la mensualité Excel (paiement bancaire réel).
+ *
+ * Décomposition :
+ *   mensualité_Excel = capital + intérêts + assurance
+ *   - intérêts = CRD × taux_mensuel (fait mathématique)
+ *   - assurance = mensualité_Excel - formule_actuarielle(montant, taux, durée)
+ *                 (déduit automatiquement ; ≥ 0, sinon cap à 0)
+ *   - capital = mensualité_Excel - intérêts - assurance
+ *
+ * Si pas de mensualité stockée → fallback sur formule + tauxAssurance.
  */
 export function computeAmortSchedule(emprunt: AMEmprunt): AmortRow[] {
   const montant = Number(emprunt?.montantEmprunte || 0);
   const taux = Number(emprunt?.tauxAnnuel || 0) / 100;
   const duree = Number(emprunt?.dureeAns || 0);
-  const tauxAssurance = Number(emprunt?.tauxAssurance || 0) / 100;
-  let assuranceMensuelle = Number(emprunt?.assuranceMensuelle || 0);
-
-  // Si assurance mensuelle non saisie, calculer à partir du taux d'assurance
-  if (assuranceMensuelle === 0 && montant > 0 && tauxAssurance > 0) {
-    assuranceMensuelle = (montant * tauxAssurance) / 12;
-  }
+  const mensualiteExcel = Number(emprunt?.mensualite || 0);
 
   if (montant <= 0 || duree <= 0) return [];
 
-  // Toujours utiliser la formule actuarielle (capital + intérêts uniquement)
-  // pour une décomposition propre. Ne JAMAIS injecter la mensualité Excel ici
-  // car elle inclut l'assurance, ce qui fausserait l'amortissement du capital.
-  let mensu: number;
+  // 1. Formule actuarielle pure (capital + intérêts uniquement)
+  let mensuActuarielle: number;
   if (taux > 0) {
-    const tauxMensuel = taux / 12;
-    const nbMois = duree * 12;
-    const factor = Math.pow(1 + tauxMensuel, nbMois);
-    mensu = montant * (tauxMensuel * factor) / (factor - 1);
+    const rm = taux / 12;
+    const n = duree * 12;
+    const f = Math.pow(1 + rm, n);
+    mensuActuarielle = montant * (rm * f) / (f - 1);
   } else {
-    // Taux 0% : amortissement linéaire
-    mensu = montant / (duree * 12);
+    mensuActuarielle = montant / (duree * 12);
+  }
+
+  // 2. Déduire l'assurance mensuelle de l'écart Excel vs formule
+  let assuranceMensuelle: number;
+  let mensuCapInt: number; // mensualité hors assurance (pour le calcul d'amortissement)
+
+  if (mensualiteExcel > 0) {
+    // Assurance = écart entre paiement réel et formule pure
+    assuranceMensuelle = Math.max(0, mensualiteExcel - mensuActuarielle);
+    mensuCapInt = mensualiteExcel - assuranceMensuelle;
+  } else {
+    // Pas de mensualité Excel → fallback sur tauxAssurance ou assuranceMensuelle
+    mensuCapInt = mensuActuarielle;
+    assuranceMensuelle = Number(emprunt?.assuranceMensuelle || 0);
+    if (assuranceMensuelle === 0) {
+      const tauxAssurance = Number(emprunt?.tauxAssurance || 0) / 100;
+      if (montant > 0 && tauxAssurance > 0) {
+        assuranceMensuelle = (montant * tauxAssurance) / 12;
+      }
+    }
   }
 
   const assuranceAnnuelle = assuranceMensuelle * 12;
@@ -523,24 +537,24 @@ export function computeAmortSchedule(emprunt: AMEmprunt): AmortRow[] {
     let capitalAmortiAn = 0;
     for (let m = 0; m < 12 && capital > 0.01; m++) {
       const interetsMois = capital * tauxMensuel;
-      const capitalMois = Math.min(capital, mensu - interetsMois);
+      const capitalMois = Math.min(capital, mensuCapInt - interetsMois);
       interetsAn += interetsMois;
       capitalAmortiAn += capitalMois;
       capital = Math.max(0, capital - capitalMois);
     }
-    const annuiteEffective = interetsAn + capitalAmortiAn;
+    const annuiteCapInt = interetsAn + capitalAmortiAn;
     const anneeReelle = startYear != null ? startYear + y - 1 : undefined;
     rows.push({
       year: y,
       anneeReelle,
       isCurrent: anneeReelle === currentYear,
       capitalDebut: capital + capitalAmortiAn,
-      annuite: annuiteEffective,
+      annuite: annuiteCapInt,
       interets: interetsAn,
       capitalAmorti: capitalAmortiAn,
       capitalFin: capital,
       assurance: assuranceAnnuelle,
-      totalAnnuel: annuiteEffective + assuranceAnnuelle,
+      totalAnnuel: annuiteCapInt + assuranceAnnuelle,
     });
   }
   return rows;
