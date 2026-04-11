@@ -50,7 +50,7 @@ const amNavGroups: NavGroup[] = [
       { label: "Contrôle de gestion", href: "/asset-management/controle-gestion", icon: ClipboardList },
       { label: "Arbitrages", href: "/asset-management/arbitrages", icon: ArrowUpDown },
       { label: "Score de santé", href: "/asset-management/score-sante", icon: Heart },
-      { label: "Étude de marché", href: "/asset-management/etude-marche", icon: Search },
+      { label: "Analyse patrimoniale", href: "/asset-management/etude-marche", icon: Search },
     ],
   },
   {

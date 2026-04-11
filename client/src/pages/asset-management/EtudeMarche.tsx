@@ -2,19 +2,17 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiRequest } from "../../lib/queryClient";
-import { formatCurrency } from "../../lib/utils";
 import { PageHeader } from "../../components/ui/page-header";
 import { GlassCard } from "../../components/ui/glass-card";
 import { KpiCard } from "../../components/ui/kpi-card";
 import { Badge } from "../../components/ui/badge";
 import { Section } from "../../components/ui/section";
 import { DataTable, type Column } from "../../components/ui/data-table";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
 import {
-  RefreshCw, Building2, MapPin, TrendingUp, TrendingDown,
-  Database, AlertTriangle, Home, Store, Briefcase, Loader2,
-  Sparkles, ShieldCheck, Target, ArrowUpRight, ArrowDownRight,
-  Minus, Zap, Shield, ArrowLeft, BarChart3, Eye,
+  Building2, MapPin, TrendingUp, TrendingDown,
+  AlertTriangle, Loader2, Sparkles, ShieldCheck, Target,
+  ArrowUpRight, ArrowDownRight, Minus, Zap, Shield, ArrowLeft,
+  Landmark, Users, Receipt, PiggyBank,
 } from "lucide-react";
 
 // ============================================================
@@ -29,9 +27,29 @@ interface Phase1Data {
 
 interface InternalMetrics {
   surface: number; prixAcq: number; prixM2: number;
-  loyerAnnuel: number; loyerM2Mensuel: number; rendementBrut: number;
+  loyerAnnuel: number; loyerM2Mensuel: number; rendementBrut: number; rendementNet: number;
   tauxCapiInterne: number | null; ecartPrixPct: number | null; ecartLoyerPct: number | null;
+  chargesAnnuelles: number; taxeFonciere: number; assurancePno: number;
   nbLots: number; lotsOccupes: number; tauxOccupation: number;
+}
+
+interface BailDetail {
+  locataire: string | null;
+  typeBail: string | null;
+  dateDebut: string | null;
+  dateFin: string | null;
+  loyerAnnuel: number;
+  depotGarantie: number;
+  indiceReference: string | null;
+  statut: string | null;
+}
+
+interface EmpruntSummary {
+  nbEmprunts: number;
+  totalCRD: number;
+  echeanceAnnuelle: number;
+  tauxMoyen: number;
+  dateFinDerniere: string | null;
 }
 
 interface AnalyseIA {
@@ -48,25 +66,43 @@ interface AnalyseIA {
 }
 
 interface EtudeActif {
-  actif: { id: string; nom: string; adresse: string | null; ville: string | null; codePostal: string | null; type: string | null; surface: string | null; surfaceCarrez: string | null; dpe: string | null };
-  avertissements?: string[];
+  actif: { id: string; nom: string; adresse: string | null; ville: string | null; codePostal: string | null; type: string | null; surface: string | null; surfaceCarrez: string | null; dpe: string | null; sci: string | null; dateAcquisition: string | null };
   phase1: Phase1Data;
   interne: InternalMetrics;
+  bauxDetail: BailDetail[];
+  empruntSummary: EmpruntSummary | null;
+  cashFlowAnnuel: number;
+  locatairePrincipal: string | null;
+  prochaineEcheanceBail: string | null;
   analyseIA: AnalyseIA | null;
+}
+
+interface PortfolioStats {
+  totalActifs: number;
+  patrimoineTotal: number;
+  loyerAnnuelTotal: number;
+  rendementBrutMoyen: number;
+}
+
+interface EtudeResponse {
+  assets: EtudeActif[];
+  portfolioStats: PortfolioStats;
 }
 
 // ============================================================
 // Helpers
 // ============================================================
 
-function fmtPrix(v: number | null | undefined): string {
+function fmtEuro(v: number | null | undefined): string {
   if (v == null || v === 0) return "—";
-  return new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(v) + " €/m²";
+  return new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(v) + " €";
 }
 
-function fmtLoyer(v: number | null | undefined): string {
+function fmtEuroK(v: number | null | undefined): string {
   if (v == null || v === 0) return "—";
-  return new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(v) + " €/m²/mois";
+  if (Math.abs(v) >= 1_000_000) return new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 }).format(v / 1_000_000) + " M€";
+  if (Math.abs(v) >= 1_000) return new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(v / 1_000) + " k€";
+  return fmtEuro(v);
 }
 
 function fmtTaux(v: number | null | undefined): string {
@@ -74,29 +110,32 @@ function fmtTaux(v: number | null | undefined): string {
   return v.toFixed(2) + "%";
 }
 
-function ecartBadge(pct: number | null) {
-  if (pct == null) return <span className="text-xs text-muted-foreground">—</span>;
-  const isPositive = pct > 2;
-  const isNegative = pct < -2;
-  const color = isPositive ? "text-red-500 bg-red-500/10" : isNegative ? "text-emerald-600 bg-emerald-500/10" : "text-muted-foreground bg-muted/50";
-  return (
-    <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-bold ${color}`}>
-      {pct > 0 ? "+" : ""}{pct.toFixed(1)}%
-    </span>
-  );
+function fmtDate(d: string | null | undefined): string {
+  if (!d) return "—";
+  try { return new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }); } catch { return d; }
 }
 
-function ecartLoyerBadge(pct: number | null) {
-  if (pct == null) return <span className="text-xs text-muted-foreground">—</span>;
-  const isPositive = pct > 2;
-  const isNegative = pct < -2;
-  // For rent: above market = good (you're earning more)
-  const color = isPositive ? "text-emerald-600 bg-emerald-500/10" : isNegative ? "text-red-500 bg-red-500/10" : "text-muted-foreground bg-muted/50";
-  return (
-    <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-bold ${color}`}>
-      {pct > 0 ? "+" : ""}{pct.toFixed(1)}%
-    </span>
-  );
+function daysUntil(d: string | null | undefined): number | null {
+  if (!d) return null;
+  try {
+    const diff = new Date(d).getTime() - Date.now();
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  } catch { return null; }
+}
+
+function cashFlowBadge(cf: number) {
+  if (cf > 0) return <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-bold text-emerald-600 bg-emerald-500/10">+{fmtEuroK(cf)}</span>;
+  if (cf < 0) return <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-bold text-red-500 bg-red-500/10">{fmtEuroK(cf)}</span>;
+  return <span className="text-xs text-muted-foreground">—</span>;
+}
+
+function bailEcheanceBadge(dateFin: string | null) {
+  const days = daysUntil(dateFin);
+  if (days == null) return <span className="text-xs text-muted-foreground">—</span>;
+  const years = Math.round(days / 365 * 10) / 10;
+  if (days < 365) return <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-bold text-red-500 bg-red-500/10">{years < 0 ? "Expiré" : `${Math.round(days / 30)} mois`}</span>;
+  if (days < 365 * 3) return <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-bold text-amber-600 bg-amber-500/10">{years.toFixed(1)} ans</span>;
+  return <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-bold text-emerald-600 bg-emerald-500/10">{years.toFixed(1)} ans</span>;
 }
 
 const CONFIDENCE_STYLES: Record<string, { bg: string; text: string; label: string }> = {
@@ -108,8 +147,8 @@ const CONFIDENCE_STYLES: Record<string, { bg: string; text: string; label: strin
 };
 
 const RISQUE_ICONS: Record<string, typeof Shield> = {
-  vacance: Building2, obsolescence_energetique: Zap, marche: TrendingDown,
-  reglementaire: Shield, structural: AlertTriangle, fiscal: Target,
+  vacance: Building2, locataire: Users, obsolescence_energetique: Zap, marche: TrendingDown,
+  reglementaire: Shield, structural: AlertTriangle, fiscal: Target, refinancement: Landmark,
 };
 
 const RISQUE_COLORS: Record<string, string> = {
@@ -138,8 +177,8 @@ function ConfidenceBadge({ confidence }: { confidence: string }) {
   );
 }
 
-function DataMetric({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: "blue" | "emerald" | "amber" | "purple" }) {
-  const gradients = { blue: "from-blue-500 to-indigo-500", emerald: "from-emerald-500 to-teal-500", amber: "from-amber-500 to-orange-500", purple: "from-purple-500 to-violet-500" };
+function DataMetric({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: "blue" | "emerald" | "amber" | "purple" | "red" }) {
+  const gradients = { blue: "from-blue-500 to-indigo-500", emerald: "from-emerald-500 to-teal-500", amber: "from-amber-500 to-orange-500", purple: "from-purple-500 to-violet-500", red: "from-red-500 to-rose-500" };
   const gradient = accent ? gradients[accent] : "from-gray-500 to-gray-600";
   return (
     <div className="relative overflow-hidden rounded-xl border border-border/40 bg-card p-4">
@@ -151,17 +190,11 @@ function DataMetric({ label, value, sub, accent }: { label: string; value: strin
   );
 }
 
-function SyncActions({ syncing, onSync, analysingAll, onAnalyseAll }: {
-  syncing: boolean; onSync: () => void; analysingAll: boolean; onAnalyseAll: () => void;
+function SyncActions({ analysingAll, onAnalyseAll }: {
+  analysingAll: boolean; onAnalyseAll: () => void;
 }) {
   return (
     <div className="flex items-center gap-2">
-      <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} disabled={syncing}
-        onClick={onSync}
-        className="flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm disabled:opacity-50">
-        {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Database className="h-3.5 w-3.5" />}
-        Sync DVF + ANIL
-      </motion.button>
       <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} disabled={analysingAll}
         onClick={onAnalyseAll}
         className="flex items-center gap-2 rounded-lg gradient-primary px-3 py-1.5 text-xs font-semibold text-white shadow-sm disabled:opacity-50">
@@ -173,17 +206,20 @@ function SyncActions({ syncing, onSync, analysingAll, onAnalyseAll }: {
 }
 
 // ============================================================
-// Tab 1: Portfolio View
+// Tab 1: Portfolio View — Performance patrimoniale
 // ============================================================
 
-function PortfolioTab({ data, onSelectActif }: { data: EtudeActif[]; onSelectActif: (id: string) => void }) {
+function PortfolioTab({ data, stats, onSelectActif }: { data: EtudeActif[]; stats: PortfolioStats; onSelectActif: (id: string) => void }) {
   const columns: Column<EtudeActif>[] = [
     {
       key: "nom", label: "Actif", sortable: true,
       render: (r) => (
         <div>
           <p className="font-medium text-sm">{r.actif.nom}</p>
-          {r.actif.ville && <p className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="h-3 w-3" />{r.actif.ville}{r.actif.codePostal ? ` (${r.actif.codePostal})` : ""}</p>}
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            {r.actif.ville && <span className="flex items-center gap-0.5"><MapPin className="h-3 w-3" />{r.actif.ville}</span>}
+            {r.actif.sci && <span className="text-muted-foreground/60">· {r.actif.sci}</span>}
+          </div>
         </div>
       ),
     },
@@ -192,45 +228,46 @@ function PortfolioTab({ data, onSelectActif }: { data: EtudeActif[]; onSelectAct
       render: (r) => r.actif.type ? <Badge>{r.actif.type}</Badge> : "—",
     },
     {
-      key: "prixM2Marche", label: "Prix/m² marché", sortable: true, align: "right",
-      render: (r) => fmtPrix(r.phase1.valeurVenale?.prixM2Median),
-      exportValue: (r) => r.phase1.valeurVenale?.prixM2Median || 0,
+      key: "loyerAnnuel", label: "Loyer annuel", sortable: true, align: "right",
+      render: (r) => r.interne.loyerAnnuel > 0 ? <span className="font-medium">{fmtEuroK(r.interne.loyerAnnuel)}</span> : "—",
+      exportValue: (r) => r.interne.loyerAnnuel || 0,
     },
     {
-      key: "prixM2Interne", label: "Prix/m² achat", sortable: true, align: "right",
-      render: (r) => r.interne.prixM2 > 0 ? fmtPrix(r.interne.prixM2) : "—",
-      exportValue: (r) => r.interne.prixM2 || 0,
+      key: "rendementBrut", label: "Rdt brut", sortable: true, align: "right",
+      render: (r) => r.interne.rendementBrut > 0 ? <span className="font-semibold">{fmtTaux(r.interne.rendementBrut)}</span> : "—",
+      exportValue: (r) => r.interne.rendementBrut || 0,
     },
     {
-      key: "ecartPrix", label: "Ecart prix", sortable: true, align: "center",
-      render: (r) => ecartBadge(r.interne.ecartPrixPct),
-      exportValue: (r) => r.interne.ecartPrixPct ?? 0,
+      key: "rendementNet", label: "Rdt net", sortable: true, align: "right",
+      render: (r) => r.interne.rendementNet > 0 ? <span className="font-semibold">{fmtTaux(r.interne.rendementNet)}</span> : "—",
+      exportValue: (r) => r.interne.rendementNet || 0,
     },
     {
-      key: "loyerM2Marche", label: "Loyer/m² marché", sortable: true, align: "right",
-      render: (r) => fmtLoyer(r.phase1.valeurLocative?.loyerM2Median),
-      exportValue: (r) => r.phase1.valeurLocative?.loyerM2Median || 0,
+      key: "locataire", label: "Locataire", sortable: true,
+      render: (r) => r.locatairePrincipal
+        ? <span className="text-sm">{r.locatairePrincipal}</span>
+        : <span className="text-xs text-muted-foreground italic">Vacant</span>,
+      exportValue: (r) => r.locatairePrincipal || "",
     },
     {
-      key: "loyerM2Interne", label: "Loyer/m² réel", sortable: true, align: "right",
-      render: (r) => r.interne.loyerM2Mensuel > 0 ? fmtLoyer(r.interne.loyerM2Mensuel) : "—",
-      exportValue: (r) => r.interne.loyerM2Mensuel || 0,
+      key: "echeanceBail", label: "Échéance bail", sortable: true, align: "center",
+      render: (r) => bailEcheanceBadge(r.prochaineEcheanceBail),
+      exportValue: (r) => r.prochaineEcheanceBail || "",
     },
     {
-      key: "ecartLoyer", label: "Ecart loyer", sortable: true, align: "center",
-      render: (r) => ecartLoyerBadge(r.interne.ecartLoyerPct),
-      exportValue: (r) => r.interne.ecartLoyerPct ?? 0,
+      key: "crd", label: "CRD", sortable: true, align: "right",
+      render: (r) => r.empruntSummary ? <span className="text-sm">{fmtEuroK(r.empruntSummary.totalCRD)}</span> : "—",
+      exportValue: (r) => r.empruntSummary?.totalCRD || 0,
     },
     {
-      key: "tauxCapi", label: "Taux capi", sortable: true, align: "right",
-      render: (r) => {
-        const marche = r.phase1.tauxCapi?.taux;
-        const interne = r.interne.tauxCapiInterne;
-        if (marche) return <span title="Taux marché (DVF/ANIL)">{fmtTaux(marche)}</span>;
-        if (interne) return <span className="text-muted-foreground" title="Rendement interne">{fmtTaux(interne)}</span>;
-        return "—";
-      },
-      exportValue: (r) => r.phase1.tauxCapi?.taux || r.interne.tauxCapiInterne || 0,
+      key: "cashFlow", label: "Cash-flow", sortable: true, align: "right",
+      render: (r) => cashFlowBadge(r.cashFlowAnnuel),
+      exportValue: (r) => r.cashFlowAnnuel || 0,
+    },
+    {
+      key: "occupation", label: "Occup.", sortable: true, align: "center",
+      render: (r) => <span className={`text-xs font-bold ${r.interne.tauxOccupation >= 100 ? "text-emerald-600" : r.interne.tauxOccupation >= 80 ? "text-amber-600" : "text-red-500"}`}>{r.interne.tauxOccupation}%</span>,
+      exportValue: (r) => r.interne.tauxOccupation,
     },
     {
       key: "confidence", label: "IA", sortable: true, align: "center",
@@ -239,45 +276,47 @@ function PortfolioTab({ data, onSelectActif }: { data: EtudeActif[]; onSelectAct
     },
   ];
 
-  // KPI summary
-  const totalActifs = data.length;
-  const withDVF = data.filter((d) => d.phase1.valeurVenale).length;
-  const withIA = data.filter((d) => d.analyseIA).length;
-  const avgTauxCapi = (() => {
-    const taux = data.map((d) => d.phase1.tauxCapi?.taux || d.interne.tauxCapiInterne).filter((t): t is number => t != null && t > 0);
-    return taux.length > 0 ? taux.reduce((a, b) => a + b, 0) / taux.length : 0;
-  })();
+  // Derived KPIs
+  const totalCashFlow = data.reduce((s, d) => s + d.cashFlowAnnuel, 0);
+  const totalCRD = data.reduce((s, d) => s + (d.empruntSummary?.totalCRD || 0), 0);
+  const avgOccupation = data.length > 0 ? Math.round(data.reduce((s, d) => s + d.interne.tauxOccupation, 0) / data.length) : 0;
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <KpiCard label="Actifs" value={totalActifs} icon={Building2} />
-        <KpiCard label="Couverture DVF" value={withDVF} subtitle={`${withDVF}/${totalActifs} (${totalActifs > 0 ? Math.round((withDVF / totalActifs) * 100) : 0}%)`} icon={Database} />
-        <KpiCard label="Analyses IA" value={withIA} subtitle={`${withIA}/${totalActifs} (${totalActifs > 0 ? Math.round((withIA / totalActifs) * 100) : 0}%)`} icon={Sparkles} />
-        <KpiCard label="Taux capi moyen" value={avgTauxCapi} formatFn={(n) => n > 0 ? fmtTaux(n) : "—"} icon={TrendingUp} />
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+        <KpiCard label="Patrimoine total" value={stats.patrimoineTotal} formatFn={fmtEuroK} icon={Building2} />
+        <KpiCard label="Loyer annuel total" value={stats.loyerAnnuelTotal} formatFn={fmtEuroK} icon={Receipt} />
+        <KpiCard label="Rendement brut moyen" value={stats.rendementBrutMoyen} formatFn={(n) => n > 0 ? fmtTaux(n) : "—"} icon={TrendingUp} />
+        <KpiCard label="Cash-flow total" value={totalCashFlow} formatFn={fmtEuroK} icon={PiggyBank} />
+        <KpiCard label="Occupation" value={avgOccupation} formatFn={(n) => `${n}%`} icon={Users} />
       </div>
 
       <DataTable
         data={data}
         columns={columns}
-        searchKeys={["actif.nom", "actif.ville", "actif.type"]}
-        searchPlaceholder="Rechercher un actif..."
-        emptyMessage="Aucun actif. Ajoutez des actifs dans la section Asset Management."
+        searchKeys={["actif.nom", "actif.ville", "actif.type", "locatairePrincipal"]}
+        searchPlaceholder="Rechercher un actif, locataire..."
+        emptyMessage="Aucun actif. Importez vos données depuis l'onglet Patrimoine."
         onRowClick={(r) => onSelectActif(r.actif.id)}
-        exportFileName="etude-marche"
+        exportFileName="analyse-patrimoniale"
       />
     </div>
   );
 }
 
 // ============================================================
-// Tab 2: Asset Detail View (Fiche)
+// Tab 2: Asset Detail View — Fiche patrimoniale
 // ============================================================
 
 function FicheActifTab({ item, onBack, onAnalyse, analysing }: {
   item: EtudeActif; onBack: () => void; onAnalyse: (id: string) => void; analysing: boolean;
 }) {
-  const { actif, phase1, interne, analyseIA, avertissements } = item;
+  const { actif, interne, bauxDetail, empruntSummary, cashFlowAnnuel, analyseIA } = item;
+
+  // DSCR = Loyer / Échéance emprunts
+  const dscr = empruntSummary && empruntSummary.echeanceAnnuelle > 0
+    ? Math.round((interne.loyerAnnuel / empruntSummary.echeanceAnnuelle) * 100) / 100
+    : null;
 
   return (
     <div className="space-y-6">
@@ -293,6 +332,7 @@ function FicheActifTab({ item, onBack, onAnalyse, analysing }: {
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               {actif.ville && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{actif.ville}</span>}
               {actif.type && <Badge variant="outline">{actif.type}</Badge>}
+              {actif.sci && <Badge variant="outline">{actif.sci}</Badge>}
               {actif.dpe && <Badge variant="outline">DPE {actif.dpe}</Badge>}
             </div>
           </div>
@@ -305,39 +345,71 @@ function FicheActifTab({ item, onBack, onAnalyse, analysing }: {
         </motion.button>
       </div>
 
-      {/* Warnings */}
-      {avertissements && avertissements.length > 0 && (
-        <div className="flex items-start gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 p-3">
-          <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
-          <div className="text-xs text-amber-700 dark:text-amber-400 space-y-0.5">
-            {avertissements.map((a, i) => <p key={i}>{a}</p>)}
-          </div>
-        </div>
-      )}
-
       {/* Two-column layout */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Left: Market data + Internal metrics */}
+        {/* Left: Performance + Baux + Emprunts */}
         <div className="space-y-4">
-          <Section title="Données de marché (DVF / ANIL)">
-            <div className="space-y-3">
-              <DataMetric label="Valeur vénale (DVF)" value={fmtPrix(phase1.valeurVenale?.prixM2Median)}
-                sub={phase1.valeurVenale ? `${fmtPrix(phase1.valeurVenale.prixM2Bas)} — ${fmtPrix(phase1.valeurVenale.prixM2Haut)}${phase1.valeurVenale.nbTransactions ? ` · ${phase1.valeurVenale.nbTransactions} tx` : ""}` : "Aucune donnée DVF"} accent="blue" />
-              <DataMetric label="Valeur locative (ANIL)" value={fmtLoyer(phase1.valeurLocative?.loyerM2Median)}
-                sub={phase1.valeurLocative ? `${fmtLoyer(phase1.valeurLocative.loyerM2Bas)} — ${fmtLoyer(phase1.valeurLocative.loyerM2Haut)}` : "Aucune donnée ANIL"} accent="emerald" />
-              <DataMetric label="Taux capitalisation marché" value={fmtTaux(phase1.tauxCapi?.taux)}
-                sub={phase1.tauxCapi ? `${fmtTaux(phase1.tauxCapi.tauxBas)} — ${fmtTaux(phase1.tauxCapi.tauxHaut)} · Fiabilité ${phase1.tauxCapi.fiabilite || "n/a"}` : "Non calculable (nécessite DVF + ANIL)"} accent="amber" />
+          {/* Performance financière */}
+          <Section title="Performance financière">
+            <div className="grid grid-cols-2 gap-3">
+              <DataMetric label="Rendement brut" value={fmtTaux(interne.rendementBrut)} sub={`Loyer ${fmtEuroK(interne.loyerAnnuel)} / Acq. ${fmtEuroK(interne.prixAcq)}`} accent="blue" />
+              <DataMetric label="Rendement net" value={fmtTaux(interne.rendementNet)} sub={`Charges ${fmtEuroK(interne.chargesAnnuelles)}/an`} accent="emerald" />
+              <DataMetric label="Cash-flow annuel" value={fmtEuroK(cashFlowAnnuel)} sub={cashFlowAnnuel >= 0 ? "Positif" : "Négatif — déficit"} accent={cashFlowAnnuel >= 0 ? "emerald" : "red"} />
+              <DataMetric label="Taux d'occupation" value={`${interne.tauxOccupation}%`} sub={`${interne.lotsOccupes}/${interne.nbLots} lots`} accent={interne.tauxOccupation >= 100 ? "emerald" : "amber"} />
+              {dscr != null && (
+                <DataMetric label="DSCR" value={`${dscr}x`} sub={dscr >= 1.2 ? "Couverture confortable" : dscr >= 1 ? "Couverture limite" : "Couverture insuffisante"} accent={dscr >= 1.2 ? "emerald" : dscr >= 1 ? "amber" : "red"} />
+              )}
+              <DataMetric label="Prix/m²" value={interne.prixM2 > 0 ? `${new Intl.NumberFormat("fr-FR").format(interne.prixM2)} €/m²` : "—"} sub={interne.surface > 0 ? `${interne.surface} m²` : undefined} />
             </div>
           </Section>
 
-          <Section title="Métriques internes">
-            <div className="grid grid-cols-2 gap-3">
-              <DataMetric label="Prix/m² d'achat" value={interne.prixM2 > 0 ? fmtPrix(interne.prixM2) : "—"} sub={interne.ecartPrixPct != null ? `${interne.ecartPrixPct > 0 ? "+" : ""}${interne.ecartPrixPct.toFixed(1)}% vs marché` : undefined} />
-              <DataMetric label="Loyer/m² réel" value={interne.loyerM2Mensuel > 0 ? fmtLoyer(interne.loyerM2Mensuel) : "—"} sub={interne.ecartLoyerPct != null ? `${interne.ecartLoyerPct > 0 ? "+" : ""}${interne.ecartLoyerPct.toFixed(1)}% vs marché` : undefined} />
-              <DataMetric label="Rendement brut" value={interne.rendementBrut > 0 ? fmtTaux(interne.rendementBrut) : "—"} accent="purple" />
-              <DataMetric label="Occupation" value={`${interne.tauxOccupation}%`} sub={`${interne.lotsOccupes}/${interne.nbLots} lots`} />
-            </div>
+          {/* Situation locative */}
+          <Section title="Situation locative">
+            {bauxDetail.length > 0 ? (
+              <div className="space-y-3">
+                {bauxDetail.map((bail, i) => (
+                  <div key={i} className="rounded-xl border border-border/40 p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-semibold text-sm">{bail.locataire || "Non renseigné"}</span>
+                      </div>
+                      {bail.typeBail && <Badge variant="outline">{bail.typeBail}</Badge>}
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      <span>Loyer annuel HC</span>
+                      <span className="text-right font-medium text-foreground">{fmtEuro(bail.loyerAnnuel)}</span>
+                      <span>Dépôt de garantie</span>
+                      <span className="text-right font-medium text-foreground">{fmtEuro(bail.depotGarantie)}</span>
+                      <span>Début</span>
+                      <span className="text-right">{fmtDate(bail.dateDebut)}</span>
+                      <span>Fin</span>
+                      <span className="text-right">{fmtDate(bail.dateFin)} {bail.dateFin && bailEcheanceBadge(bail.dateFin)}</span>
+                      {bail.indiceReference && <>
+                        <span>Indexation</span>
+                        <span className="text-right font-medium">{bail.indiceReference}</span>
+                      </>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground italic">Aucun bail enregistré pour cet actif.</p>
+            )}
           </Section>
+
+          {/* Endettement */}
+          {empruntSummary && (
+            <Section title="Endettement">
+              <div className="grid grid-cols-2 gap-3">
+                <DataMetric label="Capital restant dû" value={fmtEuroK(empruntSummary.totalCRD)} sub={`${empruntSummary.nbEmprunts} emprunt${empruntSummary.nbEmprunts > 1 ? "s" : ""}`} accent="amber" />
+                <DataMetric label="Échéance annuelle" value={fmtEuroK(empruntSummary.echeanceAnnuelle)} sub={`Taux moyen ${fmtTaux(empruntSummary.tauxMoyen)}`} />
+                {empruntSummary.dateFinDerniere && (
+                  <DataMetric label="Fin dernier emprunt" value={fmtDate(empruntSummary.dateFinDerniere)} />
+                )}
+              </div>
+            </Section>
+          )}
         </div>
 
         {/* Right: AI Analysis */}
@@ -428,10 +500,10 @@ function FicheActifTab({ item, onBack, onAnalyse, analysing }: {
                   </>
                 )}
 
-                {/* Comparables */}
+                {/* Comparables / Marché */}
                 {analyseIA.comparables && (
                   <>
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 mt-4">Marché local</h4>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 mt-4">Contexte marché</h4>
                     <p className="text-xs text-muted-foreground leading-relaxed">{analyseIA.comparables}</p>
                   </>
                 )}
@@ -448,7 +520,7 @@ function FicheActifTab({ item, onBack, onAnalyse, analysing }: {
               </div>
               <h3 className="font-semibold mb-1">Analyse IA non disponible</h3>
               <p className="text-xs text-muted-foreground max-w-xs">
-                Lancez l'analyse IA pour obtenir le positionnement marché, les risques et recommandations pour cet actif.
+                Lancez l'analyse IA pour obtenir le positionnement, les risques et recommandations pour cet actif.
               </p>
             </GlassCard>
           )}
@@ -467,28 +539,13 @@ export default function EtudeMarche() {
   const [selectedActifId, setSelectedActifId] = useState<string | null>(null);
   const [status, setStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
-  const { data = [], isLoading } = useQuery<EtudeActif[]>({
+  const { data: response, isLoading } = useQuery<EtudeResponse>({
     queryKey: ["/api/am/marche/etude"],
     queryFn: () => apiRequest("/api/am/marche/etude"),
   });
 
-  // Sync Phase 1 (DVF + ANIL + taux capi)
-  const syncMutation = useMutation({
-    mutationFn: async () => {
-      const dvf = await apiRequest("/api/am/marche/sync-dvf", { method: "POST" });
-      const anil = await apiRequest("/api/am/marche/sync-anil", { method: "POST" });
-      const capi = await apiRequest("/api/am/marche/compute-taux-capi", { method: "POST" });
-      return { dvf, anil, capi };
-    },
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/am/marche/etude"] });
-      setStatus({ type: "success", message: `Sync terminée : ${result.dvf.synced || 0} DVF, ${result.anil.synced || 0} ANIL, ${result.capi.computed || 0} taux capi` });
-      setTimeout(() => setStatus(null), 8000);
-    },
-    onError: (err: any) => {
-      setStatus({ type: "error", message: err.message || "Erreur lors de la synchronisation" });
-    },
-  });
+  const data = response?.assets || [];
+  const portfolioStats = response?.portfolioStats || { totalActifs: 0, patrimoineTotal: 0, loyerAnnuelTotal: 0, rendementBrutMoyen: 0 };
 
   // Analyse IA single asset
   const analyseSingleMutation = useMutation({
@@ -527,9 +584,8 @@ export default function EtudeMarche() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Étude de marché" description="Positionnement de vos actifs par rapport au marché (DVF, ANIL, IA)"
-        actions={<SyncActions syncing={syncMutation.isPending} onSync={() => syncMutation.mutate()}
-          analysingAll={analyseAllMutation.isPending} onAnalyseAll={() => analyseAllMutation.mutate()} />} />
+      <PageHeader title="Analyse patrimoniale" description="Performance, risques et positionnement de vos actifs"
+        actions={<SyncActions analysingAll={analyseAllMutation.isPending} onAnalyseAll={() => analyseAllMutation.mutate()} />} />
 
       {/* Status message */}
       <AnimatePresence>
@@ -550,7 +606,7 @@ export default function EtudeMarche() {
           analysing={analyseSingleMutation.isPending}
         />
       ) : (
-        <PortfolioTab data={data} onSelectActif={setSelectedActifId} />
+        <PortfolioTab data={data} stats={portfolioStats} onSelectActif={setSelectedActifId} />
       )}
     </div>
   );

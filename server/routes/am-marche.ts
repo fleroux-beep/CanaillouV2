@@ -3,6 +3,7 @@ import { db } from "../db";
 import {
   refTauxEmprunt, refValeursVenales, refValeursLocatives,
   refTauxCapitalisation, actifs, etudesIA, lots, bauxAM, emprunts,
+  locatairesAM, scis,
 } from "@shared/schema";
 import { eq, desc, and, isNull } from "drizzle-orm";
 import { requireAuth, requireWriteAdmin } from "../middleware/auth";
@@ -189,14 +190,17 @@ export function registerMarcheRoutes(app: Express) {
 
   /** Build full context for Claude AI analysis */
   async function buildActifContext(actifRow: any) {
-    // Fetch ref tables for single-asset context
-    const allVenales = await db.select().from(refValeursVenales);
-    const allLocatives = await db.select().from(refValeursLocatives);
-    const allTauxCapi = await db.select().from(refTauxCapitalisation);
+    const [allVenales, allLocatives, allTauxCapi, actifLots, actifBaux, actifEmprunts, allLocataires] = await Promise.all([
+      db.select().from(refValeursVenales),
+      db.select().from(refValeursLocatives),
+      db.select().from(refTauxCapitalisation),
+      db.select().from(lots).where(and(eq(lots.actifId, actifRow.id), isNull(lots.deletedAt))),
+      db.select().from(bauxAM).where(and(eq(bauxAM.actifId, actifRow.id), isNull(bauxAM.deletedAt))),
+      db.select().from(emprunts).where(and(eq(emprunts.actifId, actifRow.id), isNull(emprunts.deletedAt))),
+      db.select().from(locatairesAM),
+    ]);
+
     const phase1 = getPhase1(actifRow, allVenales, allLocatives, allTauxCapi);
-    const actifLots = await db.select().from(lots).where(and(eq(lots.actifId, actifRow.id), isNull(lots.deletedAt)));
-    const actifBaux = await db.select().from(bauxAM).where(and(eq(bauxAM.actifId, actifRow.id), isNull(bauxAM.deletedAt)));
-    const actifEmprunts = await db.select().from(emprunts).where(and(eq(emprunts.actifId, actifRow.id), isNull(emprunts.deletedAt)));
 
     const loyerAnnuel = actifBaux.reduce((s: number, b: any) => s + Number(b.loyerAnnuel || 0) + Number(b.loyerMensuel || 0) * 12, 0)
       || actifLots.reduce((s: number, l: any) => s + Number(l.loyerAnnuel || 0) + Number(l.loyerMensuel || 0) * 12, 0);
@@ -204,6 +208,35 @@ export function registerMarcheRoutes(app: Express) {
     const prixAcq = Number(actifRow.prixAcquisition || 0) + Number(actifRow.fraisNotaire || 0) + Number(actifRow.fraisAgence || 0) + Number(actifRow.montantTravaux || 0);
     const chargesTotal = Number(actifRow.chargesCopropriete || actifRow.chargesAnnuelles || 0) + Number(actifRow.taxeFonciere || 0) + Number(actifRow.assurancePno || 0);
     const lotsOccupes = actifLots.filter((l: any) => l.statut === "loué").length;
+
+    // Bail details with locataire names
+    const bauxDetail = actifBaux.filter((b: any) => b.statut !== "résilié").map((b: any) => {
+      const loc = b.locataireId ? allLocataires.find((l: any) => l.id === b.locataireId) : null;
+      return {
+        locataire: loc?.nom || null,
+        typeBail: b.typeBail,
+        dateDebut: b.dateDebut,
+        dateFin: b.dateFin,
+        loyerAnnuel: Number(b.loyerAnnuel || 0) || Number(b.loyerMensuel || 0) * 12,
+        depotGarantie: Number(b.depotGarantie || 0),
+        indiceReference: b.indiceReference,
+      };
+    });
+
+    // Emprunt summary
+    const empruntsSummary = actifEmprunts.filter((e: any) => !e.archived).map((e: any) => ({
+      banque: e.banque,
+      montant: Number(e.montantEmprunte || 0),
+      crd: Number(e.capitalRestantDu || e.montantEmprunte || 0),
+      taux: Number(e.tauxAnnuel || 0),
+      mensualite: Number(e.mensualite || 0),
+      dateFin: e.dateFin,
+    }));
+    const totalCRD = empruntsSummary.reduce((s, e) => s + e.crd, 0);
+    const echeanceAnnuelle = empruntsSummary.reduce((s, e) => s + e.mensualite * 12, 0);
+
+    const rendementNet = prixAcq > 0 ? Math.round(((loyerAnnuel - chargesTotal) / prixAcq) * 10000) / 100 : 0;
+    const cashFlowAnnuel = loyerAnnuel - chargesTotal - echeanceAnnuelle;
 
     return {
       phase1,
@@ -223,15 +256,15 @@ export function registerMarcheRoutes(app: Express) {
         loyerM2Mensuel: surface > 0 ? Math.round((loyerAnnuel / 12 / surface) * 100) / 100 : 0,
         prixM2: surface > 0 ? Math.round(prixAcq / surface) : 0,
         rendementBrut: prixAcq > 0 ? Math.round((loyerAnnuel / prixAcq) * 10000) / 100 : 0,
+        rendementNet,
+        cashFlowAnnuel: Math.round(cashFlowAnnuel),
         nbLots: actifLots.length,
         lotsOccupes,
         tauxOccupation: actifLots.length > 0 ? Math.round((lotsOccupes / actifLots.length) * 100) : 100,
-        emprunts: actifEmprunts.map((e: any) => ({
-          banque: e.banque,
-          montant: Number(e.montantEmprunte || 0),
-          crd: Number(e.capitalRestantDu || e.montantEmprunte || 0),
-          taux: Number(e.tauxAnnuel || 0),
-        })),
+        baux: bauxDetail,
+        emprunts: empruntsSummary,
+        totalCRD: Math.round(totalCRD),
+        echeanceAnnuelle: Math.round(echeanceAnnuelle),
       },
     };
   }
@@ -243,39 +276,49 @@ export function registerMarcheRoutes(app: Express) {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) throw new Error("ANTHROPIC_API_KEY non configurée");
 
-    const prompt = `Tu es un analyste immobilier senior spécialisé en asset management en France.
+    const isCreche = actifContext.actif.type === "creche" || actifContext.actif.type === "crèche";
+    const isCommercial = isCreche || actifContext.actif.type === "commercial";
 
-Analyse cet actif immobilier et produis une étude de marché structurée en JSON.
+    const prompt = `Tu es un analyste immobilier senior spécialisé en asset management ${isCreche ? "de crèches et locaux à destination petite enfance" : isCommercial ? "de locaux commerciaux" : ""} en France.
+
+Analyse cet actif immobilier et produis une analyse patrimoniale structurée en JSON.
 
 ## Données de l'actif
 ${JSON.stringify(actifContext.actif, null, 2)}
 
-## Données de marché officielles (Phase 1 — DVF/ANIL)
-${JSON.stringify(actifContext.phase1, null, 2)}
+${actifContext.phase1.valeurVenale ? `## Données de marché DVF (transactions comparables locaux commerciaux)
+${JSON.stringify(actifContext.phase1.valeurVenale, null, 2)}
+Note : Ces données DVF couvrent tous les locaux commerciaux du secteur, pas uniquement les crèches.` : "## Données de marché DVF\nAucune donnée DVF disponible."}
 
 ## Instructions
 
-Produis une analyse structurée au format JSON strict avec ces clés :
+${isCreche ? `CONTEXTE SPÉCIFIQUE CRÈCHE :
+- Les crèches sont des actifs commerciaux à bail long terme (9-12 ans) avec des locataires souvent institutionnels (gestionnaires de crèches type LPC, Babilou, People&Baby, etc.)
+- Les loyers sont sécurisés par des conventions PSU (Prestation de Service Unique) avec la CAF et les collectivités
+- L'analyse doit se concentrer sur : la solidité du locataire, la durée restante du bail, le rendement, le taux d'effort, la couverture de la dette par les loyers
+- Les données ANIL (loyers résidentiels) ne s'appliquent PAS — ne compare pas aux loyers résidentiels
+- Le vrai comparable est le rendement interne (loyer / prix acquisition)
+` : ""}Produis une analyse structurée au format JSON strict avec ces clés :
 
 {
   "positionnement": {
     "loyerVsMarche": "au-dessus" | "en-dessous" | "dans la moyenne",
-    "ecartLoyerPct": <number, écart en % par rapport au marché>,
+    "ecartLoyerPct": <number, écart estimé en % — pour les crèches, compare au rendement moyen du secteur crèches (5-7%) plutôt qu'au marché résidentiel>,
     "prixVsMarche": "au-dessus" | "en-dessous" | "dans la moyenne",
-    "ecartPrixPct": <number>,
-    "commentaire": "<2-3 phrases sur le positionnement>"
+    "ecartPrixPct": <number, écart estimé en % vs comparables commerciaux du secteur>,
+    "commentaire": "<2-3 phrases sur le positionnement — pour les crèches, analyse la pertinence du rendement par rapport au marché des crèches>"
   },
   "potentiel": {
-    "margeLoyer": <number, potentiel de hausse de loyer en %>,
-    "plusValue": <number, estimation de plus-value potentielle en %>,
-    "horizonAns": <number, horizon temporel recommandé>,
-    "commentaire": "<2-3 phrases>"
+    "margeLoyer": <number, potentiel de revalorisation du loyer en % à échéance du bail>,
+    "plusValue": <number, estimation de plus-value potentielle en % basée sur le rendement et la localisation>,
+    "horizonAns": <number, horizon temporel recommandé — pour les crèches, aligner sur la durée du bail>,
+    "commentaire": "<2-3 phrases — pour les crèches, analyse l'indexation (ILC/ILAT), le renouvellement, et la demande locale en places de crèche>"
   },
   "risques": [
     {
-      "type": "vacance" | "obsolescence_energetique" | "marche" | "reglementaire" | "structural" | "fiscal",
+      "type": "vacance" | "locataire" | "obsolescence_energetique" | "marche" | "reglementaire" | "structural" | "fiscal" | "refinancement",
       "niveau": "faible" | "modéré" | "élevé",
-      "description": "<1-2 phrases>"
+      "description": "<1-2 phrases — pour les crèches : risque locataire = solidité du gestionnaire, risque vacance = faible si convention PSU, risque refinancement = maturité des emprunts>"
     }
   ],
   "recommandations": [
@@ -286,16 +329,17 @@ Produis une analyse structurée au format JSON strict avec ces clés :
       "detail": "<2-3 phrases>"
     }
   ],
-  "comparables": "<3-5 phrases décrivant les transactions DVF comparables et le contexte du marché local>",
-  "synthese": "<Résumé exécutif en 4-6 phrases : positionnement, forces, faiblesses, recommandation principale>",
+  "comparables": "<3-5 phrases : pour les crèches, décris le contexte du marché des crèches dans cette zone (demande, prix, taux de remplissage estimé) plutôt que des transactions résidentielles>",
+  "synthese": "<Résumé exécutif en 4-6 phrases : rendement, solidité locative, couverture dette, recommandation principale>",
   "confidence": "A" | "B" | "C" | "D" | "E"
 }
 
 Règles :
 - Base-toi UNIQUEMENT sur les données fournies. Si une donnée manque, indique-le et ajuste ta confidence.
-- La confidence dépend de la complétude des données : A = données DVF + ANIL + actif complet, E = quasi aucune donnée.
+- La confidence dépend de la complétude des données : A = actif complet + baux détaillés + emprunts, B = données majoritairement complètes, C = données partielles, D-E = insuffisant.
 - Sois pragmatique et actionnable, pas théorique.
-- Les risques réglementaires DPE sont réels en France (interdiction de location G en 2025, F en 2028, E en 2034).
+- Pour les crèches, le risque DPE est moins critique (baux commerciaux non soumis aux mêmes interdictions que le résidentiel).
+- Analyse la couverture de la dette : loyer annuel vs échéance annuelle des emprunts (DSCR).
 - Réponds UNIQUEMENT avec le JSON, sans texte autour.`;
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -416,35 +460,77 @@ Règles :
     const loyerM2Mensuel = surface > 0 ? Math.round((loyerAnnuel / 12 / surface) * 100) / 100 : 0;
     const rendementBrut = prixAcq > 0 ? Math.round((loyerAnnuel / prixAcq) * 10000) / 100 : 0;
 
-    // Taux capi interne = rendement brut basé sur les données réelles de l'actif
-    // Si pas de taux capi marché (DVF×ANIL), utiliser le rendement interne comme proxy
     const tauxCapiInterne = rendementBrut > 0 ? rendementBrut : null;
 
-    // Écart prix : compare prix/m² interne au marché DVF
     let ecartPrixPct: number | null = null;
     if (prixM2 > 0 && phase1.valeurVenale?.prixM2Median) {
       ecartPrixPct = Math.round(((prixM2 - phase1.valeurVenale.prixM2Median) / phase1.valeurVenale.prixM2Median) * 10000) / 100;
     }
 
-    // Écart loyer : compare loyer/m² interne au marché ANIL
     let ecartLoyerPct: number | null = null;
     if (loyerM2Mensuel > 0 && phase1.valeurLocative?.loyerM2Median) {
       ecartLoyerPct = Math.round(((loyerM2Mensuel - phase1.valeurLocative.loyerM2Median) / phase1.valeurLocative.loyerM2Median) * 10000) / 100;
     }
 
+    // Charges annuelles
+    const chargesAnnuelles = Number(actifRow.chargesAnnuelles || actifRow.chargesCopropriete || 0);
+    const taxeFonciere = Number(actifRow.taxeFonciere || 0);
+    const assurancePno = Number(actifRow.assurancePno || 0);
+    const totalCharges = chargesAnnuelles + taxeFonciere + assurancePno;
+    const rendementNet = prixAcq > 0 ? Math.round(((loyerAnnuel - totalCharges) / prixAcq) * 10000) / 100 : 0;
+
     return {
-      surface, prixAcq, prixM2, loyerAnnuel, loyerM2Mensuel, rendementBrut,
+      surface, prixAcq, prixM2, loyerAnnuel, loyerM2Mensuel, rendementBrut, rendementNet,
       tauxCapiInterne, ecartPrixPct, ecartLoyerPct,
+      chargesAnnuelles: totalCharges, taxeFonciere, assurancePno,
       nbLots: actifLots.length, lotsOccupes,
       tauxOccupation: actifLots.length > 0 ? Math.round((lotsOccupes / actifLots.length) * 100) : 100,
     };
   }
 
-  // ─── Étude de marché : données Phase 1 + métriques internes + IA ──
+  /** Build bail summaries for an asset */
+  function buildBauxSummary(actifBaux: any[], allLocataires: any[]) {
+    return actifBaux
+      .filter((b: any) => b.statut !== "résilié")
+      .map((b: any) => {
+        const loc = b.locataireId ? allLocataires.find((l: any) => l.id === b.locataireId) : null;
+        const loyerAnn = Number(b.loyerAnnuel || 0) || Number(b.loyerMensuel || 0) * 12;
+        return {
+          locataire: loc ? loc.nom : null,
+          typeBail: b.typeBail,
+          dateDebut: b.dateDebut,
+          dateFin: b.dateFin,
+          loyerAnnuel: loyerAnn,
+          depotGarantie: Number(b.depotGarantie || 0),
+          indiceReference: b.indiceReference,
+          statut: b.statut,
+        };
+      });
+  }
+
+  /** Build emprunt summary for an asset */
+  function buildEmpruntSummary(actifEmprunts: any[]) {
+    const active = actifEmprunts.filter((e: any) => !e.archived);
+    if (active.length === 0) return null;
+    const totalCRD = active.reduce((s: number, e: any) => s + Number(e.capitalRestantDu || e.montantEmprunte || 0), 0);
+    const echeanceAnnuelle = active.reduce((s: number, e: any) => s + Number(e.mensualite || 0) * 12, 0);
+    const tauxSum = active.reduce((s: number, e: any) => s + Number(e.tauxAnnuel || 0), 0);
+    const tauxMoyen = active.length > 0 ? Math.round((tauxSum / active.length) * 100) / 100 : 0;
+    const datesFin = active.map((e: any) => e.dateFin).filter(Boolean).sort();
+    return {
+      nbEmprunts: active.length,
+      totalCRD: Math.round(totalCRD),
+      echeanceAnnuelle: Math.round(echeanceAnnuelle),
+      tauxMoyen,
+      dateFinDerniere: datesFin.length > 0 ? datesFin[datesFin.length - 1] : null,
+    };
+  }
+
+  // ─── Analyse patrimoniale : données internes + baux + emprunts + IA ──
   app.get("/api/am/marche/etude", requireAuth, async (_req: any, res: any) => {
     try {
       // Fetch all data upfront (avoid N+1 queries)
-      const [allActifs, allEtudes, allVenales, allLocatives, allTauxCapi, allLots, allBaux] = await Promise.all([
+      const [allActifs, allEtudes, allVenales, allLocatives, allTauxCapi, allLots, allBaux, allEmprunts, allLocataires, allScis] = await Promise.all([
         db.select().from(actifs).where(and(eq(actifs.archived, false), isNull(actifs.deletedAt))),
         db.select().from(etudesIA),
         db.select().from(refValeursVenales),
@@ -452,30 +538,62 @@ Règles :
         db.select().from(refTauxCapitalisation),
         db.select().from(lots).where(isNull(lots.deletedAt)),
         db.select().from(bauxAM).where(isNull(bauxAM.deletedAt)),
+        db.select().from(emprunts).where(isNull(emprunts.deletedAt)),
+        db.select().from(locatairesAM),
+        db.select().from(scis),
       ]);
+
+      // Portfolio-level stats
+      let portfolioLoyerTotal = 0;
+      let portfolioPrixTotal = 0;
+      let portfolioRendSum = 0;
+      let portfolioRendCount = 0;
 
       const data = allActifs.map((actifRow) => {
         const phase1 = getPhase1(actifRow, allVenales, allLocatives, allTauxCapi);
         const etude = allEtudes.find((e) => e.actifId === actifRow.id);
-        const { dvfCompatible, anilCompatible } = mapActifTypeToSearch(actifRow.type || "résidentiel");
         const actifLots = allLots.filter((l) => l.actifId === actifRow.id);
         const actifBaux = allBaux.filter((b) => b.actifId === actifRow.id);
+        const actifEmprunts = allEmprunts.filter((e) => e.actifId === actifRow.id);
         const interne = computeInternalMetrics(actifRow, actifLots, actifBaux, phase1);
+        const bauxDetail = buildBauxSummary(actifBaux, allLocataires);
+        const empruntSummary = buildEmpruntSummary(actifEmprunts);
 
-        const avertissements: string[] = [];
-        if (!dvfCompatible) avertissements.push(`Pas de données DVF pour le type "${actifRow.type}".`);
-        if (!anilCompatible) avertissements.push(`Pas de données ANIL pour le type "${actifRow.type}".`);
+        // Cash-flow = loyer - charges - échéances emprunts
+        const cashFlowAnnuel = interne.loyerAnnuel - interne.chargesAnnuelles - (empruntSummary?.echeanceAnnuelle || 0);
+
+        // SCI name
+        const sci = actifRow.sciId ? allScis.find((s: any) => s.id === actifRow.sciId) : null;
+
+        // Aggregate portfolio stats
+        portfolioLoyerTotal += interne.loyerAnnuel;
+        portfolioPrixTotal += interne.prixAcq;
+        if (interne.rendementBrut > 0) {
+          portfolioRendSum += interne.rendementBrut;
+          portfolioRendCount++;
+        }
+
+        // Locataire principal (first active bail)
+        const locatairePrincipal = bauxDetail.length > 0 ? bauxDetail[0].locataire : null;
+        // Earliest bail expiry
+        const datesFin = bauxDetail.map((b) => b.dateFin).filter(Boolean).sort();
+        const prochaineEcheanceBail = datesFin.length > 0 ? datesFin[0] : null;
 
         return {
           actif: {
             id: actifRow.id, nom: actifRow.nom, adresse: actifRow.adresse,
             ville: actifRow.ville, codePostal: actifRow.codePostal,
             type: actifRow.type, surface: actifRow.surface, surfaceCarrez: actifRow.surfaceCarrez,
-            dpe: actifRow.dpe,
+            dpe: actifRow.dpe, sci: sci ? sci.nom : null,
+            dateAcquisition: actifRow.dateAcquisition,
           },
-          avertissements,
           phase1,
           interne,
+          bauxDetail,
+          empruntSummary,
+          cashFlowAnnuel: Math.round(cashFlowAnnuel),
+          locatairePrincipal,
+          prochaineEcheanceBail,
           analyseIA: etude ? {
             id: etude.id, positionnement: etude.positionnement, potentiel: etude.potentiel,
             risques: etude.risques, recommandations: etude.recommandations, comparables: etude.comparables,
@@ -484,7 +602,15 @@ Règles :
         };
       });
 
-      res.json(data);
+      // Add portfolio stats to response
+      const portfolioStats = {
+        totalActifs: allActifs.length,
+        patrimoineTotal: Math.round(portfolioPrixTotal),
+        loyerAnnuelTotal: Math.round(portfolioLoyerTotal),
+        rendementBrutMoyen: portfolioRendCount > 0 ? Math.round((portfolioRendSum / portfolioRendCount) * 100) / 100 : 0,
+      };
+
+      res.json({ assets: data, portfolioStats });
     } catch (error: any) {
       logger.error("etude-marche error", { error: error.message, stack: error.stack });
       res.status(500).json({ error: "Erreur interne" });
@@ -499,16 +625,21 @@ Règles :
       const [actifRow] = await db.select().from(actifs).where(eq(actifs.id, actifId));
       if (!actifRow) return res.status(404).json({ error: "Actif non trouvé" });
 
-      const [allVenales, allLocatives, allTauxCapi, actifLots, actifBaux] = await Promise.all([
+      const [allVenales, allLocatives, allTauxCapi, actifLots, actifBaux, actifEmprunts, allLocataires] = await Promise.all([
         db.select().from(refValeursVenales),
         db.select().from(refValeursLocatives),
         db.select().from(refTauxCapitalisation),
         db.select().from(lots).where(and(eq(lots.actifId, actifId), isNull(lots.deletedAt))),
         db.select().from(bauxAM).where(and(eq(bauxAM.actifId, actifId), isNull(bauxAM.deletedAt))),
+        db.select().from(emprunts).where(and(eq(emprunts.actifId, actifId), isNull(emprunts.deletedAt))),
+        db.select().from(locatairesAM),
       ]);
 
       const phase1 = getPhase1(actifRow, allVenales, allLocatives, allTauxCapi);
       const interne = computeInternalMetrics(actifRow, actifLots, actifBaux, phase1);
+      const bauxDetail = buildBauxSummary(actifBaux, allLocataires);
+      const empruntSummary = buildEmpruntSummary(actifEmprunts);
+      const cashFlowAnnuel = interne.loyerAnnuel - interne.chargesAnnuelles - (empruntSummary?.echeanceAnnuelle || 0);
       const [etude] = await db.select().from(etudesIA).where(eq(etudesIA.actifId, actifId));
 
       res.json({
@@ -520,6 +651,9 @@ Règles :
         },
         phase1,
         interne,
+        bauxDetail,
+        empruntSummary,
+        cashFlowAnnuel: Math.round(cashFlowAnnuel),
         analyseIA: etude ? {
           id: etude.id, positionnement: etude.positionnement, potentiel: etude.potentiel,
           risques: etude.risques, recommandations: etude.recommandations, comparables: etude.comparables,
