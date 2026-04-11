@@ -718,11 +718,14 @@ export async function importExcelData(): Promise<{
   const fs = await import("fs");
   let xlsxPath: string | undefined;
 
-  // Search directories: __dirname (dist/ or server/) and project root
+  // Search directories: __dirname, parent, cwd, and cwd parent
   const searchDirs = [
     __dirname,
     path.resolve(__dirname, ".."),
+    process.cwd(),
+    path.resolve(process.cwd(), ".."),
   ];
+  logger.info("import: searching for Excel", { searchDirs, __dirname, cwd: process.cwd() });
 
   for (const dir of searchDirs) {
     if (xlsxPath) break;

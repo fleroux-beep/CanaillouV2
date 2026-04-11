@@ -1,5 +1,5 @@
 import { execSync } from "child_process";
-import { copyFileSync, existsSync } from "fs";
+import { copyFileSync, existsSync, readdirSync } from "fs";
 import esbuild from "esbuild";
 
 // Build frontend with Vite
@@ -49,11 +49,17 @@ await esbuild.build({
   sourcemap: true,
 });
 
-// Copy Excel data file for import
-const xlsxSrc = "BDD_SCI_restructuree.xlsx";
-if (existsSync(xlsxSrc)) {
-  copyFileSync(xlsxSrc, `dist/${xlsxSrc}`);
-  console.log("Copied Excel data file to dist/");
+// Copy Excel data files for import (handle NFD/NFC unicode in filenames)
+const xlsxFiles = [
+  "BDD_SCI_restructuree.xlsx",
+  "BDD SCI 07.04.26 - BDD - loyers actuels complétés.xlsx",
+];
+for (const target of xlsxFiles) {
+  const match = readdirSync(".").find((f) => f.normalize("NFC") === target.normalize("NFC"));
+  if (match) {
+    copyFileSync(match, `dist/${match}`);
+    console.log(`Copied Excel: ${match} → dist/`);
+  }
 }
 
 console.log("Build complete!");
