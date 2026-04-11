@@ -717,13 +717,25 @@ export async function importExcelData(): Promise<{
   ];
   const fs = await import("fs");
   let xlsxPath: string | undefined;
-  for (const fn of fileNames) {
-    const candidates = [
-      path.resolve(__dirname, fn),
-      path.resolve(__dirname, "..", fn),
-    ];
-    xlsxPath = candidates.find((p) => fs.existsSync(p));
+
+  // Search directories: __dirname (dist/ or server/) and project root
+  const searchDirs = [
+    __dirname,
+    path.resolve(__dirname, ".."),
+  ];
+
+  for (const dir of searchDirs) {
     if (xlsxPath) break;
+    let dirFiles: string[];
+    try { dirFiles = fs.readdirSync(dir); } catch { continue; }
+    for (const fn of fileNames) {
+      // NFD/NFC normalization: filesystem may store accented chars differently
+      const match = dirFiles.find((f) => f.normalize("NFC") === fn.normalize("NFC"));
+      if (match) {
+        xlsxPath = path.resolve(dir, match);
+        break;
+      }
+    }
   }
   if (!xlsxPath) {
     throw new Error(`Fichier Excel introuvable. Noms recherchés: ${fileNames.join(", ")}`);
