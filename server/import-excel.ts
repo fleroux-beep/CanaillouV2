@@ -5,8 +5,9 @@
  * Source file: BDD_SCI_restructuree.xlsx
  * Sheets used: Patrimoine, Baux, Financement, Détention Capital, Emprunts Détaillés, P&L *
  *
- * Tables populated: am_scis, am_actifs, am_lots, am_baux, am_emprunts,
- *                   am_locataires, am_associes, am_participations
+ * Tables populated: am_scis, am_actifs, am_lots, am_emprunts,
+ *                   am_associes, am_participations, gl_baux (scope='am'),
+ *                   gl_locataires
  */
 import XLSX from "xlsx";
 import path from "path";
@@ -796,15 +797,18 @@ export async function importExcelData(): Promise<{
   try {
     await client.query("BEGIN");
 
-    // Clean existing AM data (in reverse FK order)
+    // Clean existing AM data (in reverse FK order).
+    // Post-unification: AM-scoped baux live in gl_baux with scope='am'.
+    // Locataires are now shared with GL so we deliberately do NOT wipe them
+    // here — re-imports may leave orphaned rows, but that's acceptable and
+    // avoids nuking GL-side data. Fresh imports still allocate new UUIDs.
     await client.query(`DELETE FROM am_participations`);
-    await client.query(`DELETE FROM am_baux`);
+    await client.query(`DELETE FROM gl_baux WHERE scope = 'am'`);
     await client.query(`DELETE FROM am_lots`);
     await client.query(`DELETE FROM am_emprunts`);
     await client.query(`DELETE FROM am_travaux`);
     await client.query(`DELETE FROM am_documents`);
     await client.query(`DELETE FROM am_actifs`);
-    await client.query(`DELETE FROM am_locataires`);
     await client.query(`DELETE FROM am_associes`);
     await client.query(`DELETE FROM am_scis`);
     logger.info("import: cleaned existing AM data");
@@ -1046,7 +1050,7 @@ export async function importExcelData(): Promise<{
       locataireIds[b.locataire] = locId;
 
       await client.query(
-        `INSERT INTO am_locataires (id, nom, notes, created_at, updated_at) VALUES ($1, $2, $3, now(), now())`,
+        `INSERT INTO gl_locataires (id, nom, notes, created_at, updated_at) VALUES ($1, $2, $3, now(), now())`,
         [locId, b.locataire, b.typeBail ? `Type: ${b.typeBail}` : null]
       );
       counts.locataires++;
@@ -1142,13 +1146,30 @@ export async function importExcelData(): Promise<{
         const sciBauxCount = bauxRows.filter((x) => x.sciName === b.sciName && x.locataire).length || 1;
         const depotGarantie = sciDgTotal > 0 ? Math.round(sciDgTotal / sciBauxCount) : null;
 
+        // Insert into unified gl_baux with scope='am'. Mirror loyer_annuel
+        // into loyer_base_ht / loyer_ht_actu so indexation auto has a rent to
+        // work from, and use a derived fallback name.
+        const bailNom = `${b.destination || "Bail"} — ${b.locataire}`;
         await client.query(
-          `INSERT INTO am_baux (id, lot_id, actif_id, sci_id, locataire_id, type_bail,
-           date_debut, date_fin, loyer_mensuel, loyer_annuel, depot_garantie, indice_reference,
-           trimestre_ref, valeur_indice_base, statut, loyer_theorique, notes, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, now(), now())`,
+          `INSERT INTO gl_baux (
+             id, scope, nom,
+             lot_id, actif_id, sci_id, locataire_id, type_bail,
+             date_debut, date_fin,
+             loyer_mensuel, loyer_annuel, loyer_base_ht, loyer_ht_actu,
+             depot_garantie, indice_reference, trimestre_ref, valeur_indice_base,
+             statut, loyer_theorique, notes, created_at, updated_at
+           )
+           VALUES (
+             $1, 'am', $2,
+             $3, $4, $5, $6, $7,
+             $8::timestamp, $9::timestamp,
+             $10, $11, $11, $11,
+             $12, $13, $14, $15,
+             $16, $17, $18, now(), now()
+           )`,
           [
             id(),
+            bailNom,
             lotId,
             actifId,
             sciId,

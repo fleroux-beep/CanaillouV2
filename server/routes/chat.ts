@@ -14,9 +14,9 @@ const WRITE_TOOLS = new Set([
   "delete_entity",
 ]);
 import {
-  scis, actifs, emprunts, lots, bauxAM, associes, participations,
+  scis, actifs, emprunts, lots, associes, participations,
   bauxGL, bailleurs, paiementsGL, indices, locatairesGL,
-  locatairesAM, travaux, alertes,
+  travaux, alertes,
 } from "@shared/schema";
 import { eq, sql, and, isNull, desc } from "drizzle-orm";
 
@@ -37,7 +37,7 @@ async function fetchPortfolioSummary(): Promise<unknown> {
   const actifsList = await db.select().from(actifs);
   const empruntsList = await db.select().from(emprunts);
   const lotsList = await db.select().from(lots);
-  const bauxList = await db.select().from(bauxAM);
+  const bauxList = await db.select().from(bauxGL).where(eq(bauxGL.scope, "am"));
 
   const totalValorisation = actifsList.reduce((s, a: any) => {
     const prix = Number(a.prixAcquisition || 0) + Number(a.fraisNotaire || 0) + Number(a.fraisAgence || 0) + Number(a.montantTravaux || 0);
@@ -247,7 +247,7 @@ async function updateSCI(id: string, data: Record<string, unknown>): Promise<unk
 async function updateBailAM(id: string, data: Record<string, unknown>): Promise<unknown> {
   const fields = filterFields(data, BAIL_AM_FIELDS);
   if (Object.keys(fields).length === 0) return { error: "Aucun champ valide à modifier" };
-  const updated = await db.update(bauxAM).set({ ...fields, updatedAt: new Date() }).where(eq(bauxAM.id, id)).returning();
+  const updated = await db.update(bauxGL).set({ ...fields, updatedAt: new Date() }).where(and(eq(bauxGL.id, id), eq(bauxGL.scope, "am"))).returning();
   if (updated.length === 0) return { error: "Bail non trouvé" };
   return { success: true, updated: { id: updated[0].id, ...fields } };
 }
@@ -291,7 +291,7 @@ async function createBailAM(data: Record<string, unknown>): Promise<unknown> {
   const fields = filterFields(data, BAIL_AM_FIELDS);
   const actifId = data.actifId as string;
   const lotId = data.lotId as string;
-  const result = await db.insert(bauxAM).values({ actifId, lotId, ...fields }).returning();
+  const result = await db.insert(bauxGL).values({ scope: "am", actifId, lotId, ...fields }).returning();
   return { success: true, created: { id: result[0].id } };
 }
 

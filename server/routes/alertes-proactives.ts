@@ -9,7 +9,7 @@
 import type { Express } from "express";
 import { db } from "../db";
 import {
-  alertes, actifs, lots, bauxAM, emprunts, bauxGL, indices, scis,
+  alertes, actifs, lots, emprunts, bauxGL, indices, scis,
   refValeursLocatives, refMarcheScraping,
 } from "@shared/schema";
 import { eq, and, isNull, desc } from "drizzle-orm";
@@ -44,7 +44,7 @@ async function generateAMAlerts(): Promise<GeneratedAlert[]> {
   const [allActifs, allLots, allBaux, allEmprunts, allScis] = await Promise.all([
     db.select().from(actifs).where(and(eq(actifs.archived, false), isNull(actifs.deletedAt))),
     db.select().from(lots).where(and(eq(lots.archived, false), isNull(lots.deletedAt))),
-    db.select().from(bauxAM).where(and(eq(bauxAM.archived, false), isNull(bauxAM.deletedAt))),
+    db.select().from(bauxGL).where(and(eq(bauxGL.archived, false), eq(bauxGL.scope, "am"), isNull(bauxGL.deletedAt))),
     db.select().from(emprunts).where(and(eq(emprunts.archived, false), isNull(emprunts.deletedAt))),
     db.select().from(scis).where(isNull(scis.deletedAt)),
   ]);

@@ -35,10 +35,10 @@ interface CrudOptions {
 
 /**
  * Build a combined WHERE clause for list queries.
- * Handles: deletedAt IS NULL + ownerId = userId (when applicable).
+ * Handles: deletedAt IS NULL + ownerId = userId (when applicable) + scope filter.
  * Admins bypass the ownerId filter.
  */
-function buildWhereClause(table: any, req: any): SQL | undefined {
+function buildWhereClause(table: any, req: any, scope?: string): SQL | undefined {
   const conditions: SQL[] = [];
 
   if ("deletedAt" in table) {
@@ -52,19 +52,41 @@ function buildWhereClause(table: any, req: any): SQL | undefined {
     }
   }
 
+  if (scope && "scope" in table) {
+    conditions.push(eq(table.scope, scope));
+  }
+
   if (conditions.length === 0) return undefined;
   if (conditions.length === 1) return conditions[0];
   return and(...conditions)!;
 }
 
-export function registerCrud(app: Express, path: string, table: any, opts: CrudOptions) {
+/**
+ * Per-resource options passed to registerCrud.
+ * - `scope`: when set, restricts GET/PATCH/DELETE to rows matching
+ *   `table.scope = scope` and auto-assigns it on POST. Used by the unified
+ *   baux table to give AM and GL UIs disjoint views over the same storage.
+ */
+interface RegisterCrudResourceOptions {
+  scope?: string;
+}
+
+export function registerCrud(
+  app: Express,
+  path: string,
+  table: any,
+  opts: CrudOptions,
+  resourceOpts: RegisterCrudResourceOptions = {},
+) {
   const schema = opts.schemas[path];
   const apiPath = `/api/${opts.prefix}/${path}`;
   const hasOwnerId = "ownerId" in table;
+  const scope = resourceOpts.scope;
+  const hasScope = scope !== undefined && "scope" in table;
 
   app.get(apiPath, requireAuth, async (req: any, res: any) => {
     try {
-      const whereClause = buildWhereClause(table, req);
+      const whereClause = buildWhereClause(table, req, scope);
 
       // Optional pagination: ?page=1&limit=50
       const pageParam = Number(req.query.page);
@@ -103,11 +125,12 @@ export function registerCrud(app: Express, path: string, table: any, opts: CrudO
       const id = paramId(req, res);
       if (!id) return;
 
-      // Build where: id match + ownerId filter (non-admin)
+      // Build where: id match + ownerId filter (non-admin) + scope (if set)
       const conditions: SQL[] = [eq(table.id, id)];
       if (hasOwnerId && req.session?.role !== "admin") {
         conditions.push(eq(table.ownerId, req.session?.userId));
       }
+      if (hasScope) conditions.push(eq(table.scope, scope));
       const where = conditions.length === 1 ? conditions[0] : and(...conditions)!;
 
       const rows = await db.select().from(table).where(where).limit(1) as any[];
@@ -126,6 +149,8 @@ export function registerCrud(app: Express, path: string, table: any, opts: CrudO
       if (hasOwnerId && req.session?.userId) {
         body.ownerId = req.session.userId;
       }
+      // Force scope on creation so a caller can't smuggle rows into the other UI's view
+      if (hasScope) body.scope = scope;
       const rows = await db.insert(table).values(body).returning() as any[];
       res.status(201).json(rows[0]);
     } catch (error: any) {
@@ -139,16 +164,19 @@ export function registerCrud(app: Express, path: string, table: any, opts: CrudO
       const id = paramId(req, res);
       if (!id) return;
 
-      // Build where: id match + ownerId filter (non-admin)
+      // Build where: id match + ownerId filter (non-admin) + scope (if set)
       const conditions: SQL[] = [eq(table.id, id)];
       if (hasOwnerId && req.session?.role !== "admin") {
         conditions.push(eq(table.ownerId, req.session?.userId));
       }
+      if (hasScope) conditions.push(eq(table.scope, scope));
       const where = conditions.length === 1 ? conditions[0] : and(...conditions)!;
 
+      // Strip scope from body so it can't be reassigned by clients
+      const { scope: _ignored, ...safeBody } = req.body ?? {};
       const updateData = "updatedAt" in table
-        ? { ...req.body, updatedAt: new Date() }
-        : req.body;
+        ? { ...safeBody, updatedAt: new Date() }
+        : safeBody;
       const rows = await db.update(table).set(updateData).where(where).returning() as any[];
       if (rows.length === 0) return res.status(404).json({ error: "Non trouvé" });
       res.json(rows[0]);
@@ -163,11 +191,12 @@ export function registerCrud(app: Express, path: string, table: any, opts: CrudO
       const id = paramId(req, res);
       if (!id) return;
 
-      // Build where: id match + ownerId filter (non-admin)
+      // Build where: id match + ownerId filter (non-admin) + scope (if set)
       const conditions: SQL[] = [eq(table.id, id)];
       if (hasOwnerId && req.session?.role !== "admin") {
         conditions.push(eq(table.ownerId, req.session?.userId));
       }
+      if (hasScope) conditions.push(eq(table.scope, scope));
       const where = conditions.length === 1 ? conditions[0] : and(...conditions)!;
 
       const hasDeletedAt = "deletedAt" in table;

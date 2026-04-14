@@ -10,8 +10,8 @@
  *  3. Calcul des taux de capitalisation
  */
 import { db } from "../db";
-import { actifs, refValeursVenales, refValeursLocatives } from "@shared/schema";
-import { eq, and, isNull } from "drizzle-orm";
+import { actifs, refValeursVenales, refValeursLocatives, indices } from "@shared/schema";
+import { eq, and, isNull, desc } from "drizzle-orm";
 import { logger } from "./logger";
 import { syncDVF } from "./sync-dvf";
 import { syncANIL } from "./sync-anil";
@@ -47,13 +47,31 @@ async function isStale(): Promise<boolean> {
   const locatives = await db.select().from(refValeursLocatives).limit(1);
   if (locatives.length === 0) return true;
 
+  // Indices INSEE doivent aussi être présents — sinon l'indexation auto
+  // ne peut rien faire et le bug "ILAT ne se synchronise jamais" persiste.
+  const recentIndex = await db
+    .select()
+    .from(indices)
+    .orderBy(desc(indices.createdAt))
+    .limit(1);
+  if (recentIndex.length === 0) return true;
+
   // Check if most recent dateReleve is older than 30 days
   const recent = venales[0].dateReleve;
   if (!recent) return true;
 
   const lastSync = new Date(recent).getTime();
   const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
-  return lastSync < thirtyDaysAgo;
+  if (lastSync < thirtyDaysAgo) return true;
+
+  // Si la dernière insertion d'indice date de plus de 30 jours, on resync.
+  const lastIndexCreated = recentIndex[0].createdAt;
+  if (lastIndexCreated) {
+    const indexAge = Date.now() - new Date(lastIndexCreated).getTime();
+    if (indexAge > 30 * 24 * 60 * 60 * 1000) return true;
+  }
+
+  return false;
 }
 
 /**

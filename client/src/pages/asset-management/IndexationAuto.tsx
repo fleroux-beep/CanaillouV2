@@ -152,37 +152,99 @@ export default function IndexationAutoPage() {
         </Section>
 
         {/* Result feedback */}
-        {lastResult && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-            <GlassCard>
-              <div className="flex items-start gap-3 p-4">
-                <CheckCircle className="h-5 w-5 text-green-500 mt-0.5" />
-                <div>
-                  <h4 className="text-sm font-semibold">Opération terminée</h4>
-                  <p className="text-sm text-muted-foreground mt-1">{lastResult.message}</p>
-                  {lastResult.sync && (
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      INSEE: {lastResult.sync.synced} indices synchronisés
-                      {lastResult.sync.errors?.length > 0 && ` — ${lastResult.sync.errors.length} erreur(s)`}
-                    </p>
+        {lastResult && (() => {
+          // Aggrège les erreurs et baux ignorés provenant des différentes formes de réponses :
+          // - sync direct : { synced, errors, skipped }
+          // - pipeline : { sync: {...}, indexation: {...} }
+          const inseeErrors: string[] = [
+            ...(lastResult.errors && lastResult.type === "insee" ? lastResult.errors : []),
+            ...(lastResult.sync?.errors ?? []),
+          ];
+          const indexErrors: string[] = [
+            ...(lastResult.errors && lastResult.type === "index" ? lastResult.errors : []),
+            ...(lastResult.indexation?.errors ?? []),
+          ];
+          const indexSkipped: { bail: string; reason: string }[] = [
+            ...(lastResult.skipped && lastResult.type === "index" ? lastResult.skipped : []),
+            ...(lastResult.indexation?.skipped ?? []),
+          ];
+          const hasIssues = inseeErrors.length > 0 || indexErrors.length > 0 || indexSkipped.length > 0;
+          return (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+              <GlassCard>
+                <div className="flex items-start gap-3 p-4">
+                  {hasIssues ? (
+                    <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5 shrink-0" />
+                  ) : (
+                    <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 shrink-0" />
                   )}
-                  {lastResult.indexation && (
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Indexation: {lastResult.indexation.indexed} baux indexés
-                      {lastResult.indexation.errors?.length > 0 && ` — ${lastResult.indexation.errors.length} erreur(s)`}
-                    </p>
-                  )}
-                  {lastResult.synced !== undefined && (
-                    <p className="text-xs text-muted-foreground mt-0.5">{lastResult.synced} indices synchronisés</p>
-                  )}
-                  {lastResult.indexed !== undefined && (
-                    <p className="text-xs text-muted-foreground mt-0.5">{lastResult.indexed} baux indexés</p>
-                  )}
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-sm font-semibold">Opération terminée</h4>
+                    <p className="text-sm text-muted-foreground mt-1">{lastResult.message}</p>
+                    {lastResult.sync && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        INSEE: {lastResult.sync.synced} indices synchronisés
+                      </p>
+                    )}
+                    {lastResult.indexation && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Indexation: {lastResult.indexation.indexed} baux indexés
+                      </p>
+                    )}
+                    {lastResult.synced !== undefined && (
+                      <p className="text-xs text-muted-foreground mt-0.5">{lastResult.synced} indices synchronisés</p>
+                    )}
+                    {lastResult.indexed !== undefined && (
+                      <p className="text-xs text-muted-foreground mt-0.5">{lastResult.indexed} baux indexés</p>
+                    )}
+
+                    {inseeErrors.length > 0 && (
+                      <details className="mt-3" open>
+                        <summary className="cursor-pointer text-xs font-semibold text-red-600 dark:text-red-400">
+                          Erreurs INSEE ({inseeErrors.length}) — séries non récupérées
+                        </summary>
+                        <ul className="mt-1 ml-4 list-disc text-xs text-muted-foreground space-y-0.5">
+                          {inseeErrors.map((err, i) => (
+                            <li key={i}>{err}</li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+
+                    {indexErrors.length > 0 && (
+                      <details className="mt-3" open>
+                        <summary className="cursor-pointer text-xs font-semibold text-red-600 dark:text-red-400">
+                          Erreurs d'indexation ({indexErrors.length})
+                        </summary>
+                        <ul className="mt-1 ml-4 list-disc text-xs text-muted-foreground space-y-0.5">
+                          {indexErrors.map((err, i) => (
+                            <li key={i}>{err}</li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+
+                    {indexSkipped.length > 0 && (
+                      <details className="mt-3">
+                        <summary className="cursor-pointer text-xs font-semibold text-amber-600 dark:text-amber-400">
+                          Baux ignorés ({indexSkipped.length}) — pourquoi ils n'ont pas été indexés
+                        </summary>
+                        <ul className="mt-1 ml-4 list-disc text-xs text-muted-foreground space-y-0.5 max-h-60 overflow-y-auto">
+                          {indexSkipped.map((s, i) => (
+                            <li key={i}>
+                              <span className="font-medium">{s.bail}</span>
+                              <span className="text-muted-foreground"> — {s.reason}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </GlassCard>
-          </motion.div>
-        )}
+              </GlassCard>
+            </motion.div>
+          );
+        })()}
 
         {/* Latest indices */}
         <Section title="Derniers indices disponibles">
