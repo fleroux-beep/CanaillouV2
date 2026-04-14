@@ -2,8 +2,8 @@ import type { Express } from "express";
 import { db } from "../db";
 import {
   refTauxEmprunt, refValeursVenales, refValeursLocatives,
-  refTauxCapitalisation, actifs, etudesIA, lots, bauxAM, emprunts,
-  locatairesAM, scis,
+  refTauxCapitalisation, actifs, etudesIA, lots, bauxGL, emprunts,
+  locatairesGL, scis,
 } from "@shared/schema";
 import { eq, desc, and, isNull } from "drizzle-orm";
 import { requireAuth, requireWriteAdmin } from "../middleware/auth";
@@ -195,9 +195,9 @@ export function registerMarcheRoutes(app: Express) {
       db.select().from(refValeursLocatives),
       db.select().from(refTauxCapitalisation),
       db.select().from(lots).where(and(eq(lots.actifId, actifRow.id), isNull(lots.deletedAt))),
-      db.select().from(bauxAM).where(and(eq(bauxAM.actifId, actifRow.id), isNull(bauxAM.deletedAt))),
+      db.select().from(bauxGL).where(and(eq(bauxGL.actifId, actifRow.id), eq(bauxGL.scope, "am"), isNull(bauxGL.deletedAt))),
       db.select().from(emprunts).where(and(eq(emprunts.actifId, actifRow.id), isNull(emprunts.deletedAt))),
-      db.select().from(locatairesAM),
+      db.select().from(locatairesGL),
     ]);
 
     const phase1 = getPhase1(actifRow, allVenales, allLocatives, allTauxCapi);
@@ -537,9 +537,9 @@ Règles :
         db.select().from(refValeursLocatives),
         db.select().from(refTauxCapitalisation),
         db.select().from(lots).where(isNull(lots.deletedAt)),
-        db.select().from(bauxAM).where(isNull(bauxAM.deletedAt)),
+        db.select().from(bauxGL).where(and(eq(bauxGL.scope, "am"), isNull(bauxGL.deletedAt))),
         db.select().from(emprunts).where(isNull(emprunts.deletedAt)),
-        db.select().from(locatairesAM),
+        db.select().from(locatairesGL),
         db.select().from(scis),
       ]);
 
@@ -630,9 +630,9 @@ Règles :
         db.select().from(refValeursLocatives),
         db.select().from(refTauxCapitalisation),
         db.select().from(lots).where(and(eq(lots.actifId, actifId), isNull(lots.deletedAt))),
-        db.select().from(bauxAM).where(and(eq(bauxAM.actifId, actifId), isNull(bauxAM.deletedAt))),
+        db.select().from(bauxGL).where(and(eq(bauxGL.actifId, actifId), eq(bauxGL.scope, "am"), isNull(bauxGL.deletedAt))),
         db.select().from(emprunts).where(and(eq(emprunts.actifId, actifId), isNull(emprunts.deletedAt))),
-        db.select().from(locatairesAM),
+        db.select().from(locatairesGL),
       ]);
 
       const phase1 = getPhase1(actifRow, allVenales, allLocatives, allTauxCapi);

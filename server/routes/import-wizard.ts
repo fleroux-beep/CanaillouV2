@@ -8,7 +8,7 @@ import { randomUUID } from "crypto";
 import fs from "fs";
 import { db } from "../db";
 import {
-  scis, actifs, lots, bauxAM, emprunts, locatairesAM, associes, travaux,
+  scis, actifs, lots, bauxGL, emprunts, locatairesGL, associes, travaux,
 } from "@shared/schema";
 import { amSchemas } from "../lib/validation";
 import { requireAuth } from "../middleware/auth";
@@ -102,8 +102,10 @@ const docUpload = multer({
 });
 
 // ─── Table map for insertion ─────────────────────────────────────
+// Note: baux and locataires now point to the unified tables (post-unification).
+// `baux` inserts force scope='am' since the wizard is an AM-side feature.
 const tableMap: Record<string, any> = {
-  scis, actifs, lots, baux: bauxAM, emprunts, locataires: locatairesAM, associes, travaux,
+  scis, actifs, lots, baux: bauxGL, emprunts, locataires: locatairesGL, associes, travaux,
 };
 
 // ─── Entity field lists (for mapping UI) ─────────────────────────
@@ -129,7 +131,7 @@ async function resolveRefs(
 ): Promise<Record<string, any>[]> {
   const allScis = await db.select().from(scis).where(isNull(scis.deletedAt));
   const allActifs = await db.select().from(actifs).where(isNull(actifs.deletedAt));
-  const allLocataires = await db.select().from(locatairesAM);
+  const allLocataires = await db.select().from(locatairesGL);
 
   const sciByName = new Map(allScis.map((s: any) => [s.nom?.toLowerCase(), s.id]));
   const actifByName = new Map(allActifs.map((a: any) => [a.nom?.toLowerCase(), a.id]));
@@ -344,13 +346,19 @@ export function registerImportWizardRoutes(app: Express) {
         });
       }
 
+      // Wizard is an AM-side feature, so baux imports here belong to scope='am'.
+      const forceScope = targetEntity === "baux" ? "am" : undefined;
+
       // Batch insert
       const BATCH = 100;
       let inserted = 0;
       for (let i = 0; i < mappedRows.length; i += BATCH) {
         const batch = mappedRows.slice(i, i + BATCH);
+        const batchWithScope = forceScope
+          ? batch.map((row) => ({ ...row, scope: forceScope }))
+          : batch;
         try {
-          const rows = await db.insert(table).values(batch).returning() as any[];
+          const rows = await db.insert(table).values(batchWithScope).returning() as any[];
           inserted += rows.length;
         } catch (err: any) {
           logger.error("import-wizard insert error", { batch: i, error: err.message });

@@ -119,7 +119,11 @@ export async function syncIndicesINSEE(): Promise<{ synced: number; errors: stri
     try {
       const values = await fetchInseeSeriesValues(seriesId);
       if (values.length === 0) {
-        errors.push(`${type}: aucune donnée récupérée`);
+        // Important: surface this prominently — previously a silent warn,
+        // it was hiding cases where ILAT (or any other index) never syncs.
+        const msg = `${type} (${label}): aucune donnée récupérée depuis l'API INSEE (séries ${seriesId})`;
+        errors.push(msg);
+        logger.error(`sync-insee: ${msg}`);
         continue;
       }
 
@@ -150,13 +154,30 @@ export async function syncIndicesINSEE(): Promise<{ synced: number; errors: stri
 }
 
 /**
- * Détermine l'indice par défaut selon le type de bail :
- *   - habitation → ICC (Indice du Coût de la Construction)
- *   - commercial, professionnel, derogatoire → ILC (Indice des Loyers Commerciaux)
+ * Détermine l'indice par défaut selon le type de bail.
+ * Règles légales françaises :
+ *   - habitation / logement / résidentiel → IRL (obligatoire depuis 2006,
+ *     art. 17-1 loi du 6 juillet 1989)
+ *   - bureau / professionnel / tertiaire → ILAT (art. L.112-2 du Code monétaire
+ *     et financier ; obligatoire depuis 2022 pour les baux professionnels)
+ *   - commercial / boutique / crèche / commerce → ILC (depuis 2008)
+ *   - construction / chantier → ICC (rare, baux industriels ou historiques)
+ *
+ * NB : l'ancien code mappait habitation → ICC, ce qui était illégal —
+ * l'ICC ne peut plus être utilisé pour revaloriser un loyer d'habitation
+ * depuis 2006 (et pour le commercial depuis 2013).
  */
-function defaultIndiceForType(typeBail: string | null): string {
-  if (typeBail === "habitation") return "ICC";
-  return "ILC";
+function defaultIndiceForType(typeBail: string | null): string | null {
+  if (!typeBail) return null;
+  const normalized = typeBail
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  if (/(habitation|logement|residentiel|resid)/.test(normalized)) return "IRL";
+  if (/(tertiaire|bureau|professionnel|prof)/.test(normalized)) return "ILAT";
+  if (/(commercial|boutique|creche|commerce|derogatoire)/.test(normalized)) return "ILC";
+  if (/(construction|chantier|industriel)/.test(normalized)) return "ICC";
+  return null;
 }
 
 /**
@@ -188,6 +209,7 @@ export async function assignDefaultIndices(): Promise<{ assigned: number; errors
       if (bail.indiceReference) continue;
 
       const indiceType = defaultIndiceForType(bail.typeBail);
+      if (!indiceType) continue; // typeBail inconnu — laisser à la saisie manuelle
       const latest = latestByType.get(indiceType);
       if (!latest) continue; // No index data available yet
 
@@ -219,30 +241,56 @@ export async function assignDefaultIndices(): Promise<{ assigned: number; errors
  * - Il a une valeurIndiceBase
  * - Un indice plus récent est disponible
  */
-export async function autoIndexBaux(): Promise<{ indexed: number; errors: string[] }> {
+export async function autoIndexBaux(): Promise<{
+  indexed: number;
+  errors: string[];
+  skipped: { bail: string; reason: string }[];
+}> {
   let indexed = 0;
   const errors: string[] = [];
+  const skipped: { bail: string; reason: string }[] = [];
 
   const allBaux = await db.select().from(bauxGL)
     .where(and(eq(bauxGL.archived, false), isNull(bauxGL.deletedAt)));
   const allIndices = await db.select().from(indices);
 
   for (const bail of allBaux) {
+    const bailLabel = bail.nom || bail.id;
     try {
-      if (!bail.indiceReference || !bail.loyerBaseHT || !bail.valeurIndiceBase) continue;
-      if (bail.forceManual) continue; // Skip manually managed leases
+      if (!bail.indiceReference) {
+        skipped.push({ bail: bailLabel, reason: "indiceReference manquant" });
+        continue;
+      }
+      if (!bail.loyerBaseHT) {
+        skipped.push({ bail: bailLabel, reason: "loyerBaseHT manquant" });
+        continue;
+      }
+      if (!bail.valeurIndiceBase) {
+        skipped.push({ bail: bailLabel, reason: "valeurIndiceBase manquante" });
+        continue;
+      }
+      if (bail.forceManual) {
+        skipped.push({ bail: bailLabel, reason: "forceManual activé (gestion manuelle)" });
+        continue;
+      }
 
       const type = bail.indiceReference;
       const baseLoyer = Number(bail.loyerBaseHT);
       const baseIndice = Number(bail.valeurIndiceBase);
-      if (baseLoyer <= 0 || baseIndice <= 0) continue;
+      if (baseLoyer <= 0 || baseIndice <= 0) {
+        skipped.push({ bail: bailLabel, reason: `valeurs invalides (loyer=${baseLoyer}, indice=${baseIndice})` });
+        continue;
+      }
 
       // Find the latest indice for this type
       const typeIndices = allIndices
         .filter((i) => i.type === type)
         .sort((a, b) => b.trimestre.localeCompare(a.trimestre));
 
-      if (typeIndices.length === 0) continue;
+      if (typeIndices.length === 0) {
+        skipped.push({ bail: bailLabel, reason: `aucun indice ${type} en base — sync INSEE requise` });
+        continue;
+      }
 
       const latest = typeIndices[0];
       const latestValeur = Number(latest.valeur);
@@ -252,7 +300,10 @@ export async function autoIndexBaux(): Promise<{ indexed: number; errors: string
       const currentLoyer = Number(bail.loyerHTActu || 0);
 
       // Only update if there's a meaningful change (> 0.01 EUR)
-      if (Math.abs(nouveauLoyer - currentLoyer) < 0.01) continue;
+      if (Math.abs(nouveauLoyer - currentLoyer) < 0.01) {
+        skipped.push({ bail: bailLabel, reason: `déjà à jour (${type} ${latest.trimestre} = ${latestValeur})` });
+        continue;
+      }
 
       // Update the bail
       await db.update(bauxGL)
@@ -282,6 +333,6 @@ export async function autoIndexBaux(): Promise<{ indexed: number; errors: string
     }
   }
 
-  logger.info(`auto-index: ${indexed} baux indexés`);
-  return { indexed, errors };
+  logger.info(`auto-index: ${indexed} baux indexés, ${skipped.length} ignorés`);
+  return { indexed, errors, skipped };
 }

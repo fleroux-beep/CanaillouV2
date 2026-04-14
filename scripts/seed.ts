@@ -3,8 +3,8 @@ import {
   scis,
   actifs,
   lots,
-  locatairesAM,
-  bauxAM,
+  locatairesGL,
+  bauxGL,
   emprunts,
   associes,
   participations,
@@ -162,7 +162,7 @@ async function seed() {
   for (const l of locatairesData) {
     const id = uuid();
     locataireIds[l.ref] = id;
-    await db.insert(locatairesAM).values({ id, nom: l.nom });
+    await db.insert(locatairesGL).values({ id, nom: l.nom });
   }
   console.log(`  ✅ ${locatairesData.length} Locataires`);
 
@@ -193,15 +193,21 @@ async function seed() {
   ];
 
   for (const b of bauxData) {
-    await db.insert(bauxAM).values({
+    // Bail names must be unique/non-null now that baux is unified
+    const actifId = actifIds[lotsData.find(l => l.ref === b.lotRef)!.actifRef];
+    await db.insert(bauxGL).values({
+      scope: "am",
+      nom: `${b.ref} — ${b.typeBail}`,
       lotId: lotIds[b.lotRef],
-      actifId: actifIds[lotsData.find(l => l.ref === b.lotRef)!.actifRef],
+      actifId,
       sciId: sciIds[b.sciRef],
       locataireId: locataireIds[b.locRef],
       typeBail: b.typeBail,
-      dateDebut: b.dateDebut,
-      dateFin: b.dateFin,
+      dateDebut: b.dateDebut ? new Date(b.dateDebut) : null,
+      dateFin: b.dateFin ? new Date(b.dateFin) : null,
       loyerAnnuel: b.loyerAnnuel,
+      loyerBaseHT: b.loyerAnnuel,
+      loyerHTActu: b.loyerAnnuel,
       indiceReference: b.indiceReference,
       loyerTheorique: b.loyerTheorique,
       notes: b.notes,

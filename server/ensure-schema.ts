@@ -135,22 +135,7 @@ export async function ensureSchema() {
       )
     `);
 
-    // Locataires AM
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS "am_locataires" (
-        "id" varchar PRIMARY KEY NOT NULL,
-        "owner_id" varchar REFERENCES "users"("id") ON DELETE cascade,
-        "nom" varchar NOT NULL,
-        "prenom" varchar,
-        "email" varchar,
-        "telephone" varchar,
-        "adresse" text,
-        "siret" varchar,
-        "notes" text,
-        "created_at" timestamp DEFAULT now(),
-        "updated_at" timestamp DEFAULT now()
-      )
-    `);
+    // Locataires AM — unified with gl_locataires (dropped in migration 0001)
 
     // Lots
     await client.query(`
@@ -177,34 +162,9 @@ export async function ensureSchema() {
       )
     `);
 
-    // Baux AM
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS "am_baux" (
-        "id" varchar PRIMARY KEY NOT NULL,
-        "lot_id" varchar,
-        "actif_id" varchar,
-        "sci_id" varchar,
-        "locataire_id" varchar,
-        "type_bail" varchar,
-        "date_debut" date,
-        "date_fin" date,
-        "date_signature" date,
-        "loyer_mensuel" numeric,
-        "loyer_annuel" numeric,
-        "charges" numeric,
-        "depot_garantie" numeric,
-        "indice_reference" varchar,
-        "trimestre_ref" varchar,
-        "valeur_indice_base" numeric,
-        "statut" varchar DEFAULT 'actif',
-        "loyer_theorique" numeric,
-        "notes" text,
-        "archived" boolean DEFAULT false,
-        "deleted_at" timestamp,
-        "created_at" timestamp DEFAULT now(),
-        "updated_at" timestamp DEFAULT now()
-      )
-    `);
+    // Baux AM — unified with gl_baux (dropped in migration 0001). The AM-specific
+    // columns (lot_id, actif_id, sci_id, loyer_mensuel, loyer_annuel, loyer_theorique)
+    // now live on gl_baux, keyed by `scope = 'am'`.
 
     // Emprunts
     await client.query(`
@@ -344,11 +304,18 @@ export async function ensureSchema() {
       )
     `);
 
-    // Baux GL
+    // Baux GL (unified — post-migration 0001). Shared storage for both UIs.
+    // `scope` partitions rows ('am' vs 'gl'). `nom` is nullable at creation
+    // time because AM baux don't always carry an explicit name, but the
+    // migration forces a fallback so no row is ever left without one.
     await client.query(`
       CREATE TABLE IF NOT EXISTS "gl_baux" (
         "id" varchar PRIMARY KEY NOT NULL,
-        "nom" varchar NOT NULL,
+        "scope" varchar NOT NULL DEFAULT 'gl',
+        "nom" varchar,
+        "lot_id" varchar,
+        "actif_id" varchar,
+        "sci_id" varchar,
         "locataire_id" varchar,
         "bailleur_id" varchar,
         "gestionnaire_id" varchar,
@@ -370,6 +337,9 @@ export async function ensureSchema() {
         "ech_trien3" date,
         "loyer_base_ht" numeric,
         "loyer_ht_actu" numeric,
+        "loyer_mensuel" numeric,
+        "loyer_annuel" numeric,
+        "loyer_theorique" numeric,
         "force_manual" boolean DEFAULT false,
         "indice_reference" varchar,
         "trimestre_ref" varchar,
@@ -683,10 +653,11 @@ export async function ensureSchema() {
       `CREATE INDEX IF NOT EXISTS "idx_lots_actif_id" ON "am_lots" ("actif_id")`,
       `CREATE INDEX IF NOT EXISTS "idx_lots_sci_id" ON "am_lots" ("sci_id")`,
       `CREATE INDEX IF NOT EXISTS "idx_lots_locataire_id" ON "am_lots" ("locataire_id")`,
-      `CREATE INDEX IF NOT EXISTS "idx_baux_am_lot_id" ON "am_baux" ("lot_id")`,
-      `CREATE INDEX IF NOT EXISTS "idx_baux_am_actif_id" ON "am_baux" ("actif_id")`,
-      `CREATE INDEX IF NOT EXISTS "idx_baux_am_sci_id" ON "am_baux" ("sci_id")`,
-      `CREATE INDEX IF NOT EXISTS "idx_baux_am_locataire_id" ON "am_baux" ("locataire_id")`,
+      // Post-unification indexes (covered by idx_baux_gl_* below).
+      `CREATE INDEX IF NOT EXISTS "idx_baux_gl_scope" ON "gl_baux" ("scope")`,
+      `CREATE INDEX IF NOT EXISTS "idx_baux_gl_lot_id" ON "gl_baux" ("lot_id")`,
+      `CREATE INDEX IF NOT EXISTS "idx_baux_gl_actif_id" ON "gl_baux" ("actif_id")`,
+      `CREATE INDEX IF NOT EXISTS "idx_baux_gl_sci_id" ON "gl_baux" ("sci_id")`,
       `CREATE INDEX IF NOT EXISTS "idx_emprunts_sci_id" ON "am_emprunts" ("sci_id")`,
       `CREATE INDEX IF NOT EXISTS "idx_emprunts_actif_id" ON "am_emprunts" ("actif_id")`,
       `CREATE INDEX IF NOT EXISTS "idx_travaux_actif_id" ON "am_travaux" ("actif_id")`,
@@ -710,10 +681,10 @@ export async function ensureSchema() {
     const fks = [
       `ALTER TABLE "am_actifs" ADD CONSTRAINT "am_actifs_sci_id_am_scis_id_fk" FOREIGN KEY ("sci_id") REFERENCES "am_scis"("id") ON DELETE set null ON UPDATE cascade`,
       `ALTER TABLE "gl_avenants" ADD CONSTRAINT "gl_avenants_bail_id_gl_baux_id_fk" FOREIGN KEY ("bail_id") REFERENCES "gl_baux"("id") ON DELETE cascade ON UPDATE cascade`,
-      `ALTER TABLE "am_baux" ADD CONSTRAINT "am_baux_lot_id_am_lots_id_fk" FOREIGN KEY ("lot_id") REFERENCES "am_lots"("id") ON DELETE set null ON UPDATE cascade`,
-      `ALTER TABLE "am_baux" ADD CONSTRAINT "am_baux_actif_id_am_actifs_id_fk" FOREIGN KEY ("actif_id") REFERENCES "am_actifs"("id") ON DELETE set null ON UPDATE cascade`,
-      `ALTER TABLE "am_baux" ADD CONSTRAINT "am_baux_sci_id_am_scis_id_fk" FOREIGN KEY ("sci_id") REFERENCES "am_scis"("id") ON DELETE set null ON UPDATE cascade`,
-      `ALTER TABLE "am_baux" ADD CONSTRAINT "am_baux_locataire_id_am_locataires_id_fk" FOREIGN KEY ("locataire_id") REFERENCES "am_locataires"("id") ON DELETE set null ON UPDATE cascade`,
+      // Post-unification: gl_baux now references am_* tables via its AM scope columns.
+      `ALTER TABLE "gl_baux" ADD CONSTRAINT "gl_baux_lot_id_am_lots_id_fk" FOREIGN KEY ("lot_id") REFERENCES "am_lots"("id") ON DELETE set null ON UPDATE cascade`,
+      `ALTER TABLE "gl_baux" ADD CONSTRAINT "gl_baux_actif_id_am_actifs_id_fk" FOREIGN KEY ("actif_id") REFERENCES "am_actifs"("id") ON DELETE set null ON UPDATE cascade`,
+      `ALTER TABLE "gl_baux" ADD CONSTRAINT "gl_baux_sci_id_am_scis_id_fk" FOREIGN KEY ("sci_id") REFERENCES "am_scis"("id") ON DELETE set null ON UPDATE cascade`,
       `ALTER TABLE "gl_baux" ADD CONSTRAINT "gl_baux_locataire_id_gl_locataires_id_fk" FOREIGN KEY ("locataire_id") REFERENCES "gl_locataires"("id") ON DELETE set null ON UPDATE cascade`,
       `ALTER TABLE "gl_baux" ADD CONSTRAINT "gl_baux_bailleur_id_gl_bailleurs_id_fk" FOREIGN KEY ("bailleur_id") REFERENCES "gl_bailleurs"("id") ON DELETE set null ON UPDATE cascade`,
       `ALTER TABLE "gl_baux" ADD CONSTRAINT "gl_baux_gestionnaire_id_gl_gestionnaires_id_fk" FOREIGN KEY ("gestionnaire_id") REFERENCES "gl_gestionnaires"("id") ON DELETE set null ON UPDATE cascade`,
@@ -727,7 +698,7 @@ export async function ensureSchema() {
       `ALTER TABLE "gl_indexations" ADD CONSTRAINT "gl_indexations_bail_id_gl_baux_id_fk" FOREIGN KEY ("bail_id") REFERENCES "gl_baux"("id") ON DELETE cascade ON UPDATE cascade`,
       `ALTER TABLE "am_lots" ADD CONSTRAINT "am_lots_actif_id_am_actifs_id_fk" FOREIGN KEY ("actif_id") REFERENCES "am_actifs"("id") ON DELETE cascade ON UPDATE cascade`,
       `ALTER TABLE "am_lots" ADD CONSTRAINT "am_lots_sci_id_am_scis_id_fk" FOREIGN KEY ("sci_id") REFERENCES "am_scis"("id") ON DELETE set null ON UPDATE cascade`,
-      `ALTER TABLE "am_lots" ADD CONSTRAINT "am_lots_locataire_id_am_locataires_id_fk" FOREIGN KEY ("locataire_id") REFERENCES "am_locataires"("id") ON DELETE set null ON UPDATE cascade`,
+      `ALTER TABLE "am_lots" ADD CONSTRAINT "am_lots_locataire_id_gl_locataires_id_fk" FOREIGN KEY ("locataire_id") REFERENCES "gl_locataires"("id") ON DELETE set null ON UPDATE cascade`,
       `ALTER TABLE "gl_paiements" ADD CONSTRAINT "gl_paiements_bail_id_gl_baux_id_fk" FOREIGN KEY ("bail_id") REFERENCES "gl_baux"("id") ON DELETE cascade ON UPDATE cascade`,
       `ALTER TABLE "am_participations" ADD CONSTRAINT "am_participations_associe_id_am_associes_id_fk" FOREIGN KEY ("associe_id") REFERENCES "am_associes"("id") ON DELETE cascade ON UPDATE cascade`,
       `ALTER TABLE "am_participations" ADD CONSTRAINT "am_participations_sci_id_am_scis_id_fk" FOREIGN KEY ("sci_id") REFERENCES "am_scis"("id") ON DELETE cascade ON UPDATE cascade`,
@@ -778,8 +749,37 @@ export async function ensureSchema() {
       `);
     }
 
+    // Unification baux (migration 0001) — idempotent ADD COLUMN on gl_baux.
+    // When an older DB started without these columns we bring it up to spec
+    // without having to rely on drizzle-kit.
+    const glBauxNewCols: [string, string][] = [
+      ["scope", "varchar NOT NULL DEFAULT 'gl'"],
+      ["lot_id", "varchar"],
+      ["actif_id", "varchar"],
+      ["sci_id", "varchar"],
+      ["loyer_mensuel", "numeric"],
+      ["loyer_annuel", "numeric"],
+      ["loyer_theorique", "numeric"],
+    ];
+    for (const [col, type] of glBauxNewCols) {
+      await client.query(`
+        DO $$ BEGIN
+          ALTER TABLE "gl_baux" ADD COLUMN "${col}" ${type};
+        EXCEPTION WHEN duplicate_column THEN NULL;
+        END $$;
+      `);
+    }
+    // gl_baux.nom becomes NULL-able so the migration copy from am_baux can
+    // derive a fallback name without violating the old NOT NULL constraint.
+    await client.query(`
+      DO $$ BEGIN
+        ALTER TABLE "gl_baux" ALTER COLUMN "nom" DROP NOT NULL;
+      EXCEPTION WHEN others THEN NULL;
+      END $$;
+    `);
+
     // Add owner_id to root entity tables for multi-tenant isolation (C2.2)
-    const ownerTables = ["am_scis", "am_associes", "am_locataires", "gl_bailleurs", "gl_locataires", "alertes"];
+    const ownerTables = ["am_scis", "am_associes", "gl_bailleurs", "gl_locataires", "alertes"];
     for (const tbl of ownerTables) {
       await client.query(`
         DO $$ BEGIN
@@ -795,7 +795,7 @@ export async function ensureSchema() {
       ["am_scis", "date_creation"], ["am_scis", "date_revente"], ["am_scis", "date_cloture_exercice"],
       ["am_participations", "date_entree"],
       ["am_actifs", "date_acquisition"], ["am_actifs", "date_estimation"],
-      ["am_baux", "date_debut"], ["am_baux", "date_fin"], ["am_baux", "date_signature"],
+      // am_baux dropped in migration 0001 — date columns live on gl_baux now.
       ["am_emprunts", "date_debut"], ["am_emprunts", "date_fin"],
       ["am_travaux", "date_debut"], ["am_travaux", "date_fin"],
       ["gl_baux", "date_signature"], ["gl_baux", "date_effet"],

@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { db } from "../db";
 import {
-  scis, actifs, lots, bauxAM, emprunts, locatairesAM, associes, travaux,
+  scis, actifs, lots, emprunts, associes, travaux,
 } from "@shared/schema";
 import {
   bailleurs, bauxGL, locatairesGL, paiementsGL, facturesGL, indices,
@@ -14,15 +14,17 @@ import type { z } from "zod";
 
 const importLimiter = rateLimit(10, 60 * 1000); // 10 imports per minute
 
-// Map module + entity name to Drizzle table
+// Map module + entity name to Drizzle table. Since unification, am.baux and
+// gl.baux both target the unified bauxGL table — the `scope` column (forced
+// below for the AM module) is what separates them.
 const tableMap: Record<string, Record<string, any>> = {
   am: {
     scis,
     actifs,
     lots,
-    baux: bauxAM,
+    baux: bauxGL,
     emprunts,
-    locataires: locatairesAM,
+    locataires: locatairesGL,
     associes,
     travaux,
   },
@@ -95,13 +97,20 @@ export function registerImportRoutes(app: Express) {
         });
       }
 
+      // Force scope on baux imports so AM imports can't leak into GL views
+      // (and vice-versa). gl.baux gets scope='gl', am.baux gets scope='am'.
+      const forceScope = entity === "baux" ? moduleName : undefined;
+
       // Insert validated rows in batches of 100
       const BATCH_SIZE = 100;
       let insertedCount = 0;
 
       for (let i = 0; i < validatedData.length; i += BATCH_SIZE) {
         const batch = validatedData.slice(i, i + BATCH_SIZE);
-        const rows = await db.insert(table).values(batch).returning() as any[];
+        const batchWithScope = forceScope
+          ? batch.map((row: any) => ({ ...row, scope: forceScope }))
+          : batch;
+        const rows = await db.insert(table).values(batchWithScope).returning() as any[];
         insertedCount += rows.length;
       }
 
