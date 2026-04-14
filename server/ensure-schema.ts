@@ -2,11 +2,195 @@ import { pool } from "./db";
 import { logger } from "./lib/logger";
 
 /**
+ * Migration 0001 — runs in its OWN small transactions BEFORE the big
+ * ensureSchema transaction below.
+ *
+ * Why a separate function? The main ensureSchema() runs ~50 statements in
+ * a single transaction. If any one of them throws (FK conflict, check
+ * constraint, date migration on a row that won't cast, etc.) the whole
+ * thing is rolled back — including the ADD COLUMN we depend on. Worse,
+ * server/index.ts swallows ensureSchema errors so the server keeps
+ * running on the half-migrated DB and every query for `scope='am'`
+ * crashes with `column "scope" does not exist`.
+ *
+ * Putting the column additions in their own auto-committed statements
+ * guarantees that, no matter what happens later in ensureSchema, the
+ * unification columns are always present at runtime.
+ */
+async function applyBauxUnificationMigration() {
+  const client = await pool.connect();
+  try {
+    // Skip cleanly if gl_baux doesn't exist yet — the main ensureSchema()
+    // run will create it from scratch with all the new columns.
+    const tableCheck = await client.query(
+      `SELECT 1 FROM information_schema.tables WHERE table_name = 'gl_baux'`,
+    );
+    if (tableCheck.rowCount === 0) return;
+
+    const glBauxNewCols: [string, string][] = [
+      ["scope", "varchar NOT NULL DEFAULT 'gl'"],
+      ["lot_id", "varchar"],
+      ["actif_id", "varchar"],
+      ["sci_id", "varchar"],
+      ["loyer_mensuel", "numeric"],
+      ["loyer_annuel", "numeric"],
+      ["loyer_theorique", "numeric"],
+    ];
+    for (const [col, type] of glBauxNewCols) {
+      try {
+        await client.query(
+          `ALTER TABLE "gl_baux" ADD COLUMN IF NOT EXISTS "${col}" ${type}`,
+        );
+      } catch (err: any) {
+        // Postgres < 9.6 doesn't support IF NOT EXISTS on ADD COLUMN; fall
+        // back to a DO block that catches duplicate_column.
+        await client.query(`
+          DO $$ BEGIN
+            ALTER TABLE "gl_baux" ADD COLUMN "${col}" ${type};
+          EXCEPTION WHEN duplicate_column THEN NULL;
+          END $$;
+        `);
+      }
+    }
+
+    // gl_baux.nom becomes NULL-able so the migration copy from am_baux can
+    // derive a fallback name without violating the old NOT NULL constraint.
+    try {
+      await client.query(`ALTER TABLE "gl_baux" ALTER COLUMN "nom" DROP NOT NULL`);
+    } catch (_) {
+      /* already nullable */
+    }
+
+    // Drop the legacy FK am_lots → am_locataires (any name) so a later
+    // ensureSchema() pass can re-add it pointing at gl_locataires without
+    // a duplicate-target conflict.
+    try {
+      await client.query(`
+        DO $$
+        DECLARE r record;
+        BEGIN
+          FOR r IN
+            SELECT conname
+            FROM pg_constraint c
+            JOIN pg_class t ON t.oid = c.conrelid
+            JOIN pg_class rt ON rt.oid = c.confrelid
+            WHERE t.relname = 'am_lots'
+              AND rt.relname = 'am_locataires'
+              AND c.contype = 'f'
+          LOOP
+            EXECUTE format('ALTER TABLE "am_lots" DROP CONSTRAINT %I', r.conname);
+          END LOOP;
+        END $$;
+      `);
+    } catch (_) {
+      /* table may not exist — fine */
+    }
+
+    // Backfill gl_locataires from am_locataires if the legacy table still
+    // exists. UUIDs are preserved so existing FKs keep resolving. This is
+    // idempotent: ON CONFLICT DO NOTHING skips already-migrated rows.
+    try {
+      const amLocCheck = await client.query(
+        `SELECT 1 FROM information_schema.tables WHERE table_name = 'am_locataires'`,
+      );
+      if ((amLocCheck.rowCount ?? 0) > 0) {
+        await client.query(`
+          INSERT INTO "gl_locataires" (id, owner_id, nom, prenom, email, telephone, adresse, siret, notes, created_at, updated_at)
+          SELECT id, owner_id, nom, prenom, email, telephone, adresse, siret, notes, created_at, updated_at
+          FROM "am_locataires"
+          ON CONFLICT (id) DO NOTHING;
+        `);
+        logger.info("migration 0001: am_locataires backfilled into gl_locataires");
+      }
+    } catch (err: any) {
+      logger.warn("migration 0001: am_locataires backfill skipped", { error: err.message });
+    }
+
+    // Backfill gl_baux from am_baux (scope='am') if the legacy table still
+    // exists. Auto-detects indiceReference from typeBail per French law.
+    try {
+      const amBauxCheck = await client.query(
+        `SELECT 1 FROM information_schema.tables WHERE table_name = 'am_baux'`,
+      );
+      if ((amBauxCheck.rowCount ?? 0) > 0) {
+        await client.query(`
+          INSERT INTO "gl_baux" (
+            id, scope, nom, lot_id, actif_id, sci_id, locataire_id, type_bail,
+            date_debut, date_fin,
+            loyer_mensuel, loyer_annuel, loyer_theorique, loyer_base_ht, loyer_ht_actu,
+            charges, depot_garantie,
+            indice_reference, trimestre_ref, valeur_indice_base,
+            statut, notes, archived, deleted_at, created_at, updated_at
+          )
+          SELECT
+            b.id,
+            'am' AS scope,
+            COALESCE(
+              NULLIF(TRIM(CONCAT_WS(' — ', a.nom, l.designation)), ''),
+              CONCAT('Bail ', LEFT(b.id::text, 8))
+            ) AS nom,
+            b.lot_id, b.actif_id, b.sci_id, b.locataire_id, b.type_bail,
+            b.date_debut::timestamp, b.date_fin::timestamp,
+            b.loyer_mensuel, b.loyer_annuel, b.loyer_theorique,
+            b.loyer_annuel AS loyer_base_ht,
+            b.loyer_annuel AS loyer_ht_actu,
+            b.charges, b.depot_garantie,
+            COALESCE(
+              b.indice_reference,
+              CASE
+                WHEN LOWER(COALESCE(b.type_bail, '')) SIMILAR TO '%(habitation|logement|residentiel|résidentiel)%' THEN 'IRL'
+                WHEN LOWER(COALESCE(b.type_bail, '')) SIMILAR TO '%(tertiaire|bureau|professionnel)%' THEN 'ILAT'
+                WHEN LOWER(COALESCE(b.type_bail, '')) SIMILAR TO '%(commercial|boutique|creche|crèche|commerce|derogatoire|dérogatoire)%' THEN 'ILC'
+                WHEN LOWER(COALESCE(b.type_bail, '')) SIMILAR TO '%(construction|chantier)%' THEN 'ICC'
+                ELSE NULL
+              END
+            ) AS indice_reference,
+            b.trimestre_ref, b.valeur_indice_base,
+            b.statut, b.notes, COALESCE(b.archived, false), b.deleted_at, b.created_at, b.updated_at
+          FROM "am_baux" b
+          LEFT JOIN "am_actifs" a ON a.id = b.actif_id
+          LEFT JOIN "am_lots" l ON l.id = b.lot_id
+          ON CONFLICT (id) DO NOTHING;
+        `);
+        logger.info("migration 0001: am_baux backfilled into gl_baux with scope='am'");
+      }
+    } catch (err: any) {
+      logger.warn("migration 0001: am_baux backfill skipped", { error: err.message });
+    }
+
+    // Ensure every gl_baux row has a non-null nom (defensive; the next ALTER
+    // SET NOT NULL elsewhere would otherwise fail on legacy rows).
+    try {
+      await client.query(`
+        UPDATE "gl_baux"
+        SET "nom" = CONCAT('Bail ', LEFT(id::text, 8))
+        WHERE "nom" IS NULL OR "nom" = '';
+      `);
+    } catch (_) {
+      /* table may not have nom column on a very old schema — fine */
+    }
+
+    logger.info("migration 0001: gl_baux unification columns ensured");
+  } catch (err: any) {
+    logger.error("migration 0001 failed", { error: err.message, code: err.code });
+    // We do not rethrow — any failure here should not block the main
+    // ensureSchema() from running. The runtime errors will surface what
+    // is actually missing.
+  } finally {
+    client.release();
+  }
+}
+
+/**
  * Ensures all database tables exist by running CREATE TABLE IF NOT EXISTS.
  * This replaces drizzle-kit push / drizzle-orm migrate which don't work
  * when the server is bundled with esbuild (fs-based migration files are unavailable).
  */
 export async function ensureSchema() {
+  // Step 0: critical column additions in their own committed transactions so
+  // they survive any rollback of the big transaction below.
+  await applyBauxUnificationMigration();
+
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -647,131 +831,9 @@ export async function ensureSchema() {
       )
     `);
 
-    // ─── Migration 0001 — gl_baux unified columns ───
-    // CRITICAL: this MUST run BEFORE the indexes/FKs block below, because the
-    // post-unification indexes (idx_baux_gl_scope, idx_baux_gl_lot_id, …) and
-    // FKs (gl_baux_lot_id_am_lots_id_fk, …) reference these new columns. On a
-    // pre-migration database, an index on a missing column raises
-    // `column "scope" does not exist`, which aborts the whole transaction and
-    // leaves gl_baux without `scope` — breaking every query that filters by it.
-    const glBauxNewCols: [string, string][] = [
-      ["scope", "varchar NOT NULL DEFAULT 'gl'"],
-      ["lot_id", "varchar"],
-      ["actif_id", "varchar"],
-      ["sci_id", "varchar"],
-      ["loyer_mensuel", "numeric"],
-      ["loyer_annuel", "numeric"],
-      ["loyer_theorique", "numeric"],
-    ];
-    for (const [col, type] of glBauxNewCols) {
-      await client.query(`
-        DO $$ BEGIN
-          ALTER TABLE "gl_baux" ADD COLUMN "${col}" ${type};
-        EXCEPTION WHEN duplicate_column THEN NULL;
-        END $$;
-      `);
-    }
-    // gl_baux.nom becomes NULL-able so the migration copy from am_baux can
-    // derive a fallback name without violating the old NOT NULL constraint.
-    await client.query(`
-      DO $$ BEGIN
-        ALTER TABLE "gl_baux" ALTER COLUMN "nom" DROP NOT NULL;
-      EXCEPTION WHEN others THEN NULL;
-      END $$;
-    `);
-
-    // Drop the legacy FK am_lots → am_locataires (any name) so we can re-add
-    // it pointing at gl_locataires below. If the database was created from
-    // scratch on the new schema, this FK never existed and the loop is a no-op.
-    await client.query(`
-      DO $$
-      DECLARE r record;
-      BEGIN
-        FOR r IN
-          SELECT conname
-          FROM pg_constraint c
-          JOIN pg_class t ON t.oid = c.conrelid
-          JOIN pg_class rt ON rt.oid = c.confrelid
-          WHERE t.relname = 'am_lots'
-            AND rt.relname = 'am_locataires'
-            AND c.contype = 'f'
-        LOOP
-          EXECUTE format('ALTER TABLE "am_lots" DROP CONSTRAINT %I', r.conname);
-        END LOOP;
-      EXCEPTION WHEN undefined_table THEN NULL;
-      END $$;
-    `);
-
-    // Backfill gl_locataires from am_locataires if the legacy table still
-    // exists. UUIDs are preserved so existing FKs keep resolving. This is
-    // idempotent: ON CONFLICT DO NOTHING skips already-migrated rows.
-    await client.query(`
-      DO $$ BEGIN
-        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'am_locataires') THEN
-          INSERT INTO "gl_locataires" (id, owner_id, nom, prenom, email, telephone, adresse, siret, notes, created_at, updated_at)
-          SELECT id, owner_id, nom, prenom, email, telephone, adresse, siret, notes, created_at, updated_at
-          FROM "am_locataires"
-          ON CONFLICT (id) DO NOTHING;
-        END IF;
-      EXCEPTION WHEN others THEN NULL;
-      END $$;
-    `);
-
-    // Backfill gl_baux from am_baux (scope='am') if the legacy table still
-    // exists. Auto-detects indiceReference from typeBail per French law.
-    await client.query(`
-      DO $$ BEGIN
-        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'am_baux') THEN
-          INSERT INTO "gl_baux" (
-            id, scope, nom, lot_id, actif_id, sci_id, locataire_id, type_bail,
-            date_debut, date_fin,
-            loyer_mensuel, loyer_annuel, loyer_theorique, loyer_base_ht, loyer_ht_actu,
-            charges, depot_garantie,
-            indice_reference, trimestre_ref, valeur_indice_base,
-            statut, notes, archived, deleted_at, created_at, updated_at
-          )
-          SELECT
-            b.id,
-            'am' AS scope,
-            COALESCE(
-              NULLIF(TRIM(CONCAT_WS(' — ', a.nom, l.designation)), ''),
-              CONCAT('Bail ', LEFT(b.id::text, 8))
-            ) AS nom,
-            b.lot_id, b.actif_id, b.sci_id, b.locataire_id, b.type_bail,
-            b.date_debut::timestamp, b.date_fin::timestamp,
-            b.loyer_mensuel, b.loyer_annuel, b.loyer_theorique,
-            b.loyer_annuel AS loyer_base_ht,
-            b.loyer_annuel AS loyer_ht_actu,
-            b.charges, b.depot_garantie,
-            COALESCE(
-              b.indice_reference,
-              CASE
-                WHEN LOWER(COALESCE(b.type_bail, '')) SIMILAR TO '%(habitation|logement|residentiel|résidentiel)%' THEN 'IRL'
-                WHEN LOWER(COALESCE(b.type_bail, '')) SIMILAR TO '%(tertiaire|bureau|professionnel)%' THEN 'ILAT'
-                WHEN LOWER(COALESCE(b.type_bail, '')) SIMILAR TO '%(commercial|boutique|creche|crèche|commerce|derogatoire|dérogatoire)%' THEN 'ILC'
-                WHEN LOWER(COALESCE(b.type_bail, '')) SIMILAR TO '%(construction|chantier)%' THEN 'ICC'
-                ELSE NULL
-              END
-            ) AS indice_reference,
-            b.trimestre_ref, b.valeur_indice_base,
-            b.statut, b.notes, COALESCE(b.archived, false), b.deleted_at, b.created_at, b.updated_at
-          FROM "am_baux" b
-          LEFT JOIN "am_actifs" a ON a.id = b.actif_id
-          LEFT JOIN "am_lots" l ON l.id = b.lot_id
-          ON CONFLICT (id) DO NOTHING;
-        END IF;
-      EXCEPTION WHEN others THEN NULL;
-      END $$;
-    `);
-
-    // Ensure every gl_baux row has a non-null nom before we re-tighten the
-    // constraint elsewhere. Using a fallback derived from the id is safer
-    // than failing the migration on a single legacy row.
-    await client.query(`
-      UPDATE "gl_baux"
-      SET "nom" = CONCAT('Bail ', LEFT(id::text, 8))
-      WHERE "nom" IS NULL OR "nom" = '';
-    `);
+    // Migration 0001 (gl_baux unification columns + data backfill) is now
+    // handled by applyBauxUnificationMigration() above, in its own transaction
+    // so it survives any rollback of the main transaction below.
 
     // ─── Indexes on foreign keys ───
     const indexes = [
