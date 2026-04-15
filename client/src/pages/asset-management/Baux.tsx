@@ -22,10 +22,15 @@ interface BailAM {
   dateDebut?: string;
   dateFin?: string;
   dateSignature?: string;
-  // Loyer unifié : base (saisie) + actu (auto-indexé). Annuel HT en EUR.
+  // Modèle loyer à trois niveaux (cf. shared/schema.ts `bauxGL`) :
+  //  - loyerBaseHT         : valeur de signature (immuable, annuel HT EUR)
+  //  - loyerHTActu         : loyer courant après indexation INSEE auto (cache)
+  //  - loyerManuelOverride : valeur forcée quand `forceManual === true`.
+  // Par défaut `forceManual = false` → la chaîne base → INSEE → actu pilote tout.
   loyerBaseHT?: string;
   loyerHTActu?: string;
   forceManual?: boolean;
+  loyerManuelOverride?: string;
   charges?: string;
   depotGarantie?: string;
   indiceReference?: string;
@@ -36,6 +41,15 @@ interface BailAM {
 }
 
 const emptyBail: Partial<BailAM> = {};
+
+/** Miroir frontend de `getBailLoyerAnnuel` dans client/src/lib/am-calculations.ts.
+ *  Priorité : forceManual + override > loyerHTActu > loyerBaseHT. */
+function resolveLoyerAnnuel(r: BailAM): number {
+  if (r.forceManual && Number(r.loyerManuelOverride || 0) > 0) {
+    return Number(r.loyerManuelOverride);
+  }
+  return Number(r.loyerHTActu || r.loyerBaseHT || 0);
+}
 
 export default function BauxAMPage() {
   const { data, create, update, remove, creating, updating, deleting } = useCrud<BailAM>("/api/am/baux", "Bail");
@@ -62,8 +76,16 @@ export default function BauxAMPage() {
       align: "right",
       sortable: true,
       render: (r) => {
-        const annuel = Number(r.loyerHTActu || r.loyerBaseHT || 0);
+        const annuel = resolveLoyerAnnuel(r);
         if (annuel <= 0) return "—";
+        if (r.forceManual && Number(r.loyerManuelOverride || 0) > 0) {
+          return (
+            <span title={`Forcé manuellement — base: ${formatCurrency(r.loyerBaseHT || 0)}`}>
+              {formatCurrency(annuel)}
+              <span className="ml-1 text-[10px] text-amber-600">M</span>
+            </span>
+          );
+        }
         const indexed = r.loyerHTActu && Number(r.loyerHTActu) !== Number(r.loyerBaseHT || 0);
         return (
           <span title={indexed ? `Base: ${formatCurrency(r.loyerBaseHT || 0)} — indexé auto` : undefined}>
@@ -80,7 +102,7 @@ export default function BauxAMPage() {
       align: "right",
       sortable: false,
       render: (r) => {
-        const annuel = Number(r.loyerHTActu || r.loyerBaseHT || 0);
+        const annuel = resolveLoyerAnnuel(r);
         if (annuel <= 0) return "—";
         return formatCurrency(Math.round((annuel / 12) * 100) / 100);
       },
@@ -224,6 +246,42 @@ export default function BauxAMPage() {
           <FormField label="Charges" name="charges" value={form.charges} onChange={onChange} type="number" suffix="EUR" />
           <FormField label="Dépôt de garantie" name="depotGarantie" value={form.depotGarantie} onChange={onChange} type="number" suffix="EUR" />
         </FormGrid>
+
+        <div className="mt-6 rounded-xl border border-amber-200/60 bg-amber-50/50 p-4 dark:border-amber-900/40 dark:bg-amber-950/20">
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              checked={!!form.forceManual}
+              onChange={(e) => setForm((f) => ({ ...f, forceManual: e.target.checked }))}
+              className="mt-1 h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+            />
+            <div className="flex-1">
+              <div className="text-sm font-semibold text-foreground">
+                Forcer la valeur du loyer (gestion manuelle)
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                Par défaut désactivé. Activez uniquement en cas de renégociation
+                ponctuelle, réduction commerciale ou dérogation temporaire. Tant
+                que cette option est cochée, l'indexation INSEE automatique
+                n'écrasera PAS ce bail ; à décocher pour reprendre le calcul
+                base × indice nouveau / indice base.
+              </div>
+            </div>
+          </label>
+          {form.forceManual && (
+            <div className="mt-4">
+              <FormField
+                label="Loyer HT annuel forcé"
+                name="loyerManuelOverride"
+                value={form.loyerManuelOverride}
+                onChange={onChange}
+                type="number"
+                suffix="EUR"
+              />
+            </div>
+          )}
+        </div>
+
         <div className="mt-6">
           <h3 className="text-sm font-semibold text-foreground mb-3">Indexation</h3>
           <FormGrid>

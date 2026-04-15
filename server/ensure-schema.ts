@@ -342,6 +342,88 @@ async function applyLoyerCleanupMigration() {
 }
 
 /**
+ * Migration 0003 — modèle loyer durable (base + auto-INSEE + override manuel).
+ *
+ * Ajoute `gl_baux.loyer_manuel_override` (numeric, nullable) et force la
+ * colonne `force_manual` à NOT NULL DEFAULT false. Crée également la table
+ * `gl_baux_franchises` pour modéliser séparément les franchises / prorata.
+ *
+ * Idempotente : peut être rejouée sans effet de bord. Runs in its own
+ * committed transactions so it survives a rollback of the big ensureSchema
+ * transaction.
+ */
+async function applyLoyerManuelOverrideMigration() {
+  const client = await pool.connect();
+  try {
+    // 1. Skip cleanly if gl_baux doesn't exist — ensureSchema() crée la table
+    // avec les bonnes colonnes en une passe.
+    const tableCheck = await client.query(
+      `SELECT 1 FROM information_schema.tables WHERE table_name = 'gl_baux'`,
+    );
+    if (tableCheck.rowCount === 0) return;
+
+    // 2. Ajout loyer_manuel_override (nullable)
+    try {
+      await client.query(
+        `ALTER TABLE "gl_baux" ADD COLUMN IF NOT EXISTS "loyer_manuel_override" numeric`,
+      );
+    } catch (err: any) {
+      // Fallback Postgres < 9.6
+      await client.query(`
+        DO $$ BEGIN
+          ALTER TABLE "gl_baux" ADD COLUMN "loyer_manuel_override" numeric;
+        EXCEPTION WHEN duplicate_column THEN NULL;
+        END $$;
+      `);
+    }
+
+    // 3. Durcir force_manual : NOT NULL DEFAULT false. On backfill les NULL
+    // existants à false avant d'appliquer la contrainte.
+    try {
+      await client.query(
+        `UPDATE "gl_baux" SET "force_manual" = false WHERE "force_manual" IS NULL`,
+      );
+      await client.query(
+        `ALTER TABLE "gl_baux" ALTER COLUMN "force_manual" SET DEFAULT false`,
+      );
+      await client.query(
+        `ALTER TABLE "gl_baux" ALTER COLUMN "force_manual" SET NOT NULL`,
+      );
+    } catch (err: any) {
+      logger.warn("migration 0003: force_manual NOT NULL failed", { error: err.message });
+    }
+
+    // 4. Table franchises (CREATE IF NOT EXISTS, idempotent)
+    try {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS "gl_baux_franchises" (
+          "id" varchar PRIMARY KEY NOT NULL,
+          "bail_id" varchar NOT NULL REFERENCES "gl_baux"("id") ON DELETE CASCADE,
+          "date_debut" date NOT NULL,
+          "date_fin" date NOT NULL,
+          "montant" numeric NOT NULL,
+          "motif" varchar,
+          "notes" text,
+          "created_at" timestamp DEFAULT now()
+        )
+      `);
+      await client.query(
+        `CREATE INDEX IF NOT EXISTS "idx_franchises_baux_bail_id" ON "gl_baux_franchises"("bail_id")`,
+      );
+    } catch (err: any) {
+      logger.warn("migration 0003: gl_baux_franchises create failed", { error: err.message });
+    }
+
+    logger.info("migration 0003: loyer manuel override + franchises table ready");
+  } catch (err: any) {
+    logger.error("migration 0003 failed", { error: err.message, code: err.code });
+    // Do not rethrow — any failure here should not block the main ensureSchema.
+  } finally {
+    client.release();
+  }
+}
+
+/**
  * Ensures all database tables exist by running CREATE TABLE IF NOT EXISTS.
  * This replaces drizzle-kit push / drizzle-orm migrate which don't work
  * when the server is bundled with esbuild (fs-based migration files are unavailable).
@@ -354,6 +436,8 @@ export async function ensureSchema() {
   // loyerBaseHT / loyerHTActu. Runs AFTER applyBauxUnificationMigration so
   // the backfill INSERT (which still references loyer_annuel) can run first.
   await applyLoyerCleanupMigration();
+  // Step 0c: modèle loyer durable (override manuel + franchises).
+  await applyLoyerManuelOverrideMigration();
 
   const client = await pool.connect();
   try {
@@ -683,7 +767,8 @@ export async function ensureSchema() {
         "ech_trien3" date,
         "loyer_base_ht" numeric,
         "loyer_ht_actu" numeric,
-        "force_manual" boolean DEFAULT false,
+        "force_manual" boolean NOT NULL DEFAULT false,
+        "loyer_manuel_override" numeric,
         "indice_reference" varchar,
         "trimestre_ref" varchar,
         "date_indice_base" timestamp,
@@ -704,6 +789,20 @@ export async function ensureSchema() {
         "notes" text,
         "created_at" timestamp DEFAULT now(),
         "updated_at" timestamp DEFAULT now()
+      )
+    `);
+
+    // Franchises de loyer (rent-free + prorata temporels)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "gl_baux_franchises" (
+        "id" varchar PRIMARY KEY NOT NULL,
+        "bail_id" varchar NOT NULL,
+        "date_debut" date NOT NULL,
+        "date_fin" date NOT NULL,
+        "montant" numeric NOT NULL,
+        "motif" varchar,
+        "notes" text,
+        "created_at" timestamp DEFAULT now()
       )
     `);
 
@@ -1019,6 +1118,7 @@ export async function ensureSchema() {
       `CREATE INDEX IF NOT EXISTS "idx_factures_gl_bail_id" ON "gl_factures" ("bail_id")`,
       `CREATE INDEX IF NOT EXISTS "idx_quittances_gl_bail_id" ON "gl_quittances" ("bail_id")`,
       `CREATE INDEX IF NOT EXISTS "idx_indexations_gl_bail_id" ON "gl_indexations" ("bail_id")`,
+      `CREATE INDEX IF NOT EXISTS "idx_franchises_baux_bail_id" ON "gl_baux_franchises" ("bail_id")`,
     ];
     for (const idx of indexes) {
       await client.query(idx);
@@ -1053,6 +1153,7 @@ export async function ensureSchema() {
       `ALTER TABLE "gl_renouvellements" ADD CONSTRAINT "gl_renouvellements_bail_id_gl_baux_id_fk" FOREIGN KEY ("bail_id") REFERENCES "gl_baux"("id") ON DELETE cascade ON UPDATE cascade`,
       `ALTER TABLE "am_travaux" ADD CONSTRAINT "am_travaux_actif_id_am_actifs_id_fk" FOREIGN KEY ("actif_id") REFERENCES "am_actifs"("id") ON DELETE cascade ON UPDATE cascade`,
       `ALTER TABLE "am_travaux" ADD CONSTRAINT "am_travaux_sci_id_am_scis_id_fk" FOREIGN KEY ("sci_id") REFERENCES "am_scis"("id") ON DELETE set null ON UPDATE cascade`,
+      `ALTER TABLE "gl_baux_franchises" ADD CONSTRAINT "gl_baux_franchises_bail_id_gl_baux_id_fk" FOREIGN KEY ("bail_id") REFERENCES "gl_baux"("id") ON DELETE cascade ON UPDATE cascade`,
     ];
 
     for (const fk of fks) {
