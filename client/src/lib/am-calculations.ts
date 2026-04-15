@@ -41,8 +41,12 @@ export interface AMBail {
   actifId?: string | null;
   lotId?: string | null;
   statut?: string | null;
-  loyerMensuel?: string | null;
-  loyerAnnuel?: string | null;
+  // Loyer unifié — le seul champ "vivant" est `loyerHTActu` qui est mis à
+  // jour automatiquement par l'indexation INSEE. `loyerBaseHT` sert de
+  // fallback quand l'indexation n'a jamais tourné ou que le bail a été créé
+  // à la main sans choisir d'indice.
+  loyerBaseHT?: string | null;
+  loyerHTActu?: string | null;
   archived?: boolean | null;
 }
 
@@ -50,9 +54,20 @@ export interface AMLot {
   id: string;
   actifId: string;
   statut?: string | null;
-  loyerMensuel?: string | null;
-  loyerAnnuel?: string | null;
+  // Les lots ne portent plus de loyer : cf. getLoyerAnnuelActif qui lit les
+  // baux associés, jamais les lots.
   archived?: boolean | null;
+}
+
+/**
+ * Loyer annuel HT d'un bail. Source de vérité unique pour toute l'UI AM.
+ * Priorité : loyerHTActu (post-indexation) > loyerBaseHT (à la signature).
+ */
+export function getBailLoyerAnnuel(b: AMBail | null | undefined): number {
+  if (!b) return 0;
+  const actu = Number(b.loyerHTActu || 0);
+  if (actu > 0) return actu;
+  return Number(b.loyerBaseHT || 0);
 }
 
 export interface AMEmprunt {
@@ -92,36 +107,19 @@ export interface AMSCI {
 // Loyers
 // ============================================================
 
-/** Loyer annuel d'un actif = somme des loyers des baux actifs */
-export function getLoyerAnnuelActif(actif: AMActif, baux: AMBail[], lots?: AMLot[]): number {
+/**
+ * Loyer annuel HT d'un actif = somme des loyers HT de ses baux actifs.
+ * Le loyer vit uniquement sur les baux (cf. getBailLoyerAnnuel) ; il n'y a
+ * plus de fallback sur les lots depuis la refonte de l'indexation auto :
+ * un lot sans bail est réputé vacant, donc sans revenu locatif.
+ *
+ * Le paramètre `lots` est conservé pour compat de signature mais ignoré.
+ */
+export function getLoyerAnnuelActif(actif: AMActif, baux: AMBail[], _lots?: AMLot[]): number {
   if (!actif || !baux) return 0;
-
-  // Baux liés à cet actif
-  const bauxActif = baux.filter(
-    (b) => b.actifId === actif.id && b.statut !== "résilié" && !b.archived
-  );
-
-  if (bauxActif.length > 0) {
-    return bauxActif.reduce((sum, b) => {
-      const annuel = Number(b.loyerAnnuel || 0);
-      if (annuel > 0) return sum + annuel;
-      return sum + Number(b.loyerMensuel || 0) * 12;
-    }, 0);
-  }
-
-  // Fallback: somme des loyers des lots loués
-  if (lots) {
-    const lotsActif = lots.filter(
-      (l) => l.actifId === actif.id && l.statut?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === "loue" && !l.archived
-    );
-    return lotsActif.reduce((sum, l) => {
-      const annuel = Number(l.loyerAnnuel || 0);
-      if (annuel > 0) return sum + annuel;
-      return sum + Number(l.loyerMensuel || 0) * 12;
-    }, 0);
-  }
-
-  return 0;
+  return baux
+    .filter((b) => b.actifId === actif.id && b.statut !== "résilié" && !b.archived)
+    .reduce((sum, b) => sum + getBailLoyerAnnuel(b), 0);
 }
 
 // ============================================================

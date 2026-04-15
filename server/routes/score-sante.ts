@@ -80,19 +80,12 @@ export function registerScoreSanteRoutes(app: Express) {
         const nbActifsInSci = allActifs.filter((a: any) => a.sciId === actif.sciId).length || 1;
         const actifTravaux = allTravaux.filter((t: any) => t.actifId === actif.id);
 
-        // Calculate financials — aligned with client-side getLoyerAnnuelActif
-        const loyerFromBaux = actifBaux.reduce((s, b: any) => {
-          const annuel = Number(b.loyerAnnuel || 0);
-          return s + (annuel > 0 ? annuel : Number(b.loyerMensuel || 0) * 12);
-        }, 0);
-        // Fallback: only lots with statut "loué" (NFD-normalized), matching client logic
-        const lotsLouesForLoyer = actifLots.filter((l: any) =>
-          l.statut?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === "loue"
+        // Calculate financials — aligned with client-side getLoyerAnnuelActif.
+        // Unified rent lives on the bail only (loyerHTActu fallback loyerBaseHT).
+        const loyerAnnuel = actifBaux.reduce(
+          (s, b: any) => s + Number(b.loyerHTActu || b.loyerBaseHT || 0),
+          0,
         );
-        const loyerAnnuel = loyerFromBaux > 0 ? loyerFromBaux : lotsLouesForLoyer.reduce((s, l: any) => {
-          const annuel = Number(l.loyerAnnuel || 0);
-          return s + (annuel > 0 ? annuel : Number(l.loyerMensuel || 0) * 12);
-        }, 0);
 
         const chargesTotal = Number(actif.chargesCopropriete ?? actif.chargesAnnuelles ?? 0)
           + Number(actif.taxeFonciere ?? 0) + Number(actif.assurancePno ?? 0);

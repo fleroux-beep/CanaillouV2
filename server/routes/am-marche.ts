@@ -202,8 +202,10 @@ export function registerMarcheRoutes(app: Express) {
 
     const phase1 = getPhase1(actifRow, allVenales, allLocatives, allTauxCapi);
 
-    const loyerAnnuel = actifBaux.reduce((s: number, b: any) => s + Number(b.loyerAnnuel || 0) + Number(b.loyerMensuel || 0) * 12, 0)
-      || actifLots.reduce((s: number, l: any) => s + Number(l.loyerAnnuel || 0) + Number(l.loyerMensuel || 0) * 12, 0);
+    const loyerAnnuel = actifBaux.reduce(
+      (s: number, b: any) => s + Number(b.loyerHTActu || b.loyerBaseHT || 0),
+      0,
+    );
     const surface = Number(actifRow.surfaceCarrez || actifRow.surface || 0);
     const prixAcq = Number(actifRow.prixAcquisition || 0) + Number(actifRow.fraisNotaire || 0) + Number(actifRow.fraisAgence || 0) + Number(actifRow.montantTravaux || 0);
     const chargesTotal = Number(actifRow.chargesCopropriete || actifRow.chargesAnnuelles || 0) + Number(actifRow.taxeFonciere || 0) + Number(actifRow.assurancePno || 0);
@@ -217,7 +219,7 @@ export function registerMarcheRoutes(app: Express) {
         typeBail: b.typeBail,
         dateDebut: b.dateDebut,
         dateFin: b.dateFin,
-        loyerAnnuel: Number(b.loyerAnnuel || 0) || Number(b.loyerMensuel || 0) * 12,
+        loyerAnnuel: Number(b.loyerHTActu || b.loyerBaseHT || 0),
         depotGarantie: Number(b.depotGarantie || 0),
         indiceReference: b.indiceReference,
       };
@@ -452,8 +454,10 @@ Règles :
     const surface = Number(actifRow.surfaceCarrez || actifRow.surface || 0);
     const prixAcq = Number(actifRow.prixAcquisition || 0) + Number(actifRow.fraisNotaire || 0)
       + Number(actifRow.fraisAgence || 0) + Number(actifRow.montantTravaux || 0);
-    const loyerAnnuel = actifBaux.reduce((s: number, b: any) => s + Number(b.loyerAnnuel || 0) + Number(b.loyerMensuel || 0) * 12, 0)
-      || actifLots.reduce((s: number, l: any) => s + Number(l.loyerAnnuel || 0) + Number(l.loyerMensuel || 0) * 12, 0);
+    const loyerAnnuel = actifBaux.reduce(
+      (s: number, b: any) => s + Number(b.loyerHTActu || b.loyerBaseHT || 0),
+      0,
+    );
     const lotsOccupes = actifLots.filter((l: any) => l.statut === "loué").length;
 
     const prixM2 = surface > 0 ? Math.round(prixAcq / surface) : 0;
@@ -494,7 +498,7 @@ Règles :
       .filter((b: any) => b.statut !== "résilié")
       .map((b: any) => {
         const loc = b.locataireId ? allLocataires.find((l: any) => l.id === b.locataireId) : null;
-        const loyerAnn = Number(b.loyerAnnuel || 0) || Number(b.loyerMensuel || 0) * 12;
+        const loyerAnn = Number(b.loyerHTActu || b.loyerBaseHT || 0);
         return {
           locataire: loc ? loc.nom : null,
           typeBail: b.typeBail,

@@ -45,10 +45,10 @@ async function fetchPortfolioSummary(): Promise<unknown> {
   }, 0);
 
   const totalCRD = empruntsList.reduce((s, e: any) => s + Number(e.capitalRestantDu || e.montantEmprunte || 0), 0);
-  const totalLoyers = bauxList.reduce((s, b: any) => {
-    const annuel = Number(b.loyerAnnuel || 0);
-    return s + (annuel > 0 ? annuel : Number(b.loyerMensuel || 0) * 12);
-  }, 0);
+  const totalLoyers = bauxList.reduce(
+    (s, b: any) => s + Number(b.loyerHTActu || b.loyerBaseHT || 0),
+    0,
+  );
 
   return {
     nbSCI: sciList.length,
@@ -161,7 +161,7 @@ const ACTIF_FIELDS = new Set([
 ]);
 const LOT_FIELDS = new Set([
   "designation", "type", "etage", "surface", "surfaceCarrez", "dpe",
-  "loyerMensuel", "loyerAnnuel", "chargesLot", "statut", "notes",
+  "chargesLot", "statut", "notes",
 ]);
 const EMPRUNT_FIELDS = new Set([
   "banque", "montantEmprunte", "capitalRestantDu", "tauxAnnuel", "dureeAns",
@@ -169,7 +169,7 @@ const EMPRUNT_FIELDS = new Set([
 ]);
 const SCI_FIELDS = new Set(["nom", "formeJuridique", "siege", "siren", "rcs", "capital", "notes"]);
 const BAIL_AM_FIELDS = new Set([
-  "typeBail", "dateDebut", "dateFin", "loyerMensuel", "loyerAnnuel",
+  "typeBail", "dateDebut", "dateFin", "loyerBaseHT", "loyerHTActu", "forceManual",
   "charges", "depotGarantie", "notes", "statut",
 ]);
 const BAIL_GL_FIELDS = new Set([
@@ -400,7 +400,7 @@ const toolDefinitions = [
   },
   {
     name: "update_lot",
-    description: "Modifie un lot. Champs modifiables : designation, type, etage, surface, surfaceCarrez, dpe, loyerMensuel, loyerAnnuel, chargesLot, statut, notes.",
+    description: "Modifie un lot. Champs modifiables : designation, type, etage, surface, surfaceCarrez, dpe, chargesLot, statut, notes. Note : le loyer est géré uniquement sur le bail associé au lot.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -436,7 +436,7 @@ const toolDefinitions = [
   },
   {
     name: "update_bail_am",
-    description: "Modifie un bail en asset management. Champs modifiables : typeBail, dateDebut, dateFin, loyerMensuel, loyerAnnuel, charges, depotGarantie, notes, statut.",
+    description: "Modifie un bail en asset management. Champs modifiables : typeBail, dateDebut, dateFin, loyerBaseHT (annuel HT, base du bail), loyerHTActu (annuel HT indexé), forceManual, charges, depotGarantie, notes, statut.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -472,7 +472,7 @@ const toolDefinitions = [
   },
   {
     name: "create_lot",
-    description: "Crée un nouveau lot dans un actif. Champs obligatoires: actifId, designation. Optionnels: type, surface, loyerMensuel, etc.",
+    description: "Crée un nouveau lot dans un actif. Champs obligatoires: actifId, designation. Optionnels: type, surface, etc. Le loyer n'est plus porté par le lot — il vit uniquement sur le bail associé.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -494,7 +494,7 @@ const toolDefinitions = [
   },
   {
     name: "create_bail_am",
-    description: "Crée un nouveau bail en asset management. Champs: actifId, lotId, typeBail, dateDebut, dateFin, loyerMensuel, loyerAnnuel, etc.",
+    description: "Crée un nouveau bail en asset management. Champs: actifId, lotId, typeBail, dateDebut, dateFin, loyerBaseHT (annuel HT de base), indiceReference, trimestreRef, etc. Le loyerHTActu est mis à jour automatiquement par l'indexation INSEE.",
     input_schema: {
       type: "object" as const,
       properties: {

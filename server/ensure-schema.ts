@@ -182,6 +182,96 @@ async function applyBauxUnificationMigration() {
 }
 
 /**
+ * Migration 0002 — Loyer unification.
+ *
+ * Single source of truth for rent: bauxGL.loyerBaseHT (signature) +
+ * bauxGL.loyerHTActu (indexed). The legacy columns
+ * `loyer_mensuel`, `loyer_annuel`, `loyer_theorique` on gl_baux and
+ * `loyer_mensuel`, `loyer_annuel` on am_lots are backfilled and dropped.
+ *
+ * Runs in its own auto-committed statements outside the main transaction
+ * so the CREATE TABLE statements below never see a half-dropped column.
+ */
+async function applyLoyerCleanupMigration() {
+  const client = await pool.connect();
+  try {
+    // 1. gl_baux backfill — make sure loyer_base_ht / loyer_ht_actu carry
+    // whatever was previously written to the legacy columns.
+    try {
+      await client.query(`
+        UPDATE "gl_baux"
+        SET "loyer_base_ht" = COALESCE("loyer_base_ht", "loyer_annuel", "loyer_mensuel" * 12)
+        WHERE "loyer_base_ht" IS NULL
+          AND ("loyer_annuel" IS NOT NULL OR "loyer_mensuel" IS NOT NULL);
+      `);
+      await client.query(`
+        UPDATE "gl_baux"
+        SET "loyer_ht_actu" = COALESCE("loyer_ht_actu", "loyer_base_ht")
+        WHERE "loyer_ht_actu" IS NULL AND "loyer_base_ht" IS NOT NULL;
+      `);
+    } catch (err: any) {
+      // Columns may already be dropped on a fresh install — that's fine.
+      logger.warn("migration 0002: gl_baux backfill skipped", { error: err.message });
+    }
+
+    // 2. am_lots backfill — the lot no longer carries a rent. If an am_lots
+    // row has a loyer but no matching gl_baux row, create one so the value
+    // isn't silently dropped.
+    try {
+      await client.query(`
+        INSERT INTO "gl_baux" (
+          id, scope, nom, lot_id, actif_id, sci_id, locataire_id, type_bail,
+          loyer_base_ht, loyer_ht_actu, statut, created_at, updated_at
+        )
+        SELECT
+          gen_random_uuid()::text,
+          'am',
+          CONCAT('Bail (migré) — ', COALESCE(l.designation, l.id)),
+          l.id, l.actif_id, l.sci_id, l.locataire_id,
+          NULL,
+          COALESCE(l.loyer_annuel, l.loyer_mensuel * 12),
+          COALESCE(l.loyer_annuel, l.loyer_mensuel * 12),
+          'actif', now(), now()
+        FROM "am_lots" l
+        WHERE (l.loyer_annuel IS NOT NULL OR l.loyer_mensuel IS NOT NULL)
+          AND NOT EXISTS (
+            SELECT 1 FROM "gl_baux" b
+            WHERE b.lot_id = l.id AND b.scope = 'am'
+          );
+      `);
+    } catch (err: any) {
+      // Columns may already be dropped on a fresh install — that's fine.
+      logger.warn("migration 0002: am_lots backfill skipped", { error: err.message });
+    }
+
+    // 3. Drop legacy columns. `DROP COLUMN IF EXISTS` is idempotent.
+    const drops: [string, string][] = [
+      ["gl_baux", "loyer_mensuel"],
+      ["gl_baux", "loyer_annuel"],
+      ["gl_baux", "loyer_theorique"],
+      ["am_lots", "loyer_mensuel"],
+      ["am_lots", "loyer_annuel"],
+    ];
+    for (const [table, col] of drops) {
+      try {
+        await client.query(
+          `ALTER TABLE "${table}" DROP COLUMN IF EXISTS "${col}"`,
+        );
+      } catch (err: any) {
+        logger.warn(`migration 0002: drop ${table}.${col} failed`, { error: err.message });
+      }
+    }
+
+    logger.info("migration 0002: loyer columns unified on gl_baux only");
+  } catch (err: any) {
+    logger.error("migration 0002 failed", { error: err.message, code: err.code });
+    // Do not rethrow — any failure here should not block the main ensureSchema.
+  } finally {
+    client.release();
+  }
+}
+
+/**
  * Ensures all database tables exist by running CREATE TABLE IF NOT EXISTS.
  * This replaces drizzle-kit push / drizzle-orm migrate which don't work
  * when the server is bundled with esbuild (fs-based migration files are unavailable).
@@ -190,6 +280,10 @@ export async function ensureSchema() {
   // Step 0: critical column additions in their own committed transactions so
   // they survive any rollback of the big transaction below.
   await applyBauxUnificationMigration();
+  // Step 0b: drop the legacy rent columns now that everything reads from
+  // loyerBaseHT / loyerHTActu. Runs AFTER applyBauxUnificationMigration so
+  // the backfill INSERT (which still references loyer_annuel) can run first.
+  await applyLoyerCleanupMigration();
 
   const client = await pool.connect();
   try {
@@ -333,8 +427,6 @@ export async function ensureSchema() {
         "surface" numeric,
         "surface_carrez" numeric,
         "dpe" varchar,
-        "loyer_mensuel" numeric,
-        "loyer_annuel" numeric,
         "charges_lot" numeric,
         "statut" varchar DEFAULT 'vacant',
         "locataire_id" varchar,
@@ -521,9 +613,6 @@ export async function ensureSchema() {
         "ech_trien3" date,
         "loyer_base_ht" numeric,
         "loyer_ht_actu" numeric,
-        "loyer_mensuel" numeric,
-        "loyer_annuel" numeric,
-        "loyer_theorique" numeric,
         "force_manual" boolean DEFAULT false,
         "indice_reference" varchar,
         "trimestre_ref" varchar,

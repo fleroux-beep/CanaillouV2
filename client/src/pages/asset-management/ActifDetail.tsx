@@ -56,9 +56,17 @@ interface Lot {
   etage?: string;
   surface?: string;
   surfaceCarrez?: string;
-  loyerMensuel?: string;
-  loyerAnnuel?: string;
   statut?: string;
+}
+
+interface BailLite {
+  id: string;
+  actifId?: string;
+  lotId?: string;
+  loyerBaseHT?: string;
+  loyerHTActu?: string;
+  statut?: string;
+  archived?: boolean;
 }
 
 interface SCI {
@@ -95,6 +103,11 @@ export default function ActifDetailPage() {
     queryFn: () => apiRequest("/api/am/scis"),
   });
 
+  const { data: allBaux = [] } = useQuery<BailLite[]>({
+    queryKey: ["/api/am/baux"],
+    queryFn: () => apiRequest("/api/am/baux"),
+  });
+
   if (!actif) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -107,7 +120,17 @@ export default function ActifDetailPage() {
   const prixAcq = Number(actif.prixAcquisition ?? 0);
   const fraisTotal = getPrixAcquisition(actif as any);
   const chargesTotal = getChargesAnnuelles(actif as any);
-  const loyerAnnuelTotal = getLoyerAnnuelActif(actif as any, [], lots as any[]);
+  const actifBaux = allBaux.filter((b) => b.actifId === params.id);
+  const loyerAnnuelTotal = getLoyerAnnuelActif(actif as any, actifBaux as any, lots as any[]);
+
+  const getLoyerMensuelLot = (lotId: string): number => {
+    const bail = actifBaux.find(
+      (b) => b.lotId === lotId && !b.archived && b.statut !== "résilié",
+    );
+    if (!bail) return 0;
+    const annuel = Number(bail.loyerHTActu || bail.loyerBaseHT || 0);
+    return annuel > 0 ? Math.round((annuel / 12) * 100) / 100 : 0;
+  };
   const lotsLoues = lots.filter((l) => l.statut?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === "loue").length;
 
   const descParts = [actif.type, sciName, actif.ville].filter(Boolean);
@@ -212,7 +235,7 @@ export default function ActifDetailPage() {
                         <td className="py-3">{lot.type ? <Badge>{lot.type}</Badge> : "—"}</td>
                         <td className="py-3">{lot.etage || "—"}</td>
                         <td className="py-3 text-right">{lot.surface ? `${lot.surface} m²` : "—"}</td>
-                        <td className="py-3 text-right">{lot.loyerMensuel ? formatCurrency(lot.loyerMensuel) : "—"}</td>
+                        <td className="py-3 text-right">{(() => { const m = getLoyerMensuelLot(lot.id); return m > 0 ? formatCurrency(m) : "—"; })()}</td>
                         <td className="py-3">
                           {lot.statut ? (
                             <Badge variant={lot.statut?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === "loue" ? "success" : "warning"}>{lot.statut}</Badge>

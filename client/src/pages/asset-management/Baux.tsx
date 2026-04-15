@@ -13,6 +13,7 @@ import { InfoTooltip } from "../../components/ui/info-tooltip";
 
 interface BailAM {
   id: string;
+  nom?: string;
   lotId?: string;
   actifId?: string;
   sciId?: string;
@@ -21,15 +22,16 @@ interface BailAM {
   dateDebut?: string;
   dateFin?: string;
   dateSignature?: string;
-  loyerMensuel?: string;
-  loyerAnnuel?: string;
+  // Loyer unifié : base (saisie) + actu (auto-indexé). Annuel HT en EUR.
+  loyerBaseHT?: string;
+  loyerHTActu?: string;
+  forceManual?: boolean;
   charges?: string;
   depotGarantie?: string;
   indiceReference?: string;
   trimestreRef?: string;
   valeurIndiceBase?: string;
   statut?: string;
-  loyerTheorique?: string;
   notes?: string;
 }
 
@@ -53,8 +55,36 @@ export default function BauxAMPage() {
     { key: "locataireId", label: "Locataire", sortable: true, render: (r) => <span className="font-medium">{getLocataireName(r.locataireId)}</span> },
     { key: "actifId", label: "Actif", sortable: true, render: (r) => getActifName(r.actifId) },
     { key: "typeBail", label: "Type", sortable: true, render: (r) => r.typeBail ? <Badge variant="primary">{r.typeBail}</Badge> : "—" },
-    { key: "loyerMensuel", label: <InfoTooltip metricKey="mensualite">Loyer mensuel</InfoTooltip>, exportLabel: "Loyer mensuel", align: "right", sortable: true, render: (r) => r.loyerMensuel ? formatCurrency(r.loyerMensuel) : "—" },
-    { key: "loyerAnnuel", label: <InfoTooltip metricKey="loyerHT">Loyer annuel</InfoTooltip>, exportLabel: "Loyer annuel", align: "right", sortable: true, render: (r) => r.loyerAnnuel ? formatCurrency(r.loyerAnnuel) : "—" },
+    {
+      key: "loyerHTActu",
+      label: <InfoTooltip metricKey="loyerHT">Loyer HT/an</InfoTooltip>,
+      exportLabel: "Loyer HT annuel",
+      align: "right",
+      sortable: true,
+      render: (r) => {
+        const annuel = Number(r.loyerHTActu || r.loyerBaseHT || 0);
+        if (annuel <= 0) return "—";
+        const indexed = r.loyerHTActu && Number(r.loyerHTActu) !== Number(r.loyerBaseHT || 0);
+        return (
+          <span title={indexed ? `Base: ${formatCurrency(r.loyerBaseHT || 0)} — indexé auto` : undefined}>
+            {formatCurrency(annuel)}
+            {indexed ? <span className="ml-1 text-[10px] text-emerald-600">↗</span> : null}
+          </span>
+        );
+      },
+    },
+    {
+      key: "loyerMensuel",
+      label: <InfoTooltip metricKey="mensualite">Loyer HT/mois</InfoTooltip>,
+      exportLabel: "Loyer HT mensuel",
+      align: "right",
+      sortable: false,
+      render: (r) => {
+        const annuel = Number(r.loyerHTActu || r.loyerBaseHT || 0);
+        if (annuel <= 0) return "—";
+        return formatCurrency(Math.round((annuel / 12) * 100) / 100);
+      },
+    },
     {
       key: "statut", label: "Statut", sortable: true,
       render: (r) => {
@@ -97,13 +127,12 @@ export default function BauxAMPage() {
           if (actif?.sciId) updated.sciId = actif.sciId;
         }
       }
-      // Auto-calc loyer: mensuel → annuel (et vice-versa)
-      if (name === "loyerMensuel" && value) {
+      // Confort de saisie : quand l'utilisateur tape un loyer mensuel via
+      // le champ virtuel "_loyerBaseMensuel", on stocke en base le loyer
+      // annuel HT dans `loyerBaseHT` (le seul champ persisté).
+      if (name === "_loyerBaseMensuel" && value) {
         const mensuel = parseFloat(value);
-        if (!isNaN(mensuel)) updated.loyerAnnuel = String(Math.round(mensuel * 12 * 100) / 100);
-      } else if (name === "loyerAnnuel" && value) {
-        const annuel = parseFloat(value);
-        if (!isNaN(annuel)) updated.loyerMensuel = String(Math.round((annuel / 12) * 100) / 100);
+        if (!isNaN(mensuel)) updated.loyerBaseHT = String(Math.round(mensuel * 12 * 100) / 100);
       }
       return updated;
     });
@@ -111,10 +140,14 @@ export default function BauxAMPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Retire les champs virtuels (préfixe _) avant l'appel API.
+    const payload: any = Object.fromEntries(
+      Object.entries(form).filter(([k]) => !k.startsWith("_")),
+    );
     if (editing) {
-      await update({ ...form, id: editing.id } as BailAM);
+      await update({ ...payload, id: editing.id } as BailAM);
     } else {
-      await create(form);
+      await create(payload);
     }
     setDialogOpen(false);
   };
@@ -172,8 +205,22 @@ export default function BauxAMPage() {
           <FormField label="Statut" name="statut" value={form.statut} onChange={onChange} options={[
             { value: "actif", label: "Actif" }, { value: "expiré", label: "Expiré" }, { value: "résilié", label: "Résilié" },
           ]} />
-          <FormField label="Loyer mensuel" name="loyerMensuel" value={form.loyerMensuel} onChange={onChange} type="number" suffix="EUR" />
-          <FormField label="Loyer annuel (auto)" name="loyerAnnuel" value={form.loyerAnnuel} onChange={onChange} type="number" suffix="EUR" />
+          <FormField
+            label="Loyer HT annuel (base)"
+            name="loyerBaseHT"
+            value={form.loyerBaseHT}
+            onChange={onChange}
+            type="number"
+            suffix="EUR"
+          />
+          <FormField
+            label="Loyer HT mensuel (auto)"
+            name="_loyerBaseMensuel"
+            value={form.loyerBaseHT ? String(Math.round((Number(form.loyerBaseHT) / 12) * 100) / 100) : ""}
+            onChange={onChange}
+            type="number"
+            suffix="EUR"
+          />
           <FormField label="Charges" name="charges" value={form.charges} onChange={onChange} type="number" suffix="EUR" />
           <FormField label="Dépôt de garantie" name="depotGarantie" value={form.depotGarantie} onChange={onChange} type="number" suffix="EUR" />
         </FormGrid>

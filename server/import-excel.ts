@@ -1095,12 +1095,12 @@ export async function importExcelData(): Promise<{
       }
       if (!loyerAnnuel) loyerAnnuel = b.loyerAnnuelDepart;
 
-      // Create Lot
+      // Create Lot — loyer vit uniquement sur le bail, plus aucune colonne loyer sur am_lots.
       const lotId = id();
       await client.query(
         `INSERT INTO am_lots (id, actif_id, sci_id, designation, type, surface, surface_carrez,
-         loyer_mensuel, loyer_annuel, statut, locataire_id, notes, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now(), now())`,
+         statut, locataire_id, notes, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), now())`,
         [
           lotId,
           actifId,
@@ -1112,8 +1112,6 @@ export async function importExcelData(): Promise<{
             b.typeBail?.includes("dérogatoire") ? "commercial" : "autre",
           b.surfaceLouee,
           b.surfaceLouee,
-          loyerAnnuel ? (loyerAnnuel / 12).toFixed(2) : null,
-          loyerAnnuel,
           b.locataire ? "loué" : "vacant",
           b.locataire ? locataireIds[b.locataire] : null,
           null,
@@ -1146,26 +1144,26 @@ export async function importExcelData(): Promise<{
         const sciBauxCount = bauxRows.filter((x) => x.sciName === b.sciName && x.locataire).length || 1;
         const depotGarantie = sciDgTotal > 0 ? Math.round(sciDgTotal / sciBauxCount) : null;
 
-        // Insert into unified gl_baux with scope='am'. Mirror loyer_annuel
-        // into loyer_base_ht / loyer_ht_actu so indexation auto has a rent to
-        // work from, and use a derived fallback name.
+        // Insert into unified gl_baux with scope='am'. Source unique de vérité
+        // pour le loyer : loyer_base_ht (base à la signature) + loyer_ht_actu
+        // (valeur courante, mise à jour par l'indexation INSEE).
         const bailNom = `${b.destination || "Bail"} — ${b.locataire}`;
         await client.query(
           `INSERT INTO gl_baux (
              id, scope, nom,
              lot_id, actif_id, sci_id, locataire_id, type_bail,
              date_debut, date_fin,
-             loyer_mensuel, loyer_annuel, loyer_base_ht, loyer_ht_actu,
+             loyer_base_ht, loyer_ht_actu,
              depot_garantie, indice_reference, trimestre_ref, valeur_indice_base,
-             statut, loyer_theorique, notes, created_at, updated_at
+             statut, notes, created_at, updated_at
            )
            VALUES (
              $1, 'am', $2,
              $3, $4, $5, $6, $7,
              $8::timestamp, $9::timestamp,
-             $10, $11, $11, $11,
-             $12, $13, $14, $15,
-             $16, $17, $18, now(), now()
+             $10, $10,
+             $11, $12, $13, $14,
+             $15, $16, now(), now()
            )`,
           [
             id(),
@@ -1177,14 +1175,12 @@ export async function importExcelData(): Promise<{
             b.typeBail,
             b.dateDebut,
             b.dateFin,
-            loyerAnnuel ? (loyerAnnuel / 12).toFixed(2) : null,
             loyerAnnuel,
             depotGarantie,
             indiceRef,
             trimestreRef,
             valeurIndice,
             "actif",
-            b.loyerAnnuelDepart,
             [
               b.soumisTVA === "oui" ? "Soumis à TVA" : null,
             ].filter(Boolean).join("\n") || null,

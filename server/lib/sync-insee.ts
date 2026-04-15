@@ -13,10 +13,18 @@ import { logger } from "./logger";
 // ─── INSEE SDMX API ────────────────────────────────────────
 
 // Mapping indices → séries INSEE (identifiants SDMX)
+// IDs vérifiés en avril 2026 contre api.insee.fr/series/BDM/V1/data/SERIES_BDM/.
+// Historique des bugs corrigés :
+//   - ILC : l'ancien ID 001515926 pointait en fait vers "Taux de chômage
+//     localisé par département — Orne" (≈ 7,5 %), ce qui expliquait la
+//     valeur aberrante affichée dans l'UI. Le bon ID est 001532540
+//     ("Indice des loyers commerciaux — Base 100 T1 2008").
+//   - ILAT : l'ancien ID 001609810 a été déprécié quand INSEE a rebasé
+//     l'indice. La série courante "Base 100 au 1er trimestre 2010" est 001617112.
 const INSEE_SERIES: Record<string, { seriesId: string; label: string }> = {
   IRL: { seriesId: "001515333", label: "Indice de Référence des Loyers" },
-  ILC: { seriesId: "001515926", label: "Indice des Loyers Commerciaux" },
-  ILAT: { seriesId: "001609810", label: "Indice des Loyers des Activités Tertiaires" },
+  ILC: { seriesId: "001532540", label: "Indice des Loyers Commerciaux" },
+  ILAT: { seriesId: "001617112", label: "Indice des Loyers des Activités Tertiaires" },
   ICC: { seriesId: "000008630", label: "Indice du Coût de la Construction" },
 };
 

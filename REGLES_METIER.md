@@ -37,12 +37,15 @@ Loyer_annuel_actif = Somme des loyers des baux actifs lies a cet actif
 
 **Regles :**
 - Ne compter que les baux avec `statut != "resilie"` et `archived == false`
-- Pour chaque bail :
-  - Si `loyerAnnuel > 0` → utiliser `loyerAnnuel`
-  - Sinon → utiliser `loyerMensuel * 12`
-- **Fallback** (si aucun bail) : somme des loyers des lots avec `statut == "loue"` et `archived == false`
+- Source unique de verite — deux colonnes sur `gl_baux` (scope `am`) :
+  - `loyerBaseHT` — loyer annuel HT **a la signature** (saisi par l'utilisateur)
+  - `loyerHTActu` — loyer annuel HT **courant**, recalcule automatiquement a chaque indexation INSEE (IRL / ILC / ILAT / ICC) via `indiceReference`, `trimestreRef`, `valeurIndiceBase`
+- Pour chaque bail : utiliser `loyerHTActu` en priorite, sinon `loyerBaseHT` (fallback si l'indexation n'a pas encore tourne)
+- **Pas de fallback lot** : les lots ne portent plus de loyer. Un lot sans bail actif contribue pour 0.
+- Le loyer mensuel d'affichage est toujours calcule a la volee : `loyer_annuel / 12`
 
 **Fichier source :** `client/src/lib/am-calculations.ts` — `getLoyerAnnuelActif()`
+**Indexation :** `server/routes/am-indexation.ts` — recalcul automatique de `loyerHTActu`
 
 ---
 

@@ -34,8 +34,8 @@ const ENTITY_OPTIONS = [
 const ENTITY_FIELDS: Record<string, string[]> = {
   scis: ["nom", "formeJuridique", "capital", "regimeFiscal", "siret", "adresse", "ville", "codePostal", "dateCreation", "gerant", "expertComptable", "banque", "iban", "notes"],
   actifs: ["nom", "sciNom", "adresse", "ville", "codePostal", "type", "surface", "surfaceCarrez", "anneeConstruction", "dpe", "prixAcquisition", "fraisNotaire", "fraisAgence", "montantTravaux", "dateAcquisition", "chargesAnnuelles", "taxeFonciere", "assurancePno", "chargesCopropriete", "tauxCapitalisation", "notes"],
-  lots: ["designation", "actifNom", "sciNom", "type", "etage", "surface", "surfaceCarrez", "loyerMensuel", "loyerAnnuel", "chargesLot", "statut", "notes"],
-  baux: ["typeBail", "actifNom", "sciNom", "locataireNom", "dateDebut", "dateFin", "dateSignature", "loyerMensuel", "loyerAnnuel", "charges", "depotGarantie", "indiceReference", "trimestreRef", "valeurIndiceBase", "statut", "notes"],
+  lots: ["designation", "actifNom", "sciNom", "type", "etage", "surface", "surfaceCarrez", "chargesLot", "statut", "notes"],
+  baux: ["typeBail", "actifNom", "sciNom", "locataireNom", "dateDebut", "dateFin", "dateSignature", "loyerBaseHT", "loyerHTActu", "charges", "depotGarantie", "indiceReference", "trimestreRef", "valeurIndiceBase", "statut", "notes"],
   emprunts: ["sciNom", "actifNom", "banque", "montantEmprunte", "capitalRestantDu", "tauxAnnuel", "taeg", "dureeAns", "dureeMois", "dateDebut", "dateFin", "typeAmortissement", "mensualite", "assuranceMensuelle", "tauxAssurance", "typeGarantie", "ira", "notes"],
   locataires: ["nom", "prenom", "email", "telephone", "adresse", "siret", "notes"],
   associes: ["nom", "prenom", "email", "telephone", "adresse", "siret", "notes"],
@@ -63,8 +63,9 @@ function fuzzyMatch(header: string, fields: string[]): string | null {
   const synonyms: Record<string, string> = {
     prixacquisition: "prixAcquisition", prix: "prixAcquisition",
     codepostal: "codePostal", cp: "codePostal",
-    loyermensuel: "loyerMensuel", loyer: "loyerMensuel",
-    loyerannuel: "loyerAnnuel",
+    // Le loyer est désormais annuel HT (loyerBaseHT) — les colonnes mensuelles
+    // doivent être converties en annuel par l'utilisateur ou cartographiées manuellement.
+    loyerannuel: "loyerBaseHT", loyerbaseht: "loyerBaseHT", loyerhtactu: "loyerHTActu",
     fraisnotaire: "fraisNotaire", fraisagence: "fraisAgence",
     taxefonciere: "taxeFonciere", tf: "taxeFonciere",
     depotgarantie: "depotGarantie", dg: "depotGarantie",
