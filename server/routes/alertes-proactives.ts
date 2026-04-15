@@ -56,15 +56,12 @@ async function generateAMAlerts(): Promise<GeneratedAlert[]> {
     const sciEmprunts = allEmprunts.filter((e: any) => e.sciId === actif.sciId && !e.actifId);
     const nbActifsInSci = allActifs.filter((a: any) => a.sciId === actif.sciId).length || 1;
 
-    // Calculate financials — aligned with client-side getLoyerAnnuelActif
-    const loyerFromBaux = actifBaux.reduce((s, b: any) => {
-      const annuel = Number(b.loyerAnnuel || 0);
-      return s + (annuel > 0 ? annuel : Number(b.loyerMensuel || 0) * 12);
-    }, 0);
-    const loyerAnnuel = loyerFromBaux > 0 ? loyerFromBaux : actifLots.reduce((s, l: any) => {
-      const annuel = Number(l.loyerAnnuel || 0);
-      return s + (annuel > 0 ? annuel : Number(l.loyerMensuel || 0) * 12);
-    }, 0);
+    // Calculate financials — aligned with client-side getLoyerAnnuelActif.
+    // Unified rent lives on the bail only (loyerHTActu fallback loyerBaseHT).
+    const loyerAnnuel = actifBaux.reduce(
+      (s, b: any) => s + Number(b.loyerHTActu || b.loyerBaseHT || 0),
+      0,
+    );
 
     const charges = Number(actif.chargesCopropriete ?? actif.chargesAnnuelles ?? 0)
       + Number(actif.taxeFonciere ?? 0) + Number(actif.assurancePno ?? 0);

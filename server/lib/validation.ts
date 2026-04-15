@@ -143,8 +143,8 @@ export const lotSchema = z.object({
   surface: optNum,
   surfaceCarrez: optNum,
   dpe: optStr,
-  loyerMensuel: optNum,
-  loyerAnnuel: optNum,
+  // Pas de champs loyer sur les lots — le loyer vit uniquement sur le bail
+  // associé (gl_baux.loyerBaseHT / loyerHTActu).
   chargesLot: optNum,
   statut: optStr,
   locataireId: optStr,
@@ -163,6 +163,7 @@ export const locataireAMSchema = z.object({
 });
 
 export const bailAMSchema = z.object({
+  nom: optStr, // optionnel — le serveur le dérive si absent
   lotId: optStr,
   actifId: optStr,
   sciId: optStr,
@@ -171,15 +172,17 @@ export const bailAMSchema = z.object({
   dateDebut: optStr,
   dateFin: optStr,
   dateSignature: optStr,
-  loyerMensuel: optNum,
-  loyerAnnuel: optNum,
+  // Loyer unifié : loyerBaseHT (annuel, éditable) + loyerHTActu (annuel,
+  // mis à jour auto par l'indexation INSEE)
+  loyerBaseHT: optNum,
+  loyerHTActu: optNum,
+  forceManual: optBool,
   charges: optNum,
   depotGarantie: optNum,
   indiceReference: optStr,
   trimestreRef: optStr,
   valeurIndiceBase: optNum,
   statut: optStr,
-  loyerTheorique: optNum,
   notes: optStr,
   archived: optBool,
 });

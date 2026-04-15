@@ -205,11 +205,9 @@ async function seed() {
       typeBail: b.typeBail,
       dateDebut: b.dateDebut ? new Date(b.dateDebut) : null,
       dateFin: b.dateFin ? new Date(b.dateFin) : null,
-      loyerAnnuel: b.loyerAnnuel,
       loyerBaseHT: b.loyerAnnuel,
       loyerHTActu: b.loyerAnnuel,
       indiceReference: b.indiceReference,
-      loyerTheorique: b.loyerTheorique,
       notes: b.notes,
     });
   }

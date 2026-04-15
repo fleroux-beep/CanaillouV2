@@ -109,8 +109,7 @@ export interface Lot {
   surface?: string;
   surfaceCarrez?: string;
   dpe?: string;
-  loyerMensuel?: string;
-  loyerAnnuel?: string;
+  // Pas de loyer sur le lot — il est porté par le bail associé.
   chargesLot?: string;
   statut?: string;
   locataireId?: string;
@@ -136,6 +135,7 @@ export interface LocataireAM {
 
 export interface BailAM {
   id: string;
+  nom?: string;
   lotId?: string;
   actifId?: string;
   sciId?: string;
@@ -144,15 +144,19 @@ export interface BailAM {
   dateDebut?: string;
   dateFin?: string;
   dateSignature?: string;
-  loyerMensuel?: string;
-  loyerAnnuel?: string;
+  // Loyer unifié — annuel HT en EUR.
+  // loyerBaseHT = saisi à la signature ; loyerHTActu = mis à jour auto
+  // par l'indexation INSEE (sync-insee.autoIndexBaux). Le mensuel est
+  // calculé côté UI (loyerHTActu / 12).
+  loyerBaseHT?: string;
+  loyerHTActu?: string;
+  forceManual?: boolean;
   charges?: string;
   depotGarantie?: string;
   indiceReference?: string;
   trimestreRef?: string;
   valeurIndiceBase?: string;
   statut?: string;
-  loyerTheorique?: string;
   notes?: string;
   archived?: boolean;
   deletedAt?: string;

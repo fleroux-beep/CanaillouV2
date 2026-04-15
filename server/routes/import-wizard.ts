@@ -112,8 +112,8 @@ const tableMap: Record<string, any> = {
 const entityFields: Record<string, string[]> = {
   scis: ["nom", "formeJuridique", "capital", "regimeFiscal", "siret", "adresse", "ville", "codePostal", "dateCreation", "gerant", "expertComptable", "banque", "iban", "notes"],
   actifs: ["nom", "sciNom", "adresse", "ville", "codePostal", "type", "surface", "surfaceCarrez", "anneeConstruction", "dpe", "prixAcquisition", "fraisNotaire", "fraisAgence", "montantTravaux", "dateAcquisition", "chargesAnnuelles", "taxeFonciere", "assurancePno", "chargesCopropriete", "tauxCapitalisation", "notes"],
-  lots: ["designation", "actifNom", "sciNom", "type", "etage", "surface", "surfaceCarrez", "loyerMensuel", "loyerAnnuel", "chargesLot", "statut", "notes"],
-  baux: ["typeBail", "actifNom", "sciNom", "locataireNom", "dateDebut", "dateFin", "dateSignature", "loyerMensuel", "loyerAnnuel", "charges", "depotGarantie", "indiceReference", "trimestreRef", "valeurIndiceBase", "statut", "notes"],
+  lots: ["designation", "actifNom", "sciNom", "type", "etage", "surface", "surfaceCarrez", "chargesLot", "statut", "notes"],
+  baux: ["typeBail", "actifNom", "sciNom", "locataireNom", "dateDebut", "dateFin", "dateSignature", "loyerBaseHT", "loyerHTActu", "charges", "depotGarantie", "indiceReference", "trimestreRef", "valeurIndiceBase", "statut", "notes"],
   emprunts: ["sciNom", "actifNom", "banque", "montantEmprunte", "capitalRestantDu", "tauxAnnuel", "taeg", "dureeAns", "dureeMois", "dateDebut", "dateFin", "typeAmortissement", "mensualite", "assuranceMensuelle", "tauxAssurance", "typeGarantie", "ira", "notes"],
   locataires: ["nom", "prenom", "email", "telephone", "adresse", "siret", "notes"],
   associes: ["nom", "prenom", "email", "telephone", "adresse", "siret", "notes"],
@@ -501,10 +501,12 @@ export function registerImportWizardRoutes(app: Express) {
 
       // Type-specific extraction prompts
       const prompts: Record<string, string> = {
-        bail: `Extrais les données de ce bail immobilier en JSON:
+        bail: `Extrais les données de ce bail immobilier en JSON.
+IMPORTANT : "loyerBaseHT" est le LOYER ANNUEL HT DE BASE à la signature, en EUR.
+Si le bail indique un loyer mensuel, multiplie-le par 12 pour obtenir l'annuel.
 { "typeBail": "commercial|professionnel|habitation", "sciNom": "", "actifNom": "", "locataireNom": "",
   "adresse": "", "ville": "", "codePostal": "", "surface": null, "dateDebut": "YYYY-MM-DD", "dateFin": "YYYY-MM-DD",
-  "loyerMensuel": null, "loyerAnnuel": null, "charges": null, "depotGarantie": null,
+  "loyerBaseHT": null, "charges": null, "depotGarantie": null,
   "indiceReference": "ILC|IRL|ILAT|ICC|null", "trimestreRef": "", "valeurIndiceBase": null,
   "confidence": { "global": 0.0, "fields": {} } }`,
         emprunt: `Extrais les données de cet emprunt immobilier en JSON:

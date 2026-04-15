@@ -157,9 +157,9 @@ export const lots = pgTable("am_lots", {
   surface: numeric("surface"),
   surfaceCarrez: numeric("surface_carrez"),
   dpe: varchar("dpe"),
-  // Loyer
-  loyerMensuel: numeric("loyer_mensuel"),
-  loyerAnnuel: numeric("loyer_annuel"),
+  // Loyer : stocké uniquement sur le bail (gl_baux.loyerBaseHT / loyerHTActu).
+  // Un lot vide n'a pas de loyer ; un lot loué hérite du loyer de son bail
+  // via l'agrégation côté UI (cf. client/src/lib/am-calculations.ts).
   chargesLot: numeric("charges_lot"),
   // Occupation
   statut: varchar("statut").default("vacant"), // loué, vacant
@@ -334,14 +334,17 @@ export const bauxGL = pgTable("gl_baux", {
   echTrien1: date("ech_trien1"),
   echTrien2: date("ech_trien2"),
   echTrien3: date("ech_trien3"),
-  // Loyer — GL (champs principaux pour l'indexation auto)
+  // Loyer — source unique de vérité (annuel HT en EUR).
+  // `loyerBaseHT` = loyer de base à la signature du bail, éditable par l'utilisateur.
+  // `loyerHTActu` = loyer courant après indexation INSEE auto (cf. autoIndexBaux
+  //                  dans server/lib/sync-insee.ts). Non modifiable directement par
+  //                  l'UI sauf via un avenant GL ou la page Indices.
+  // Les deux UI (Asset Management + Gestion Locative) lisent ces deux champs
+  // exclusivement ; il n'y a plus de miroirs `loyerMensuel`/`loyerAnnuel` —
+  // le mensuel est calculé côté client (loyerHTActu / 12).
   loyerBaseHT: numeric("loyer_base_ht"),
   loyerHTActu: numeric("loyer_ht_actu"),
   forceManual: boolean("force_manual").default(false),
-  // Loyer — AM (miroirs pour compat UI asset-management)
-  loyerMensuel: numeric("loyer_mensuel"),
-  loyerAnnuel: numeric("loyer_annuel"),
-  loyerTheorique: numeric("loyer_theorique"),
   // Indexation
   indiceReference: varchar("indice_reference"),
   trimestreRef: varchar("trimestre_ref"),

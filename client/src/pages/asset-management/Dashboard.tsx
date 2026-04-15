@@ -643,12 +643,21 @@ export default function AMDashboard() {
                             </tr>
                           </thead>
                           <tbody>
-                            {selectedActifLots.map((lot: any) => (
+                            {selectedActifLots.map((lot: any) => {
+                              // Loyer = dérivé du bail rattaché au lot (source unique).
+                              const bailLot = selectedActifBaux.find(
+                                (b: any) => b.lotId === lot.id && b.statut !== "résilié" && !b.archived,
+                              );
+                              const annuelLot = bailLot
+                                ? Number(bailLot.loyerHTActu || bailLot.loyerBaseHT || 0)
+                                : 0;
+                              const mensuelLot = annuelLot > 0 ? Math.round((annuelLot / 12) * 100) / 100 : 0;
+                              return (
                               <tr key={lot.id} className="border-t hover:bg-muted/20">
                                 <td className="px-4 py-2 font-medium">{lot.designation || "—"}</td>
                                 <td className="px-3 py-2">{lot.type || "—"}</td>
                                 <td className="px-3 py-2 text-right">{lot.surface ? `${lot.surface} m²` : "—"}</td>
-                                <td className="px-3 py-2 text-right">{lot.loyerMensuel ? formatCurrency(Number(lot.loyerMensuel)) : "—"}</td>
+                                <td className="px-3 py-2 text-right">{mensuelLot > 0 ? formatCurrency(mensuelLot) : "—"}</td>
                                 <td className="px-3 py-2 text-center">
                                   <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${
                                     normLoue(lot.statut)
@@ -659,7 +668,8 @@ export default function AMDashboard() {
                                   </span>
                                 </td>
                               </tr>
-                            ))}
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
@@ -684,7 +694,7 @@ export default function AMDashboard() {
                           </thead>
                           <tbody>
                             {selectedActifBaux.map((bail: any) => {
-                              const loyerAn = Number(bail.loyerAnnuel || 0) || Number(bail.loyerMensuel || 0) * 12;
+                              const loyerAn = Number(bail.loyerHTActu || bail.loyerBaseHT || 0);
                               return (
                                 <tr key={bail.id} className="border-t hover:bg-muted/20">
                                   <td className="px-4 py-2 font-medium">{bail.typeBail || "—"}</td>
