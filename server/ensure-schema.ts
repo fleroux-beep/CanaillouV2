@@ -191,57 +191,127 @@ async function applyBauxUnificationMigration() {
  *
  * Runs in its own auto-committed statements outside the main transaction
  * so the CREATE TABLE statements below never see a half-dropped column.
+ *
+ * IMPORTANT — la version précédente de cette migration utilisait `IS NULL`
+ * comme garde, ce qui laissait `loyer_ht_actu` figé sur le snapshot pris
+ * par la migration 0001. Or l'ancien formulaire AM Baux écrivait
+ * exclusivement dans `loyer_annuel` (jamais dans `loyer_ht_actu`), donc
+ * tous les loyers édités après la migration 0001 ont été perdus à la
+ * première exécution de cette migration. Cette version écrase
+ * inconditionnellement `loyer_base_ht` et `loyer_ht_actu` à partir de
+ * `loyer_annuel` quand celle-ci est non-null, pour que la valeur saisie
+ * par l'utilisateur (canonique) soit préservée. L'indexation INSEE
+ * recalculera ensuite `loyer_ht_actu` au prochain run.
  */
 async function applyLoyerCleanupMigration() {
   const client = await pool.connect();
   try {
-    // 1. gl_baux backfill — make sure loyer_base_ht / loyer_ht_actu carry
-    // whatever was previously written to the legacy columns.
+    // 1. gl_baux backfill — la valeur saisie par l'utilisateur dans
+    // l'ancien formulaire vit dans `loyer_annuel`. C'est la source de
+    // vérité ; on la copie inconditionnellement vers loyer_base_ht et
+    // loyer_ht_actu, en prenant le MAX pour ne pas écraser une éventuelle
+    // valeur indexée plus haute par le job INSEE.
+    let loyerAnnuelExists = false;
     try {
-      await client.query(`
-        UPDATE "gl_baux"
-        SET "loyer_base_ht" = COALESCE("loyer_base_ht", "loyer_annuel", "loyer_mensuel" * 12)
-        WHERE "loyer_base_ht" IS NULL
-          AND ("loyer_annuel" IS NOT NULL OR "loyer_mensuel" IS NOT NULL);
+      const check = await client.query(`
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'gl_baux' AND column_name = 'loyer_annuel'
       `);
-      await client.query(`
-        UPDATE "gl_baux"
-        SET "loyer_ht_actu" = COALESCE("loyer_ht_actu", "loyer_base_ht")
-        WHERE "loyer_ht_actu" IS NULL AND "loyer_base_ht" IS NOT NULL;
-      `);
-    } catch (err: any) {
-      // Columns may already be dropped on a fresh install — that's fine.
-      logger.warn("migration 0002: gl_baux backfill skipped", { error: err.message });
+      loyerAnnuelExists = (check.rowCount ?? 0) > 0;
+    } catch { /* ignore */ }
+
+    if (loyerAnnuelExists) {
+      try {
+        // 1a. Refresh loyer_base_ht from loyer_annuel (canonique).
+        await client.query(`
+          UPDATE "gl_baux"
+          SET "loyer_base_ht" = "loyer_annuel"
+          WHERE "loyer_annuel" IS NOT NULL
+            AND ("loyer_base_ht" IS NULL OR "loyer_base_ht" <> "loyer_annuel");
+        `);
+        // 1b. Refresh loyer_ht_actu : on prend le MAX(actu, annuel) pour
+        // préserver une éventuelle indexation déjà appliquée tout en
+        // récupérant les éditions manuelles plus récentes.
+        await client.query(`
+          UPDATE "gl_baux"
+          SET "loyer_ht_actu" = GREATEST(
+            COALESCE("loyer_ht_actu", 0),
+            COALESCE("loyer_annuel", 0)
+          )
+          WHERE "loyer_annuel" IS NOT NULL;
+        `);
+        // 1c. Si seul loyer_mensuel est renseigné (rare), le multiplier par 12.
+        await client.query(`
+          UPDATE "gl_baux"
+          SET "loyer_base_ht" = "loyer_mensuel" * 12,
+              "loyer_ht_actu" = GREATEST(
+                COALESCE("loyer_ht_actu", 0),
+                "loyer_mensuel" * 12
+              )
+          WHERE "loyer_annuel" IS NULL
+            AND "loyer_mensuel" IS NOT NULL
+            AND "loyer_base_ht" IS NULL;
+        `);
+        logger.info("migration 0002: gl_baux loyer values refreshed from loyer_annuel");
+      } catch (err: any) {
+        logger.warn("migration 0002: gl_baux backfill failed", { error: err.message });
+      }
+    } else {
+      // Colonne déjà droppée — fallback : s'assurer que loyer_ht_actu
+      // n'est jamais NULL quand loyer_base_ht est défini.
+      try {
+        await client.query(`
+          UPDATE "gl_baux"
+          SET "loyer_ht_actu" = "loyer_base_ht"
+          WHERE "loyer_ht_actu" IS NULL AND "loyer_base_ht" IS NOT NULL;
+        `);
+      } catch (err: any) {
+        logger.warn("migration 0002: gl_baux loyer_ht_actu fallback skipped", { error: err.message });
+      }
     }
 
     // 2. am_lots backfill — the lot no longer carries a rent. If an am_lots
     // row has a loyer but no matching gl_baux row, create one so the value
-    // isn't silently dropped.
+    // isn't silently dropped. L'ancien getLoyerAnnuelActif fallbackait sur
+    // les lots `loué` quand l'actif n'avait aucun bail, donc on doit
+    // recréer un bail pour chacun de ces lots avant de laisser tomber la
+    // colonne.
+    let lotsLoyerExists = false;
     try {
-      await client.query(`
-        INSERT INTO "gl_baux" (
-          id, scope, nom, lot_id, actif_id, sci_id, locataire_id, type_bail,
-          loyer_base_ht, loyer_ht_actu, statut, created_at, updated_at
-        )
-        SELECT
-          gen_random_uuid()::text,
-          'am',
-          CONCAT('Bail (migré) — ', COALESCE(l.designation, l.id)),
-          l.id, l.actif_id, l.sci_id, l.locataire_id,
-          NULL,
-          COALESCE(l.loyer_annuel, l.loyer_mensuel * 12),
-          COALESCE(l.loyer_annuel, l.loyer_mensuel * 12),
-          'actif', now(), now()
-        FROM "am_lots" l
-        WHERE (l.loyer_annuel IS NOT NULL OR l.loyer_mensuel IS NOT NULL)
-          AND NOT EXISTS (
-            SELECT 1 FROM "gl_baux" b
-            WHERE b.lot_id = l.id AND b.scope = 'am'
-          );
+      const check = await client.query(`
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'am_lots' AND column_name = 'loyer_annuel'
       `);
-    } catch (err: any) {
-      // Columns may already be dropped on a fresh install — that's fine.
-      logger.warn("migration 0002: am_lots backfill skipped", { error: err.message });
+      lotsLoyerExists = (check.rowCount ?? 0) > 0;
+    } catch { /* ignore */ }
+
+    if (lotsLoyerExists) {
+      try {
+        await client.query(`
+          INSERT INTO "gl_baux" (
+            id, scope, nom, lot_id, actif_id, sci_id, locataire_id, type_bail,
+            loyer_base_ht, loyer_ht_actu, statut, created_at, updated_at
+          )
+          SELECT
+            gen_random_uuid()::text,
+            'am',
+            CONCAT('Bail (migré) — ', COALESCE(l.designation, l.id)),
+            l.id, l.actif_id, l.sci_id, l.locataire_id,
+            NULL,
+            COALESCE(l.loyer_annuel, l.loyer_mensuel * 12),
+            COALESCE(l.loyer_annuel, l.loyer_mensuel * 12),
+            'actif', now(), now()
+          FROM "am_lots" l
+          WHERE (l.loyer_annuel IS NOT NULL OR l.loyer_mensuel IS NOT NULL)
+            AND NOT EXISTS (
+              SELECT 1 FROM "gl_baux" b
+              WHERE b.lot_id = l.id AND b.scope = 'am'
+            );
+        `);
+        logger.info("migration 0002: am_lots loyers backfilled into gl_baux");
+      } catch (err: any) {
+        logger.warn("migration 0002: am_lots backfill failed", { error: err.message });
+      }
     }
 
     // 3. Drop legacy columns. `DROP COLUMN IF EXISTS` is idempotent.
