@@ -148,25 +148,47 @@ function readXlsx(filePath: string): XlsxBail[] {
     ? (XLSX.utils.sheet_to_json(bdd, { header: 1, raw: true }) as any[][])
     : [];
 
+  // Détecte dynamiquement la ligne de header (celle qui contient littéralement
+  // "SCI" en colonne A ET "Locataire" quelque part dans la ligne). xlsx
+  // strip les lignes totalement vides en tête, l'index n'est donc pas fiable.
+  function findHeaderRow(rows: any[][]): number {
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row) continue;
+      if (String(row[0] ?? "").trim().toUpperCase() === "SCI") {
+        const hasLocataire = row
+          .some((c) => String(c ?? "").trim().toUpperCase().startsWith("LOCATAIRE"));
+        if (hasLocataire) return i;
+      }
+    }
+    return -1;
+  }
+
+  const synthHeader = findHeaderRow(synthRows);
+  if (synthHeader < 0) throw new Error("Header SYNTH introuvable (ligne 'SCI … Locataire')");
+  const bddHeader = findHeaderRow(bddRows);
+
   // Build indice lookup from BDD keyed by (SCI, locataire).
-  // Colonnes BDD (0-indexed) :
+  // Colonnes BDD (0-indexed à partir du header détecté) :
   //   0  SCI
   //   15 Locataire
   //   18 Loyer annuel de départ
   //   20 indice revalorisation loyers
   const indiceMap = new Map<string, IndiceParsed>();
-  for (let i = 3; i < bddRows.length; i++) {
-    const row = bddRows[i];
-    if (!row || !row[0] || !row[15]) continue;
-    const key = `${normalizeSciName(row[0])}::${normalizeLocataireName(row[15]).toUpperCase()}`;
-    indiceMap.set(key, parseIndice(row[20]));
+  if (bddHeader >= 0) {
+    for (let i = bddHeader + 1; i < bddRows.length; i++) {
+      const row = bddRows[i];
+      if (!row || !row[0] || !row[15]) continue;
+      const key = `${normalizeSciName(row[0])}::${normalizeLocataireName(row[15]).toUpperCase()}`;
+      indiceMap.set(key, parseIndice(row[20]));
+    }
   }
 
   // Parse SYNTH rows. Colonnes :
   //   0 SCI | 5 Locataire | 6 date début | 7 date fin |
   //   8 Loyer départ | 9 Loyer actuel HC (budget)
   const result: XlsxBail[] = [];
-  for (let i = 3; i < synthRows.length; i++) {
+  for (let i = synthHeader + 1; i < synthRows.length; i++) {
     const row = synthRows[i];
     if (!row || !row[0] || !row[5]) continue;
     const sciNorm = normalizeSciName(row[0]);

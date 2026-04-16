@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   getLoyerAnnuelActif,
+  getBailLoyerAnnuel,
   getChargesAnnuelles,
   getPrixAcquisition,
   getValeurEstimee,
@@ -103,6 +104,77 @@ describe("getLoyerAnnuelActif", () => {
 
   it("returns 0 with null baux", () => {
     expect(getLoyerAnnuelActif(makeActif(), null as any)).toBe(0);
+  });
+});
+
+// ============================================================
+// 1bis. Priorité loyer à trois niveaux (getBailLoyerAnnuel)
+// ============================================================
+
+describe("getBailLoyerAnnuel — modèle loyer durable", () => {
+  it("returns 0 on null/undefined", () => {
+    expect(getBailLoyerAnnuel(null)).toBe(0);
+    expect(getBailLoyerAnnuel(undefined)).toBe(0);
+  });
+
+  it("uses loyerBaseHT when no actu and no override", () => {
+    const b = makeBail({ loyerBaseHT: "10000" });
+    expect(getBailLoyerAnnuel(b)).toBe(10000);
+  });
+
+  it("prefers loyerHTActu over loyerBaseHT", () => {
+    const b = makeBail({ loyerBaseHT: "10000", loyerHTActu: "10500" });
+    expect(getBailLoyerAnnuel(b)).toBe(10500);
+  });
+
+  it("ignores loyerManuelOverride when forceManual is false", () => {
+    // C'est exactement le cas "par défaut désactivé" : la chaîne base→actu
+    // doit faire foi même si une valeur override traîne en base.
+    const b = makeBail({
+      loyerBaseHT: "10000",
+      loyerHTActu: "10500",
+      forceManual: false,
+      loyerManuelOverride: "9999",
+    });
+    expect(getBailLoyerAnnuel(b)).toBe(10500);
+  });
+
+  it("ignores loyerManuelOverride when forceManual is undefined (default false)", () => {
+    const b = makeBail({
+      loyerBaseHT: "10000",
+      loyerManuelOverride: "9999",
+    });
+    expect(getBailLoyerAnnuel(b)).toBe(10000);
+  });
+
+  it("uses loyerManuelOverride when forceManual is true and override > 0", () => {
+    const b = makeBail({
+      loyerBaseHT: "10000",
+      loyerHTActu: "10500",
+      forceManual: true,
+      loyerManuelOverride: "8000",
+    });
+    expect(getBailLoyerAnnuel(b)).toBe(8000);
+  });
+
+  it("falls back to actu when forceManual=true but override is 0/null", () => {
+    const b = makeBail({
+      loyerBaseHT: "10000",
+      loyerHTActu: "10500",
+      forceManual: true,
+      loyerManuelOverride: null,
+    });
+    expect(getBailLoyerAnnuel(b)).toBe(10500);
+  });
+
+  it("falls back to actu when forceManual=true but override is literally 0", () => {
+    const b = makeBail({
+      loyerBaseHT: "10000",
+      loyerHTActu: "10500",
+      forceManual: true,
+      loyerManuelOverride: "0",
+    });
+    expect(getBailLoyerAnnuel(b)).toBe(10500);
   });
 });
 
