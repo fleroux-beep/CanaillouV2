@@ -334,17 +334,35 @@ export const bauxGL = pgTable("gl_baux", {
   echTrien1: date("ech_trien1"),
   echTrien2: date("ech_trien2"),
   echTrien3: date("ech_trien3"),
-  // Loyer — source unique de vérité (annuel HT en EUR).
-  // `loyerBaseHT` = loyer de base à la signature du bail, éditable par l'utilisateur.
-  // `loyerHTActu` = loyer courant après indexation INSEE auto (cf. autoIndexBaux
-  //                  dans server/lib/sync-insee.ts). Non modifiable directement par
-  //                  l'UI sauf via un avenant GL ou la page Indices.
-  // Les deux UI (Asset Management + Gestion Locative) lisent ces deux champs
-  // exclusivement ; il n'y a plus de miroirs `loyerMensuel`/`loyerAnnuel` —
-  // le mensuel est calculé côté client (loyerHTActu / 12).
+  // Loyer — modèle à trois niveaux (annuel HT en EUR).
+  //
+  // 1. `loyerBaseHT`           — loyer de signature, IMMUABLE après création
+  //                              (sauf avenant de renégociation). Source de
+  //                              vérité pour l'indexation INSEE.
+  // 2. `loyerHTActu`            — loyer courant après indexation automatique
+  //                              (cf. `autoIndexBaux` dans sync-insee.ts).
+  //                              Recalculé à partir de `loyerBaseHT ×
+  //                              (indice_nouveau / valeurIndiceBase)`.
+  //                              Cache : jamais modifié à la main.
+  // 3. `loyerManuelOverride`    — valeur forcée par l'utilisateur quand il
+  //                              coche `forceManual`. Permet de gérer les
+  //                              cas exceptionnels (renégociation en cours,
+  //                              réduction commerciale, erreur INSEE…).
+  //                              Par défaut `forceManual = false`, donc
+  //                              ignoré et la chaîne loyerBaseHT → INSEE →
+  //                              loyerHTActu fait foi.
+  //
+  // Priorité de lecture (cf. getBailLoyerAnnuel côté client) :
+  //   forceManual && loyerManuelOverride > 0  → loyerManuelOverride
+  //   loyerHTActu > 0                          → loyerHTActu
+  //   sinon                                    → loyerBaseHT
+  //
+  // Les franchises (rent-free) et prorata temporels NE modifient PAS ces
+  // champs : ils sont modélisés séparément via `gl_baux_franchises`.
   loyerBaseHT: numeric("loyer_base_ht"),
   loyerHTActu: numeric("loyer_ht_actu"),
-  forceManual: boolean("force_manual").default(false),
+  forceManual: boolean("force_manual").notNull().default(false),
+  loyerManuelOverride: numeric("loyer_manuel_override"),
   // Indexation
   indiceReference: varchar("indice_reference"),
   trimestreRef: varchar("trimestre_ref"),
@@ -380,6 +398,33 @@ export const bauxGL = pgTable("gl_baux", {
   index("idx_baux_gl_sci_id").on(table.sciId),
 ]);
 
+
+// ============================================================
+// BAUX — Franchises de loyer & prorata
+// ============================================================
+// Une franchise est une période pendant laquelle le locataire ne paie pas
+// (ou paie moins) sans que cela modifie le loyer contractuel annuel. Elles
+// sont stockées séparément du loyer pour ne pas polluer l'indexation INSEE
+// ni la projection cash-flow de long terme.
+//
+// - `montant` est exprimé en EUR TOTAL sur la période [dateDebut, dateFin].
+// - `motif` texte libre : "franchise commerciale", "prorata entrée", "travaux
+//    preneur", "réduction exceptionnelle", etc.
+//
+// Le cash-flow de l'année N = loyer_annuel_actif(bail) − Σ franchises
+// actives pendant N, au prorata des jours couverts par l'année.
+export const franchisesBaux = pgTable("gl_baux_franchises", {
+  id: varchar("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  bailId: varchar("bail_id").notNull().references(() => bauxGL.id, { onDelete: "cascade" }),
+  dateDebut: date("date_debut").notNull(),
+  dateFin: date("date_fin").notNull(),
+  montant: numeric("montant").notNull(),
+  motif: varchar("motif"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_franchises_baux_bail_id").on(table.bailId),
+]);
 
 // ============================================================
 // GESTION LOCATIVE — Paiements, Factures, Quittances

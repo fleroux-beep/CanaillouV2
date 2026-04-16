@@ -797,6 +797,49 @@ export async function importExcelData(): Promise<{
   try {
     await client.query("BEGIN");
 
+    // ─── 0. Snapshot indice metadata from existing baux ──────────
+    // Avant de supprimer, on sauvegarde les métadonnées d'indexation
+    // (indiceReference, trimestreRef, valeurIndiceBase) par clé
+    // (SCI nom, locataire nom). Après le réimport, on les réinjecte
+    // sur les baux où le xlsx n'avait pas d'indice complet.
+    // On sauvegarde aussi loyerBaseHT / loyerHTActu / forceManual /
+    // loyerManuelOverride pour ne pas perdre les valeurs saisies.
+    interface IndiceSnapshot {
+      indiceReference: string | null;
+      trimestreRef: string | null;
+      valeurIndiceBase: string | null;
+      loyerHTActu: string | null;
+      forceManual: boolean;
+      loyerManuelOverride: string | null;
+    }
+    const indiceSnapshots = new Map<string, IndiceSnapshot>();
+    try {
+      const { rows: existingBaux } = await client.query(`
+        SELECT b.indice_reference, b.trimestre_ref, b.valeur_indice_base,
+               b.loyer_ht_actu, b.force_manual, b.loyer_manuel_override,
+               s.nom as sci_nom, l.nom as loc_nom
+        FROM gl_baux b
+        LEFT JOIN am_scis s ON s.id = b.sci_id
+        LEFT JOIN gl_locataires l ON l.id = b.locataire_id
+        WHERE b.scope = 'am'
+      `);
+      for (const row of existingBaux) {
+        if (!row.sci_nom || !row.loc_nom) continue;
+        const key = `${row.sci_nom.trim().toUpperCase()}::${row.loc_nom.trim().toUpperCase()}`;
+        indiceSnapshots.set(key, {
+          indiceReference: row.indice_reference,
+          trimestreRef: row.trimestre_ref,
+          valeurIndiceBase: row.valeur_indice_base,
+          loyerHTActu: row.loyer_ht_actu,
+          forceManual: row.force_manual ?? false,
+          loyerManuelOverride: row.loyer_manuel_override,
+        });
+      }
+      logger.info(`import: snapshotted ${indiceSnapshots.size} indice records from existing baux`);
+    } catch (err: any) {
+      logger.warn("import: indice snapshot failed (first import?)", { error: err.message });
+    }
+
     // Clean existing AM data (in reverse FK order).
     // Post-unification: AM-scoped baux live in gl_baux with scope='am'.
     // Locataires are now shared with GL so we deliberately do NOT wipe them
@@ -1081,19 +1124,27 @@ export async function importExcelData(): Promise<{
       }
 
       // Priority: BDD loyerActuelHC (col 21) → P&L 2026 rent by matching lot label → BDD loyerDepart
-      let loyerAnnuel = b.loyerActuelHC;
-      if (!loyerAnnuel && b.destination) {
+      let loyerActuel = b.loyerActuelHC;
+      if (!loyerActuel && b.destination) {
         const sciRents = lotRentsBySci[b.sciName] || [];
         const match = sciRents.find((lr) =>
           lr.label.includes(b.destination!.substring(0, 15)) ||
           b.destination!.includes(lr.label.substring(0, 15))
         );
         if (match) {
-          loyerAnnuel = match.loyer;
-          logger.info(`import: P&L 2026 rent fallback for ${b.destination}: ${loyerAnnuel}`);
+          loyerActuel = match.loyer;
+          logger.info(`import: P&L 2026 rent fallback for ${b.destination}: ${loyerActuel}`);
         }
       }
-      if (!loyerAnnuel) loyerAnnuel = b.loyerAnnuelDepart;
+      if (!loyerActuel) loyerActuel = b.loyerAnnuelDepart;
+
+      // Modèle durable :
+      //  - loyer_base_ht = loyer de signature (loyerAnnuelDepart). Source de
+      //    vérité immuable utilisée par l'indexation INSEE automatique.
+      //  - loyer_ht_actu = meilleure valeur courante disponible (loyerActuel).
+      //    Sera écrasé par le cron INSEE au prochain run si l'indice est renseigné.
+      const loyerBaseHT = b.loyerAnnuelDepart || loyerActuel;
+      const loyerHTActu = loyerActuel || b.loyerAnnuelDepart;
 
       // Create Lot — loyer vit uniquement sur le bail, plus aucune colonne loyer sur am_lots.
       const lotId = id();
@@ -1136,7 +1187,7 @@ export async function importExcelData(): Promise<{
         let trimestreRef: string | null = null;
         if (b.indiceRevalorisation) {
           const trimMatch = b.indiceRevalorisation.match(/(\d)T(\d{4})/);
-          if (trimMatch) trimestreRef = `T${trimMatch[1]} ${trimMatch[2]}`;
+          if (trimMatch) trimestreRef = `T${trimMatch[1]}-${trimMatch[2]}`;
         }
 
         // Distribute P&L dépôt de garantie across lots of this SCI
@@ -1144,9 +1195,10 @@ export async function importExcelData(): Promise<{
         const sciBauxCount = bauxRows.filter((x) => x.sciName === b.sciName && x.locataire).length || 1;
         const depotGarantie = sciDgTotal > 0 ? Math.round(sciDgTotal / sciBauxCount) : null;
 
-        // Insert into unified gl_baux with scope='am'. Source unique de vérité
-        // pour le loyer : loyer_base_ht (base à la signature) + loyer_ht_actu
-        // (valeur courante, mise à jour par l'indexation INSEE).
+        // Insert into unified gl_baux with scope='am'.
+        // Modèle loyer durable :
+        //   loyer_base_ht = loyer de signature (immuable, source INSEE)
+        //   loyer_ht_actu = loyer courant (snapshot xlsx, puis cron INSEE)
         const bailNom = `${b.destination || "Bail"} — ${b.locataire}`;
         await client.query(
           `INSERT INTO gl_baux (
@@ -1161,9 +1213,9 @@ export async function importExcelData(): Promise<{
              $1, 'am', $2,
              $3, $4, $5, $6, $7,
              $8::timestamp, $9::timestamp,
-             $10, $10,
-             $11, $12, $13, $14,
-             $15, $16, now(), now()
+             $10, $11,
+             $12, $13, $14, $15,
+             $16, $17, now(), now()
            )`,
           [
             id(),
@@ -1175,7 +1227,8 @@ export async function importExcelData(): Promise<{
             b.typeBail,
             b.dateDebut,
             b.dateFin,
-            loyerAnnuel,
+            loyerBaseHT,
+            loyerHTActu,
             depotGarantie,
             indiceRef,
             trimestreRef,
@@ -1190,6 +1243,74 @@ export async function importExcelData(): Promise<{
       }
     }
     logger.info(`import: created ${counts.lots} lots, ${counts.baux} baux`);
+
+    // ─── 6b. Restore indice snapshots for baux with incomplete xlsx data ─
+    // Pour chaque bail fraîchement créé, si le xlsx n'avait pas d'indice
+    // complet, on cherche dans le snapshot pré-delete et on restaure les
+    // métadonnées d'indexation + les valeurs de forceManual/override.
+    if (indiceSnapshots.size > 0) {
+      let restored = 0;
+      const { rows: newBaux } = await client.query(`
+        SELECT b.id, b.indice_reference, b.trimestre_ref, b.valeur_indice_base,
+               b.force_manual, b.loyer_manuel_override, b.loyer_ht_actu,
+               s.nom as sci_nom, l.nom as loc_nom
+        FROM gl_baux b
+        LEFT JOIN am_scis s ON s.id = b.sci_id
+        LEFT JOIN gl_locataires l ON l.id = b.locataire_id
+        WHERE b.scope = 'am'
+      `);
+      for (const bail of newBaux) {
+        if (!bail.sci_nom || !bail.loc_nom) continue;
+        const key = `${bail.sci_nom.trim().toUpperCase()}::${bail.loc_nom.trim().toUpperCase()}`;
+        const snap = indiceSnapshots.get(key);
+        if (!snap) continue;
+
+        const updates: string[] = [];
+        const vals: any[] = [];
+        let idx = 1;
+
+        // Restaurer indice si le xlsx n'en avait pas ou était incomplet
+        if (!bail.indice_reference && snap.indiceReference) {
+          updates.push(`indice_reference = $${idx++}`);
+          vals.push(snap.indiceReference);
+        }
+        if (!bail.trimestre_ref && snap.trimestreRef) {
+          updates.push(`trimestre_ref = $${idx++}`);
+          vals.push(snap.trimestreRef);
+        }
+        if (!bail.valeur_indice_base && snap.valeurIndiceBase) {
+          updates.push(`valeur_indice_base = $${idx++}`);
+          vals.push(snap.valeurIndiceBase);
+        }
+
+        // Restaurer loyer_ht_actu indexé si le snapshot avait une valeur
+        // plus haute que le xlsx (= indexation INSEE déjà passée)
+        if (snap.loyerHTActu && Number(snap.loyerHTActu) > Number(bail.loyer_ht_actu || 0)) {
+          updates.push(`loyer_ht_actu = $${idx++}`);
+          vals.push(snap.loyerHTActu);
+        }
+
+        // Restaurer forceManual + override si l'utilisateur les avait activés
+        if (snap.forceManual) {
+          updates.push(`force_manual = $${idx++}`);
+          vals.push(true);
+          if (snap.loyerManuelOverride) {
+            updates.push(`loyer_manuel_override = $${idx++}`);
+            vals.push(snap.loyerManuelOverride);
+          }
+        }
+
+        if (updates.length > 0) {
+          vals.push(bail.id);
+          await client.query(
+            `UPDATE gl_baux SET ${updates.join(", ")}, updated_at = now() WHERE id = $${idx}`,
+            vals,
+          );
+          restored++;
+        }
+      }
+      logger.info(`import: restored indice/override data on ${restored} baux from snapshot`);
+    }
 
     // ─── 7. Create Emprunts (from Emprunts Détaillés + Financement) ─
     // Index garanties by "sciName|banque" for lookup

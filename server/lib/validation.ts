@@ -177,6 +177,7 @@ export const bailAMSchema = z.object({
   loyerBaseHT: optNum,
   loyerHTActu: optNum,
   forceManual: optBool,
+  loyerManuelOverride: optNum,
   charges: optNum,
   depotGarantie: optNum,
   indiceReference: optStr,
@@ -298,6 +299,7 @@ export const bailGLSchema = z.object({
   loyerBaseHT: optNum,
   loyerHTActu: optNum,
   forceManual: optBool,
+  loyerManuelOverride: optNum,
   indiceReference: optStr,
   trimestreRef: optStr,
   dateIndiceBase: optStr,
@@ -353,6 +355,15 @@ export const quittanceGLSchema = z.object({
   montantTotal: optNum,
   dateEmission: optStr,
   statut: optStr,
+  notes: optStr,
+});
+
+export const franchiseBailSchema = z.object({
+  bailId: z.string().uuid("ID bail invalide"),
+  dateDebut: z.string().min(1, "La date de début est requise"),
+  dateFin: z.string().min(1, "La date de fin est requise"),
+  montant: z.union([z.string(), z.number()]),
+  motif: optStr,
   notes: optStr,
 });
 
