@@ -1081,19 +1081,27 @@ export async function importExcelData(): Promise<{
       }
 
       // Priority: BDD loyerActuelHC (col 21) → P&L 2026 rent by matching lot label → BDD loyerDepart
-      let loyerAnnuel = b.loyerActuelHC;
-      if (!loyerAnnuel && b.destination) {
+      let loyerActuel = b.loyerActuelHC;
+      if (!loyerActuel && b.destination) {
         const sciRents = lotRentsBySci[b.sciName] || [];
         const match = sciRents.find((lr) =>
           lr.label.includes(b.destination!.substring(0, 15)) ||
           b.destination!.includes(lr.label.substring(0, 15))
         );
         if (match) {
-          loyerAnnuel = match.loyer;
-          logger.info(`import: P&L 2026 rent fallback for ${b.destination}: ${loyerAnnuel}`);
+          loyerActuel = match.loyer;
+          logger.info(`import: P&L 2026 rent fallback for ${b.destination}: ${loyerActuel}`);
         }
       }
-      if (!loyerAnnuel) loyerAnnuel = b.loyerAnnuelDepart;
+      if (!loyerActuel) loyerActuel = b.loyerAnnuelDepart;
+
+      // Modèle durable :
+      //  - loyer_base_ht = loyer de signature (loyerAnnuelDepart). Source de
+      //    vérité immuable utilisée par l'indexation INSEE automatique.
+      //  - loyer_ht_actu = meilleure valeur courante disponible (loyerActuel).
+      //    Sera écrasé par le cron INSEE au prochain run si l'indice est renseigné.
+      const loyerBaseHT = b.loyerAnnuelDepart || loyerActuel;
+      const loyerHTActu = loyerActuel || b.loyerAnnuelDepart;
 
       // Create Lot — loyer vit uniquement sur le bail, plus aucune colonne loyer sur am_lots.
       const lotId = id();
@@ -1144,9 +1152,10 @@ export async function importExcelData(): Promise<{
         const sciBauxCount = bauxRows.filter((x) => x.sciName === b.sciName && x.locataire).length || 1;
         const depotGarantie = sciDgTotal > 0 ? Math.round(sciDgTotal / sciBauxCount) : null;
 
-        // Insert into unified gl_baux with scope='am'. Source unique de vérité
-        // pour le loyer : loyer_base_ht (base à la signature) + loyer_ht_actu
-        // (valeur courante, mise à jour par l'indexation INSEE).
+        // Insert into unified gl_baux with scope='am'.
+        // Modèle loyer durable :
+        //   loyer_base_ht = loyer de signature (immuable, source INSEE)
+        //   loyer_ht_actu = loyer courant (snapshot xlsx, puis cron INSEE)
         const bailNom = `${b.destination || "Bail"} — ${b.locataire}`;
         await client.query(
           `INSERT INTO gl_baux (
@@ -1161,9 +1170,9 @@ export async function importExcelData(): Promise<{
              $1, 'am', $2,
              $3, $4, $5, $6, $7,
              $8::timestamp, $9::timestamp,
-             $10, $10,
-             $11, $12, $13, $14,
-             $15, $16, now(), now()
+             $10, $11,
+             $12, $13, $14, $15,
+             $16, $17, now(), now()
            )`,
           [
             id(),
@@ -1175,7 +1184,8 @@ export async function importExcelData(): Promise<{
             b.typeBail,
             b.dateDebut,
             b.dateFin,
-            loyerAnnuel,
+            loyerBaseHT,
+            loyerHTActu,
             depotGarantie,
             indiceRef,
             trimestreRef,
