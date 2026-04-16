@@ -68,9 +68,9 @@ function parseIndice(raw: unknown): IndiceParsed {
   const typeMatch = s.match(/^(ILC|IRL|ILAT|ICC)\b/i);
   const type = (typeMatch ? typeMatch[1].toUpperCase() : null) as IndiceType | null;
 
-  // Trimestre : "2T2017" ou "T2 2017" → normalise en "2017-T2"
+  // Trimestre : "2T2017" ou "T2 2017" → normalise en "T2-2017" (format DB)
   const trimMatch = s.match(/([1-4])\s*T\s*(\d{4})/i);
-  const trimestre = trimMatch ? `${trimMatch[2]}-T${trimMatch[1]}` : null;
+  const trimestre = trimMatch ? `T${trimMatch[1]}-${trimMatch[2]}` : null;
 
   // Valeur après "="
   const valMatch = s.match(/=\s*([\d.,]+)/);

@@ -1144,7 +1144,7 @@ export async function importExcelData(): Promise<{
         let trimestreRef: string | null = null;
         if (b.indiceRevalorisation) {
           const trimMatch = b.indiceRevalorisation.match(/(\d)T(\d{4})/);
-          if (trimMatch) trimestreRef = `T${trimMatch[1]} ${trimMatch[2]}`;
+          if (trimMatch) trimestreRef = `T${trimMatch[1]}-${trimMatch[2]}`;
         }
 
         // Distribute P&L dépôt de garantie across lots of this SCI
