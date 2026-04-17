@@ -225,6 +225,62 @@ export async function assignDefaultIndices(): Promise<{ assigned: number; errors
   return { assigned, errors };
 }
 
+// ─── Backfill base index values from INSEE ─────────────────
+
+/**
+ * Remplit `valeurIndiceBase` pour les baux AM qui ont un `indiceReference`
+ * et un `trimestreRef` mais pas de valeur (cas courant à l'import Excel
+ * quand la cellule ne contient que "ILC" ou "ILC 3T2024" sans valeur).
+ * Utilise l'indice INSEE correspondant s'il existe en base; sinon, prend
+ * l'indice le plus proche antérieur au trimestre demandé.
+ */
+export async function backfillBaseIndexValues(): Promise<{ filled: number; missing: number }> {
+  let filled = 0;
+  let missing = 0;
+
+  const allBaux = await db.select().from(bauxAM)
+    .where(and(eq(bauxAM.archived, false), isNull(bauxAM.deletedAt)));
+  const allIndices = await db.select().from(indices);
+
+  // Group indices by type, sorted ascending by trimestre
+  const byType = new Map<string, Array<{ trimestre: string; valeur: number }>>();
+  for (const idx of allIndices) {
+    if (!byType.has(idx.type)) byType.set(idx.type, []);
+    byType.get(idx.type)!.push({ trimestre: idx.trimestre, valeur: Number(idx.valeur) });
+  }
+  for (const list of byType.values()) {
+    list.sort((a, b) => a.trimestre.localeCompare(b.trimestre));
+  }
+
+  for (const bail of allBaux) {
+    const curr = Number(bail.valeurIndiceBase || 0);
+    if (curr > 0) continue;
+    if (!bail.indiceReference || !bail.trimestreRef) continue;
+
+    const list = byType.get(bail.indiceReference) || [];
+    if (list.length === 0) { missing++; continue; }
+
+    // Exact match first
+    let match = list.find((x) => x.trimestre === bail.trimestreRef);
+    // Otherwise most recent trimestre ≤ trimestreRef
+    if (!match) {
+      for (let i = list.length - 1; i >= 0; i--) {
+        if (list[i].trimestre <= bail.trimestreRef) { match = list[i]; break; }
+      }
+    }
+    if (!match) { missing++; continue; }
+
+    await db.update(bauxAM)
+      .set({ valeurIndiceBase: String(match.valeur), updatedAt: new Date() })
+      .where(eq(bauxAM.id, bail.id));
+    filled++;
+    logger.info(`backfill-indice-base: bail ${bail.id} → ${bail.indiceReference} ${match.trimestre} = ${match.valeur}`);
+  }
+
+  logger.info(`backfill-indice-base: ${filled} baux complétés, ${missing} sans correspondance`);
+  return { filled, missing };
+}
+
 // ─── Auto-indexation AM baux ───────────────────────────────
 
 /**

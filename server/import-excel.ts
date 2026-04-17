@@ -53,6 +53,51 @@ function id(): string {
   return randomUUID();
 }
 
+// Parse "ILC 2T2017 = 110" / "ICC 4T2023 = 2162" / "IRL 3T2023 = 141,03" /
+// "ILC 3T2024" / "ILC" / "ILAT " → { type, trimestre, valeur }
+function parseIndiceString(
+  raw: string | null,
+  dateDebut: string | null,
+): { type: string | null; trimestre: string | null; valeur: number | null } {
+  if (!raw) return { type: null, trimestre: null, valeur: null };
+  const s = String(raw).trim();
+
+  // Type — order matters: "ILAT" before "ILC" because ILC is substring? No they're distinct.
+  let type: string | null = null;
+  if (/\bILAT\b/i.test(s)) type = "ILAT";
+  else if (/\bILC\b/i.test(s)) type = "ILC";
+  else if (/\bIRL\b/i.test(s)) type = "IRL";
+  else if (/\bICC\b/i.test(s)) type = "ICC";
+
+  // Trimestre — supports "1T2024", "T1-2024", "2024-T1", "2024-Q1"
+  let trimestre: string | null = null;
+  const m1 = s.match(/(\d)T(\d{4})/);
+  const m2 = s.match(/T(\d)-(\d{4})/);
+  const m3 = s.match(/(\d{4})-T(\d)/);
+  const m4 = s.match(/(\d{4})-Q(\d)/);
+  if (m1) trimestre = `T${m1[1]}-${m1[2]}`;
+  else if (m2) trimestre = `T${m2[1]}-${m2[2]}`;
+  else if (m3) trimestre = `T${m3[2]}-${m3[1]}`;
+  else if (m4) trimestre = `T${m4[2]}-${m4[1]}`;
+
+  // Valeur: "= 110" or "= 141,03" (French decimal)
+  let valeur: number | null = null;
+  const valMatch = s.match(/=\s*([\d.,]+)/);
+  if (valMatch) valeur = num(valMatch[1]);
+
+  // If a type is mentioned but no trimestre, derive it from the bail start date.
+  // The "base" index is the one in force when the bail was signed.
+  if (type && !trimestre && dateDebut) {
+    const d = new Date(dateDebut);
+    if (!isNaN(d.getTime())) {
+      const q = Math.floor(d.getUTCMonth() / 3) + 1;
+      trimestre = `T${q}-${d.getUTCFullYear()}`;
+    }
+  }
+
+  return { type, trimestre, valeur };
+}
+
 // ── SCI name mapping ─────────────────────────────────────────────────
 
 const SCI_FULL_NAMES: Record<string, string> = {
@@ -1066,6 +1111,14 @@ export async function importExcelData(): Promise<{
       if (c.depotGarantieLots > 0) dgBySci[c.sciName] = c.depotGarantieLots;
     }
 
+    // Index SYNTH per-row rent by (sciName, destination) for cross-check fallback
+    const synthRentByKey = new Map<string, number>();
+    for (const sr of synthRows) {
+      if (sr.destination && sr.loyerActuelHC > 0) {
+        synthRentByKey.set(`${sr.sciName}|${sr.destination}`, sr.loyerActuelHC);
+      }
+    }
+
     for (const b of bauxRows) {
       const actifKey = `${b.sciName}|${b.adresse}`;
       const actifId = actifIds[actifKey];
@@ -1076,8 +1129,12 @@ export async function importExcelData(): Promise<{
         continue;
       }
 
-      // Priority: BDD loyerActuelHC (col 21) → P&L 2026 rent by matching lot label → BDD loyerDepart
-      let loyerAnnuel = b.loyerActuelHC;
+      // Priority: BDD loyerActuelHC → SYNTH loyerActuelHC → P&L 2026 → BDD loyerDepart
+      let loyerAnnuel = b.loyerActuelHC && b.loyerActuelHC > 0 ? b.loyerActuelHC : null;
+      if (!loyerAnnuel && b.destination) {
+        const synthVal = synthRentByKey.get(`${b.sciName}|${b.destination}`);
+        if (synthVal) loyerAnnuel = synthVal;
+      }
       if (!loyerAnnuel && b.destination) {
         const sciRents = lotRentsBySci[b.sciName] || [];
         const match = sciRents.find((lr) =>
@@ -1119,23 +1176,10 @@ export async function importExcelData(): Promise<{
 
       // Create Bail
       if (b.locataire) {
-        let indiceRef: string | null = null;
-        let valeurIndice: number | null = null;
-        if (b.indiceRevalorisation) {
-          if (b.indiceRevalorisation.includes("ILC")) indiceRef = "ILC";
-          else if (b.indiceRevalorisation.includes("IRL")) indiceRef = "IRL";
-          else if (b.indiceRevalorisation.includes("ICC")) indiceRef = "ICC";
-          else if (b.indiceRevalorisation.includes("ILAT")) indiceRef = "ILAT";
-
-          const valMatch = b.indiceRevalorisation.match(/=\s*([\d.,]+)/);
-          if (valMatch) valeurIndice = num(valMatch[1]);
-        }
-
-        let trimestreRef: string | null = null;
-        if (b.indiceRevalorisation) {
-          const trimMatch = b.indiceRevalorisation.match(/(\d)T(\d{4})/);
-          if (trimMatch) trimestreRef = `T${trimMatch[1]}-${trimMatch[2]}`;
-        }
+        const parsed = parseIndiceString(b.indiceRevalorisation, b.dateDebut);
+        const indiceRef = parsed.type;
+        const trimestreRef = parsed.trimestre;
+        const valeurIndice = parsed.valeur;
 
         // Distribute P&L dépôt de garantie across lots of this SCI
         const sciDgTotal = dgBySci[b.sciName] || 0;
@@ -1171,9 +1215,10 @@ export async function importExcelData(): Promise<{
             loyerBase,
             loyerActu,
             "actif",
-            b.loyerAnnuelDepart,
+            null, // loyer_theorique: reserved for market rent, not loyer de départ
             [
               b.soumisTVA === "oui" ? "Soumis à TVA" : null,
+              b.indiceRevalorisation ? `Indice source Excel: ${b.indiceRevalorisation.trim()}` : null,
             ].filter(Boolean).join("\n") || null,
           ]
         );
@@ -1277,10 +1322,11 @@ export async function importExcelData(): Promise<{
       const garantieKey = `${sciName}|${e.banque}`;
       const garantieText = garantieBySciBank[garantieKey] || null;
 
-      // Use 2026 annual payment if available (more representative full-year),
-      // otherwise fall back to 2025
-      const echeanceAnnuelle = e.echeanceAnnuelle2026 && e.echeanceAnnuelle2026 > 0
-        ? e.echeanceAnnuelle2026 : e.echeanceAnnuelle2025;
+      // Pick the representative annual payment: prefer the larger of 2025/2026
+      // (smaller value usually means a partial final year or an already-closed loan).
+      const ech2025 = e.echeanceAnnuelle2025 || 0;
+      const ech2026 = e.echeanceAnnuelle2026 || 0;
+      const echeanceAnnuelle = Math.max(ech2025, ech2026) || null;
       const mensualiteReelle = echeanceAnnuelle ? (echeanceAnnuelle / 12) : null;
 
       // Capital restant dû: use end-2025 (= start 2026) as the reference snapshot
@@ -1347,6 +1393,23 @@ export async function importExcelData(): Promise<{
 
     await client.query("COMMIT");
     logger.info("import: transaction committed successfully", counts);
+
+    // Post-import indexation pipeline: sync INSEE indices, backfill base values,
+    // then auto-index. Runs in background so the HTTP response returns quickly.
+    (async () => {
+      try {
+        const { syncIndicesINSEE, backfillBaseIndexValues, autoIndexBauxAM } =
+          await import("./lib/sync-insee");
+        const syncRes = await syncIndicesINSEE();
+        logger.info("import: post-sync INSEE", { synced: syncRes.synced, errors: syncRes.errors.length });
+        const fillRes = await backfillBaseIndexValues();
+        logger.info("import: post-backfill indices", fillRes);
+        const idxRes = await autoIndexBauxAM();
+        logger.info("import: post-auto-index", { indexed: idxRes.indexed, skipped: idxRes.skipped });
+      } catch (err: any) {
+        logger.warn("import: post-import indexation pipeline failed (non-blocking)", { error: err.message });
+      }
+    })();
 
     // Géocoder automatiquement les actifs importés (en arrière-plan, sans bloquer)
     geocodeImportedActifs().catch((err) =>
