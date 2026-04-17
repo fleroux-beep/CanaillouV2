@@ -16,7 +16,7 @@ import { logger } from "./logger";
 import { syncDVF } from "./sync-dvf";
 import { syncANIL } from "./sync-anil";
 import { computeTauxCapiFromRefs } from "./compute-taux-capi";
-import { syncIndicesINSEE, assignDefaultIndices, autoIndexBaux } from "./sync-insee";
+import { syncIndicesINSEE, assignDefaultIndices, autoIndexBauxAM } from "./sync-insee";
 import { computeAndStoreAlerts } from "../routes/alertes-proactives";
 
 const STARTUP_DELAY_MS = 30 * 1000; // 30 seconds after server starts
@@ -127,10 +127,10 @@ async function runFullSync(): Promise<void> {
     logger.error("auto-sync: assign default indices failed", { error: err.message });
   }
 
-  // 6. Auto-indexation des baux GL
+  // 6. Auto-indexation des baux AM
   try {
-    logger.info("auto-sync: indexation automatique baux GL");
-    const indexResult = await autoIndexBaux();
+    logger.info("auto-sync: indexation automatique baux AM");
+    const indexResult = await autoIndexBauxAM();
     logger.info("auto-sync: indexation terminée", { indexed: indexResult.indexed });
   } catch (err: any) {
     logger.error("auto-sync: auto-index baux failed", { error: err.message });

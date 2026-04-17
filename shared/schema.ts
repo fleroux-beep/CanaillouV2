@@ -211,6 +211,10 @@ export const bauxAM = pgTable("am_baux", {
   indiceReference: varchar("indice_reference"), // IRL, ILC, ILAT, ICC
   trimestreRef: varchar("trimestre_ref"),
   valeurIndiceBase: numeric("valeur_indice_base"),
+  dateIndiceBase: date("date_indice_base"),
+  loyerBaseHT: numeric("loyer_base_ht"),
+  loyerHTActu: numeric("loyer_ht_actu"),
+  forceManual: boolean("force_manual").default(false),
   // Statut
   statut: varchar("statut").default("actif"), // actif, expiré, résilié
   loyerTheorique: numeric("loyer_theorique"),
@@ -224,6 +228,27 @@ export const bauxAM = pgTable("am_baux", {
   index("idx_baux_am_actif_id").on(table.actifId),
   index("idx_baux_am_sci_id").on(table.sciId),
   index("idx_baux_am_locataire_id").on(table.locataireId),
+]);
+
+// ============================================================
+// ASSET MANAGEMENT — Indexations (audit trail)
+// ============================================================
+
+export const indexationsAM = pgTable("am_indexations", {
+  id: varchar("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  bailId: varchar("bail_id").notNull().references(() => bauxAM.id, { onDelete: "cascade" }),
+  dateApplication: date("date_application").notNull(),
+  ancienLoyer: numeric("ancien_loyer"),
+  nouveauLoyer: numeric("nouveau_loyer"),
+  indiceBase: numeric("indice_base"),
+  indiceNouveau: numeric("indice_nouveau"),
+  typeIndice: varchar("type_indice"),
+  trimestre: varchar("trimestre"),
+  tauxVariation: numeric("taux_variation"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_indexations_am_bail_id").on(table.bailId),
 ]);
 
 // ============================================================
@@ -483,7 +508,9 @@ export const indices = pgTable("indices", {
   trimestre: varchar("trimestre").notNull(),
   valeur: numeric("valeur").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => [
+  uniqueIndex("idx_indices_type_trimestre").on(table.type, table.trimestre),
+]);
 
 // ============================================================
 // GESTION LOCATIVE — Avenants & Renouvellements

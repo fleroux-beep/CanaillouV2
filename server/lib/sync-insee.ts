@@ -3,12 +3,13 @@
  *
  * Récupère automatiquement les indices INSEE (IRL, ILC, ILAT, ICC)
  * depuis l'API publique INSEE (SDMX) et les stocke en base.
- * Déclenche l'indexation automatique des baux GL après mise à jour.
+ * Déclenche l'indexation automatique des baux AM après mise à jour.
  */
-import { db } from "../db";
-import { indices, bauxGL, indexationsGL } from "@shared/schema";
+import { db, pool } from "../db";
+import { indices, bauxAM } from "@shared/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { logger } from "./logger";
+import { randomUUID } from "crypto";
 
 // ─── INSEE SDMX API ────────────────────────────────────────
 
@@ -28,10 +29,8 @@ interface InseeValue {
 /**
  * Fetch latest values from INSEE SDMX API for a given series.
  * Tries both the V1 and the legacy endpoint format.
- * The API always returns XML (SDMX StructureSpecificData), regardless of Accept header.
  */
 async function fetchInseeSeriesValues(seriesId: string): Promise<InseeValue[]> {
-  // Primary URL: BDM V1 SDMX endpoint
   const urls = [
     `https://api.insee.fr/series/BDM/V1/data/SERIES_BDM/${seriesId}?lastNObservations=12`,
     `https://api.insee.fr/series/BDM/V1/data/SERIES_BDM/${seriesId}`,
@@ -41,6 +40,7 @@ async function fetchInseeSeriesValues(seriesId: string): Promise<InseeValue[]> {
     try {
       const response = await fetch(url, {
         signal: AbortSignal.timeout(15000),
+        headers: { "Accept": "application/xml" },
       });
 
       if (!response.ok) {
@@ -53,7 +53,7 @@ async function fetchInseeSeriesValues(seriesId: string): Promise<InseeValue[]> {
       if (values.length > 0) {
         return values;
       }
-      logger.warn(`INSEE API returned XML but no parseable observations for series ${seriesId}, response length: ${text.length}`);
+      logger.warn(`INSEE API: no observations parsed for series ${seriesId}, response length: ${text.length}`);
     } catch (err: any) {
       logger.warn(`INSEE API fetch failed for series ${seriesId} (${url}): ${err.message}`);
     }
@@ -66,11 +66,9 @@ async function fetchInseeSeriesValues(seriesId: string): Promise<InseeValue[]> {
  * Parse INSEE SDMX XML response.
  * The XML uses attributes on <Obs> elements:
  *   <Obs TIME_PERIOD="2025-Q4" OBS_VALUE="145.78" .../>
- * Attribute order may vary between series — parse each <Obs> independently.
  */
 function parseInseeXmlResponse(text: string): InseeValue[] {
   const values: InseeValue[] = [];
-  // Match each <Obs .../> or <Obs ...>...</Obs> element
   const obsPattern = /<Obs\s+([^>]+)\/?>/g;
   let obsMatch;
   while ((obsMatch = obsPattern.exec(text)) !== null) {
@@ -107,9 +105,11 @@ function convertPeriod(period: string): string | null {
   return null;
 }
 
+// ─── Sync INSEE indices to DB ──────────────────────────────
+
 /**
  * Synchronise les indices INSEE et les stocke en base.
- * Retourne le nombre d'indices mis à jour.
+ * Utilise ON CONFLICT pour éviter les doublons.
  */
 export async function syncIndicesINSEE(): Promise<{ synced: number; errors: string[] }> {
   let synced = 0;
@@ -119,7 +119,7 @@ export async function syncIndicesINSEE(): Promise<{ synced: number; errors: stri
     try {
       const values = await fetchInseeSeriesValues(seriesId);
       if (values.length === 0) {
-        errors.push(`${type}: aucune donnée récupérée`);
+        errors.push(`${type}: aucune donnée récupérée depuis l'API INSEE`);
         continue;
       }
 
@@ -129,17 +129,23 @@ export async function syncIndicesINSEE(): Promise<{ synced: number; errors: stri
 
       for (const v of values) {
         if (!existingMap.has(v.trimestre)) {
-          await db.insert(indices).values({
-            type,
-            trimestre: v.trimestre,
-            valeur: String(v.valeur),
-          });
-          synced++;
+          try {
+            await db.insert(indices).values({
+              type,
+              trimestre: v.trimestre,
+              valeur: String(v.valeur),
+            });
+            synced++;
+          } catch (err: any) {
+            // Handle unique constraint violation (race condition)
+            if (err.code === "23505") continue;
+            throw err;
+          }
         }
       }
 
       const newForType = values.filter((v) => !existingMap.has(v.trimestre)).length;
-      logger.info(`sync-insee: ${type} — ${values.length} valeurs récupérées, ${newForType} nouvelles insérées`);
+      logger.info(`sync-insee: ${type} — ${values.length} valeurs, ${newForType} nouvelles`);
     } catch (err: any) {
       errors.push(`${type}: ${err.message}`);
       logger.error(`sync-insee: erreur pour ${type}`, { error: err.message });
@@ -149,30 +155,24 @@ export async function syncIndicesINSEE(): Promise<{ synced: number; errors: stri
   return { synced, errors };
 }
 
+// ─── Default index assignment ──────────────────────────────
+
 /**
  * Détermine l'indice par défaut selon le type de bail :
- *   - habitation → ICC (Indice du Coût de la Construction)
- *   - commercial, professionnel, derogatoire → ILC (Indice des Loyers Commerciaux)
+ *   - habitation → IRL (Indice de Référence des Loyers)
+ *   - commercial, crèche, professionnel → ILC (Indice des Loyers Commerciaux)
+ *   - bureau, tertiaire → ILAT (Indice des Loyers des Activités Tertiaires)
  */
 function defaultIndiceForType(typeBail: string | null): string {
-  if (typeBail === "habitation") return "ICC";
-  return "ILC";
+  if (!typeBail) return "ILC";
+  const t = typeBail.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (t.includes("habitation") || t.includes("logement")) return "IRL";
+  if (t.includes("bureau") || t.includes("tertiaire")) return "ILAT";
+  return "ILC"; // commercial, crèche, professionnel
 }
 
-/**
- * Assigne automatiquement l'indice de référence et la valeur de base
- * aux baux qui n'en ont pas encore.
- * Règle métier : habitation → ICC, commercial/crèche/professionnel → ILC.
- */
-export async function assignDefaultIndices(): Promise<{ assigned: number; errors: string[] }> {
-  let assigned = 0;
-  const errors: string[] = [];
-
-  const allBaux = await db.select().from(bauxGL)
-    .where(and(eq(bauxGL.archived, false), isNull(bauxGL.deletedAt)));
-  const allIndices = await db.select().from(indices);
-
-  // Build map: type → latest index
+/** Build a map of latest index value per type from all stored indices */
+function buildLatestIndicesMap(allIndices: Array<{ type: string; trimestre: string; valeur: string }>) {
   const latestByType = new Map<string, { trimestre: string; valeur: number }>();
   for (const idx of allIndices) {
     const existing = latestByType.get(idx.type);
@@ -180,108 +180,178 @@ export async function assignDefaultIndices(): Promise<{ assigned: number; errors
       latestByType.set(idx.type, { trimestre: idx.trimestre, valeur: Number(idx.valeur) });
     }
   }
+  return latestByType;
+}
+
+/**
+ * Assigne automatiquement l'indice de référence et la valeur de base
+ * aux baux AM qui n'en ont pas encore.
+ */
+export async function assignDefaultIndices(): Promise<{ assigned: number; errors: string[] }> {
+  let assigned = 0;
+  const errors: string[] = [];
+
+  const allBaux = await db.select().from(bauxAM)
+    .where(and(eq(bauxAM.archived, false), isNull(bauxAM.deletedAt)));
+  const allIndices = await db.select().from(indices);
+  const latestByType = buildLatestIndicesMap(allIndices);
 
   for (const bail of allBaux) {
     try {
       if (bail.forceManual) continue;
-      // Skip baux that already have an indiceReference set
-      if (bail.indiceReference) continue;
+      if (bail.indiceReference) continue; // Already assigned
 
       const indiceType = defaultIndiceForType(bail.typeBail);
       const latest = latestByType.get(indiceType);
-      if (!latest) continue; // No index data available yet
+      if (!latest) continue;
 
-      await db.update(bauxGL)
+      await db.update(bauxAM)
         .set({
           indiceReference: indiceType,
           trimestreRef: latest.trimestre,
           valeurIndiceBase: String(latest.valeur),
           updatedAt: new Date(),
         })
-        .where(eq(bauxGL.id, bail.id));
+        .where(eq(bauxAM.id, bail.id));
 
       assigned++;
-      logger.info(`assign-default-indices: bail "${bail.nom || bail.id}" → ${indiceType} (${latest.trimestre} = ${latest.valeur})`);
+      logger.info(`assign-default-indices: bail AM "${bail.id}" → ${indiceType} (${latest.trimestre} = ${latest.valeur})`);
     } catch (err: any) {
-      errors.push(`Bail ${bail.nom || bail.id}: ${err.message}`);
+      errors.push(`Bail ${bail.id}: ${err.message}`);
     }
   }
 
-  logger.info(`assign-default-indices: ${assigned} baux mis à jour`);
+  logger.info(`assign-default-indices: ${assigned} baux AM mis à jour`);
   return { assigned, errors };
 }
 
+// ─── Auto-indexation AM baux ───────────────────────────────
+
 /**
- * Applique l'indexation automatique sur tous les baux GL éligibles.
+ * Normalise un trimestre vers le format canonique "T1-2025".
+ * Gère "T1 2025", "T1-2025", "1T2025", "2025-Q1", "2025-T1".
+ */
+function normalizeTrimestre(raw: string | null): string | null {
+  if (!raw) return null;
+  const s = raw.trim();
+  // Already canonical
+  if (/^T\d-\d{4}$/.test(s)) return s;
+  // "T1 2025" → "T1-2025" (space to hyphen)
+  const m1 = s.match(/^T(\d)\s+(\d{4})$/);
+  if (m1) return `T${m1[1]}-${m1[2]}`;
+  // "1T2025" → "T1-2025"
+  const m2 = s.match(/^(\d)T(\d{4})$/);
+  if (m2) return `T${m2[1]}-${m2[2]}`;
+  // ISO-like "2025-Q1" or "2025-T1"
+  return convertPeriod(s);
+}
+
+/**
+ * Applique l'indexation automatique sur tous les baux AM éligibles.
+ * Utilise une transaction pour garantir la cohérence.
+ *
  * Un bail est éligible si :
- * - Il a un indiceReference (IRL, ILC, ILAT, ICC)
- * - Il a un loyerBaseHT
- * - Il a une valeurIndiceBase
+ * - indiceReference est défini (IRL, ILC, ILAT, ICC)
+ * - loyerBaseHT est défini et > 0
+ * - valeurIndiceBase est définie et > 0
+ * - forceManual !== true
  * - Un indice plus récent est disponible
  */
-export async function autoIndexBaux(): Promise<{ indexed: number; errors: string[] }> {
+export async function autoIndexBauxAM(): Promise<{ indexed: number; skipped: number; errors: string[] }> {
   let indexed = 0;
+  let skipped = 0;
   const errors: string[] = [];
 
-  const allBaux = await db.select().from(bauxGL)
-    .where(and(eq(bauxGL.archived, false), isNull(bauxGL.deletedAt)));
+  const allBaux = await db.select().from(bauxAM)
+    .where(and(eq(bauxAM.archived, false), isNull(bauxAM.deletedAt)));
   const allIndices = await db.select().from(indices);
+  const latestByType = buildLatestIndicesMap(allIndices);
 
-  for (const bail of allBaux) {
-    try {
-      if (!bail.indiceReference || !bail.loyerBaseHT || !bail.valeurIndiceBase) continue;
-      if (bail.forceManual) continue; // Skip manually managed leases
+  // Use a transaction for atomicity
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
 
-      const type = bail.indiceReference;
-      const baseLoyer = Number(bail.loyerBaseHT);
-      const baseIndice = Number(bail.valeurIndiceBase);
-      if (baseLoyer <= 0 || baseIndice <= 0) continue;
+    for (const bail of allBaux) {
+      try {
+        if (bail.forceManual) { skipped++; continue; }
+        if (!bail.indiceReference) { skipped++; continue; }
 
-      // Find the latest indice for this type
-      const typeIndices = allIndices
-        .filter((i) => i.type === type)
-        .sort((a, b) => b.trimestre.localeCompare(a.trimestre));
+        const baseLoyer = Number(bail.loyerBaseHT || 0);
+        const baseIndice = Number(bail.valeurIndiceBase || 0);
+        if (baseLoyer <= 0 || baseIndice <= 0) { skipped++; continue; }
 
-      if (typeIndices.length === 0) continue;
+        const type = bail.indiceReference;
+        const latest = latestByType.get(type);
+        if (!latest) { skipped++; continue; }
 
-      const latest = typeIndices[0];
-      const latestValeur = Number(latest.valeur);
+        // Normalize stored trimestre for comparison
+        const storedTrimestre = normalizeTrimestre(bail.trimestreRef);
+        const latestTrimestre = latest.trimestre;
 
-      // Calculate new rent: loyerBase × (indiceNouveau / indiceBase)
-      const nouveauLoyer = baseLoyer * (latestValeur / baseIndice);
-      const currentLoyer = Number(bail.loyerHTActu || 0);
+        // Skip if the latest index is the same or older than what's already applied
+        if (storedTrimestre && latestTrimestre <= storedTrimestre) { skipped++; continue; }
 
-      // Only update if there's a meaningful change (> 0.01 EUR)
-      if (Math.abs(nouveauLoyer - currentLoyer) < 0.01) continue;
+        // Calculate new rent: loyerBase × (indiceNouveau / indiceBase)
+        const nouveauLoyer = Math.round(baseLoyer * (latest.valeur / baseIndice) * 100) / 100;
+        const currentLoyer = Number(bail.loyerHTActu || bail.loyerAnnuel || 0);
 
-      // Update the bail
-      await db.update(bauxGL)
-        .set({
-          loyerHTActu: String(Math.round(nouveauLoyer * 100) / 100),
-          updatedAt: new Date(),
-        })
-        .where(eq(bauxGL.id, bail.id));
+        // Only update if meaningful change (> 0.01 EUR)
+        if (Math.abs(nouveauLoyer - currentLoyer) < 0.01) { skipped++; continue; }
 
-      // Record indexation history
-      const tauxVariation = ((latestValeur - baseIndice) / baseIndice) * 100;
-      await db.insert(indexationsGL).values({
-        bailId: bail.id,
-        dateApplication: new Date().toISOString().slice(0, 10),
-        ancienLoyer: String(currentLoyer || baseLoyer),
-        nouveauLoyer: String(Math.round(nouveauLoyer * 100) / 100),
-        indiceBase: String(baseIndice),
-        indiceNouveau: String(latestValeur),
-        typeIndice: type,
-        tauxVariation: String(Math.round(tauxVariation * 100) / 100),
-        notes: `Indexation auto — ${type} ${latest.trimestre}: ${baseIndice} → ${latestValeur}`,
-      });
+        const tauxVariation = Math.round(((latest.valeur - baseIndice) / baseIndice) * 10000) / 100;
 
-      indexed++;
-    } catch (err: any) {
-      errors.push(`Bail ${bail.nom || bail.id}: ${err.message}`);
+        // Update bail
+        await client.query(
+          `UPDATE am_baux SET loyer_ht_actu = $1, loyer_annuel = $1,
+           loyer_mensuel = $2, updated_at = now() WHERE id = $3`,
+          [String(nouveauLoyer), String(Math.round(nouveauLoyer / 12 * 100) / 100), bail.id],
+        );
+
+        // Record audit trail
+        await client.query(
+          `INSERT INTO am_indexations (id, bail_id, date_application, ancien_loyer, nouveau_loyer,
+           indice_base, indice_nouveau, type_indice, trimestre, taux_variation, notes, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now())`,
+          [
+            randomUUID(),
+            bail.id,
+            new Date().toISOString().slice(0, 10),
+            String(currentLoyer || baseLoyer),
+            String(nouveauLoyer),
+            String(baseIndice),
+            String(latest.valeur),
+            type,
+            latestTrimestre,
+            String(tauxVariation),
+            `Indexation auto — ${type} ${latestTrimestre}: ${baseIndice} → ${latest.valeur} (${tauxVariation > 0 ? "+" : ""}${tauxVariation}%)`,
+          ],
+        );
+
+        indexed++;
+      } catch (err: any) {
+        errors.push(`Bail ${bail.id}: ${err.message}`);
+      }
     }
+
+    await client.query("COMMIT");
+  } catch (err: any) {
+    await client.query("ROLLBACK");
+    logger.error("auto-index-am: transaction rolled back", { error: err.message });
+    errors.push(`Transaction: ${err.message}`);
+  } finally {
+    client.release();
   }
 
-  logger.info(`auto-index: ${indexed} baux indexés`);
-  return { indexed, errors };
+  logger.info(`auto-index-am: ${indexed} baux indexés, ${skipped} ignorés`);
+  return { indexed, skipped, errors };
+}
+
+// ─── Legacy GL functions (kept for backward compatibility) ──
+
+/** @deprecated Use autoIndexBauxAM instead */
+export async function autoIndexBaux(): Promise<{ indexed: number; errors: string[] }> {
+  // Delegate to AM version
+  const result = await autoIndexBauxAM();
+  return { indexed: result.indexed, errors: result.errors };
 }

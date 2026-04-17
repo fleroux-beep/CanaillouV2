@@ -1134,7 +1134,7 @@ export async function importExcelData(): Promise<{
         let trimestreRef: string | null = null;
         if (b.indiceRevalorisation) {
           const trimMatch = b.indiceRevalorisation.match(/(\d)T(\d{4})/);
-          if (trimMatch) trimestreRef = `T${trimMatch[1]} ${trimMatch[2]}`;
+          if (trimMatch) trimestreRef = `T${trimMatch[1]}-${trimMatch[2]}`;
         }
 
         // Distribute P&L dépôt de garantie across lots of this SCI
@@ -1142,11 +1142,17 @@ export async function importExcelData(): Promise<{
         const sciBauxCount = bauxRows.filter((x) => x.sciName === b.sciName && x.locataire).length || 1;
         const depotGarantie = sciDgTotal > 0 ? Math.round(sciDgTotal / sciBauxCount) : null;
 
+        // loyerBaseHT = loyer de départ (base for indexation formula)
+        // loyerHTActu = loyer actuel HC (current indexed rent)
+        const loyerBase = b.loyerAnnuelDepart || loyerAnnuel;
+        const loyerActu = loyerAnnuel;
+
         await client.query(
           `INSERT INTO am_baux (id, lot_id, actif_id, sci_id, locataire_id, type_bail,
            date_debut, date_fin, loyer_mensuel, loyer_annuel, depot_garantie, indice_reference,
-           trimestre_ref, valeur_indice_base, statut, loyer_theorique, notes, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, now(), now())`,
+           trimestre_ref, valeur_indice_base, loyer_base_ht, loyer_ht_actu,
+           statut, loyer_theorique, notes, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, now(), now())`,
           [
             id(),
             lotId,
@@ -1162,6 +1168,8 @@ export async function importExcelData(): Promise<{
             indiceRef,
             trimestreRef,
             valeurIndice,
+            loyerBase,
+            loyerActu,
             "actif",
             b.loyerAnnuelDepart,
             [
