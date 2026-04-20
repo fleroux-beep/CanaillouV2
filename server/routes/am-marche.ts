@@ -11,6 +11,7 @@ import { validate, refTauxEmpruntSchema, refValeursVenalesSchema, refValeursLoca
 import { logger } from "../lib/logger";
 import { rateLimit } from "../lib/rate-limit";
 import { paramId } from "../lib/crud-factory";
+import { getBailLoyer } from "@shared/utils/bail";
 
 const syncLimiter = rateLimit(3, 30 * 60 * 1000, "sync-marche"); // 3 per 30 min
 const analyseIALimiter = rateLimit(5, 10 * 60 * 1000, "analyse-ia"); // 5 per 10 min
@@ -202,7 +203,7 @@ export function registerMarcheRoutes(app: Express) {
     const phase1 = getPhase1(actifRow, allVenales, allLocatives, allTauxCapi);
 
     const loyerAnnuel = actifBaux.reduce(
-      (s: number, b: any) => s + Number(b.loyerHTActu || b.loyerBaseHT || 0),
+      (s: number, b: any) => s + getBailLoyer(b),
       0,
     );
     const surface = Number(actifRow.surfaceCarrez || actifRow.surface || 0);
@@ -218,7 +219,7 @@ export function registerMarcheRoutes(app: Express) {
         typeBail: b.typeBail,
         dateDebut: b.dateDebut,
         dateFin: b.dateFin,
-        loyerAnnuel: Number(b.loyerHTActu || b.loyerBaseHT || 0),
+        loyerAnnuel: getBailLoyer(b),
         depotGarantie: Number(b.depotGarantie || 0),
         indiceReference: b.indiceReference,
       };
@@ -454,7 +455,7 @@ Règles :
     const prixAcq = Number(actifRow.prixAcquisition || 0) + Number(actifRow.fraisNotaire || 0)
       + Number(actifRow.fraisAgence || 0) + Number(actifRow.montantTravaux || 0);
     const loyerAnnuel = actifBaux.reduce(
-      (s: number, b: any) => s + Number(b.loyerHTActu || b.loyerBaseHT || 0),
+      (s: number, b: any) => s + getBailLoyer(b),
       0,
     );
     const lotsOccupes = actifLots.filter((l: any) => l.statut === "loué").length;
@@ -497,7 +498,7 @@ Règles :
       .filter((b: any) => b.statut !== "résilié")
       .map((b: any) => {
         const loc = b.locataireId ? allLocataires.find((l: any) => l.id === b.locataireId) : null;
-        const loyerAnn = Number(b.loyerHTActu || b.loyerBaseHT || 0);
+        const loyerAnn = getBailLoyer(b);
         return {
           locataire: loc ? loc.nom : null,
           typeBail: b.typeBail,

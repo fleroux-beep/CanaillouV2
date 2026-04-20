@@ -27,6 +27,7 @@ import {
   FilePenLine,
   RefreshCw,
 } from "lucide-react";
+import { getBailLoyer } from "@shared/utils/bail";
 
 interface Avenant {
   id: string;
@@ -420,7 +421,7 @@ export default function BailGLDetailPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <KpiCard
             label="Loyer HT annuel"
-            value={Number(bail.loyerHTActu || bail.loyerBaseHT || 0)}
+            value={getBailLoyer(bail)}
             formatFn={formatCurrency}
             icon={Building2}
             variant="primary"
@@ -461,7 +462,7 @@ export default function BailGLDetailPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <KpiCard
               label="Loyer / berceau"
-              value={Number(bail.loyerHTActu || bail.loyerBaseHT || 0) / bail.capacite}
+              value={getBailLoyer(bail) / bail.capacite}
               formatFn={(n) => `${formatCurrency(n)}/berc.`}
               icon={Calculator}
               delay={4}
@@ -475,7 +476,7 @@ export default function BailGLDetailPage() {
             />
             <KpiCard
               label="Coût total / berceau"
-              value={(Number(bail.loyerHTActu || bail.loyerBaseHT || 0) + Number(bail.charges || 0) * 12 + Number(bail.taxeFonciere || 0)) / bail.capacite}
+              value={(getBailLoyer(bail) + Number(bail.charges || 0) * 12 + Number(bail.taxeFonciere || 0)) / bail.capacite}
               formatFn={(n) => `${formatCurrency(n)}/berc.`}
               icon={PiggyBank}
               delay={6}

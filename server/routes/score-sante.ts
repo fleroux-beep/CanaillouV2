@@ -16,6 +16,7 @@ import { actifs, lots, bauxGL, emprunts, travaux, scis, refMarcheScraping } from
 import { eq, and, isNull } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { logger } from "../lib/logger";
+import { getBailLoyer } from "@shared/utils/bail";
 
 interface DimensionScore {
   label: string;
@@ -83,7 +84,7 @@ export function registerScoreSanteRoutes(app: Express) {
         // Calculate financials — aligned with client-side getLoyerAnnuelActif.
         // Unified rent lives on the bail only (loyerHTActu fallback loyerBaseHT).
         const loyerAnnuel = actifBaux.reduce(
-          (s, b: any) => s + Number(b.loyerHTActu || b.loyerBaseHT || 0),
+          (s, b: any) => s + getBailLoyer(b),
           0,
         );
 

@@ -17,6 +17,7 @@ import {
   TrendingUp, Calculator, Gauge, Target, AlertTriangle, Baby,
 } from "lucide-react";
 import { InfoTooltip } from "../../components/ui/info-tooltip";
+import { getBailLoyer } from "@shared/utils/bail";
 
 const chartTooltipStyle = {
   contentStyle: {
@@ -63,7 +64,7 @@ export default function ProjectionsPage() {
   const [horizon, setHorizon] = useState(5);
 
   const bauxActifs = baux.filter((b: any) => !b.archived);
-  const totalLoyerActuel = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.loyerHTActu || b.loyerBaseHT || 0), 0);
+  const totalLoyerActuel = bauxActifs.reduce((sum: number, b: any) => sum + getBailLoyer(b), 0);
   const totalCharges = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.charges || 0), 0);
   const totalSurface = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.surface || 0), 0);
   const totalBerceaux = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.capacite || 0), 0);
@@ -122,7 +123,7 @@ export default function ProjectionsPage() {
   // Per-bail projections grouped by index
   const bailProjections = useMemo(() => {
     return bauxActifs.map((b: any) => {
-      const loyer = Number(b.loyerHTActu || b.loyerBaseHT || 0);
+      const loyer = getBailLoyer(b);
       const indice = (b.indiceReference || "").toUpperCase();
       const rate = indiceRates[indice] ?? customRate;
       const n1 = compound(loyer, rate, 1);

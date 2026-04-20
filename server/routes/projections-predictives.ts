@@ -13,6 +13,7 @@ import type { Express } from "express";
 import { db } from "../db";
 import { actifs, lots, bauxGL, emprunts, scis } from "@shared/schema";
 import { eq, and, isNull } from "drizzle-orm";
+import { getBailLoyer } from "@shared/utils/bail";
 import { requireAuth } from "../middleware/auth";
 import { logger } from "../lib/logger";
 
@@ -86,7 +87,7 @@ export function registerProjectionsPredictivesRoutes(app: Express) {
         // Base values (Year 0) — rent lives on the bail only
         // (loyerHTActu fallback loyerBaseHT).
         const loyerBase = actifBaux.reduce(
-          (s, b: any) => s + Number(b.loyerHTActu || b.loyerBaseHT || 0),
+          (s, b: any) => s + getBailLoyer(b),
           0,
         );
 

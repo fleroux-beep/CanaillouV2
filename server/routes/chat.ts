@@ -3,6 +3,7 @@ import { db } from "../db";
 import { requireAuth } from "../middleware/auth";
 import { rateLimit } from "../lib/rate-limit";
 import { logger } from "../lib/logger";
+import { getBailLoyer } from "@shared/utils/bail";
 
 const chatLimiter = rateLimit(30, 5 * 60 * 1000, "chat"); // 30 messages per 5 minutes
 
@@ -46,7 +47,7 @@ async function fetchPortfolioSummary(): Promise<unknown> {
 
   const totalCRD = empruntsList.reduce((s, e: any) => s + Number(e.capitalRestantDu || e.montantEmprunte || 0), 0);
   const totalLoyers = bauxList.reduce(
-    (s, b: any) => s + Number(b.loyerHTActu || b.loyerBaseHT || 0),
+    (s, b: any) => s + getBailLoyer(b),
     0,
   );
 

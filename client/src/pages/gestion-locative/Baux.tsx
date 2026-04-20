@@ -13,6 +13,7 @@ import { formatCurrency } from "../../lib/utils";
 import { Plus, Pencil, Trash2, MapPin } from "lucide-react";
 import { motion } from "framer-motion";
 import { InfoTooltip } from "../../components/ui/info-tooltip";
+import { getBailLoyer } from "@shared/utils/bail";
 import type { BailGL as Bail, Bailleur } from "../../types";
 
 const empty: Partial<Bail> = { nom: "" };
@@ -32,9 +33,9 @@ export default function BauxGLPage() {
     { key: "nom", label: "Site", sortable: true, render: (r) => <span className="font-medium">{r.nom}</span> },
     { key: "ville", label: "Ville", sortable: true, render: (r) => r.ville ? <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3 text-muted-foreground" />{r.ville}</span> : "—" },
     { key: "bailleurId", label: "Bailleur", sortable: true, render: (r) => r.bailleurId ? bailleurMap[r.bailleurId] || "—" : "—", exportValue: (r) => r.bailleurId ? bailleurMap[r.bailleurId] || "" : "" },
-    { key: "loyerBaseHT", label: <InfoTooltip metricKey="loyerHT">Loyer HT</InfoTooltip>, exportLabel: "Loyer HT", align: "right", sortable: true, render: (r) => (r.loyerHTActu || r.loyerBaseHT) ? formatCurrency(r.loyerHTActu || r.loyerBaseHT) : "—" },
+    { key: "loyerBaseHT", label: <InfoTooltip metricKey="loyerHT">Loyer HT</InfoTooltip>, exportLabel: "Loyer HT", align: "right", sortable: true, render: (r) => getBailLoyer(r) > 0 ? formatCurrency(getBailLoyer(r)) : "—" },
     { key: "loyerTTC", label: <InfoTooltip metricKey="loyerTTC">Loyer TTC</InfoTooltip>, exportLabel: "Loyer TTC", align: "right", sortable: true, render: (r) => {
-      const ht = Number(r.loyerHTActu || r.loyerBaseHT || 0);
+      const ht = getBailLoyer(r);
       if (ht <= 0) return "—";
       const tva = Number(r.tvaTaux || DEFAULT_TVA_RATE);
       if (r.taxe === "TVA") {

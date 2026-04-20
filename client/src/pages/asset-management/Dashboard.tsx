@@ -24,6 +24,7 @@ import {
   BarChart3, Shield, Wallet, CircleDollarSign, Activity,
   AlertTriangle, Layers, ArrowLeft,
 } from "lucide-react";
+import { getBailLoyer } from "@shared/utils/bail";
 
 const COLORS = ["#3b82f6", "#8b5cf6", "#06b6d4", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#6366f1"];
 
@@ -649,7 +650,7 @@ export default function AMDashboard() {
                                 (b: any) => b.lotId === lot.id && b.statut !== "résilié" && !b.archived,
                               );
                               const annuelLot = bailLot
-                                ? Number(bailLot.loyerHTActu || bailLot.loyerBaseHT || 0)
+                                ? getBailLoyer(bailLot)
                                 : 0;
                               const mensuelLot = annuelLot > 0 ? Math.round((annuelLot / 12) * 100) / 100 : 0;
                               return (
@@ -694,7 +695,7 @@ export default function AMDashboard() {
                           </thead>
                           <tbody>
                             {selectedActifBaux.map((bail: any) => {
-                              const loyerAn = Number(bail.loyerHTActu || bail.loyerBaseHT || 0);
+                              const loyerAn = getBailLoyer(bail);
                               return (
                                 <tr key={bail.id} className="border-t hover:bg-muted/20">
                                   <td className="px-4 py-2 font-medium">{bail.typeBail || "—"}</td>

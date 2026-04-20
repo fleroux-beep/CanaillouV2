@@ -10,6 +10,7 @@ import { formatCurrency } from "../../lib/utils";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { InfoTooltip } from "../../components/ui/info-tooltip";
+import { getBailLoyer } from "@shared/utils/bail";
 
 interface BailAM {
   id: string;
@@ -42,14 +43,7 @@ interface BailAM {
 
 const emptyBail: Partial<BailAM> = {};
 
-/** Miroir frontend de `getBailLoyerAnnuel` dans client/src/lib/am-calculations.ts.
- *  Priorité : forceManual + override > loyerHTActu > loyerBaseHT. */
-function resolveLoyerAnnuel(r: BailAM): number {
-  if (r.forceManual && Number(r.loyerManuelOverride || 0) > 0) {
-    return Number(r.loyerManuelOverride);
-  }
-  return Number(r.loyerHTActu || r.loyerBaseHT || 0);
-}
+const resolveLoyerAnnuel = getBailLoyer;
 
 export default function BauxAMPage() {
   const { data, create, update, remove, creating, updating, deleting } = useCrud<BailAM>("/api/am/baux", "Bail");

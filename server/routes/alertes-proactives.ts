@@ -15,6 +15,7 @@ import {
 import { eq, and, isNull, desc } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { logger } from "../lib/logger";
+import { getBailLoyer } from "@shared/utils/bail";
 
 // ─── Alert generation engine ───────────────────────────────
 
@@ -59,7 +60,7 @@ async function generateAMAlerts(): Promise<GeneratedAlert[]> {
     // Calculate financials — aligned with client-side getLoyerAnnuelActif.
     // Unified rent lives on the bail only (loyerHTActu fallback loyerBaseHT).
     const loyerAnnuel = actifBaux.reduce(
-      (s, b: any) => s + Number(b.loyerHTActu || b.loyerBaseHT || 0),
+      (s, b: any) => s + getBailLoyer(b),
       0,
     );
 
