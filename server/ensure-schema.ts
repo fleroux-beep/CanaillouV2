@@ -1245,6 +1245,58 @@ export async function ensureSchema() {
       `);
     }
 
+    // ── Indexation unification: add missing columns to am_baux ──
+    const amBauxNewCols: [string, string][] = [
+      ["loyer_base_ht", "numeric"],
+      ["loyer_ht_actu", "numeric"],
+      ["force_manual", "boolean DEFAULT false"],
+      ["date_indice_base", "date"],
+    ];
+    for (const [col, colType] of amBauxNewCols) {
+      await client.query(`
+        DO $$ BEGIN
+          ALTER TABLE "am_baux" ADD COLUMN "${col}" ${colType};
+        EXCEPTION WHEN duplicate_column THEN NULL;
+        END $$;
+      `);
+    }
+
+    // Create am_indexations table (audit trail for AM bail indexation)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "am_indexations" (
+        "id" varchar PRIMARY KEY NOT NULL,
+        "bail_id" varchar NOT NULL REFERENCES "am_baux"("id") ON DELETE cascade,
+        "date_application" date NOT NULL,
+        "ancien_loyer" numeric,
+        "nouveau_loyer" numeric,
+        "indice_base" numeric,
+        "indice_nouveau" numeric,
+        "type_indice" varchar,
+        "trimestre" varchar,
+        "taux_variation" numeric,
+        "notes" text,
+        "created_at" timestamp DEFAULT now()
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS "idx_indexations_am_bail_id" ON "am_indexations" ("bail_id")`);
+
+    // Unique constraint on indices to prevent duplicates
+    await client.query(`
+      DO $$ BEGIN
+        CREATE UNIQUE INDEX "idx_indices_type_trimestre" ON "indices" ("type", "trimestre");
+      EXCEPTION WHEN duplicate_table THEN NULL;
+      END $$;
+    `);
+
+    // Backfill loyerBaseHT/loyerHTActu from existing data where missing
+    await client.query(`
+      UPDATE "am_baux" SET
+        "loyer_base_ht" = COALESCE("loyer_base_ht", "loyer_annuel"),
+        "loyer_ht_actu" = COALESCE("loyer_ht_actu", "loyer_annuel")
+      WHERE "loyer_annuel" IS NOT NULL AND "loyer_annuel" != '0'
+        AND ("loyer_base_ht" IS NULL OR "loyer_ht_actu" IS NULL)
+    `);
+
     await client.query("COMMIT");
     logger.info("database schema ensured");
   } catch (error: any) {

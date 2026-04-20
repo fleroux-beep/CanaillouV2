@@ -291,7 +291,8 @@ async function createBailAM(data: Record<string, unknown>): Promise<unknown> {
   const fields = filterFields(data, BAIL_AM_FIELDS);
   const actifId = data.actifId as string;
   const lotId = data.lotId as string;
-  const result = await db.insert(bauxGL).values({ scope: "am", actifId, lotId, ...fields }).returning();
+  const nom = (data.nom as string) || "Bail AM";
+  const result = await db.insert(bauxGL).values({ scope: "am", nom, actifId, lotId, ...fields }).returning();
   return { success: true, created: { id: result[0].id } };
 }
 

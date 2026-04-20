@@ -54,6 +54,44 @@ function id(): string {
   return randomUUID();
 }
 
+function parseIndiceString(
+  raw: string | null,
+  dateDebut: string | null,
+): { type: string | null; trimestre: string | null; valeur: number | null } {
+  if (!raw) return { type: null, trimestre: null, valeur: null };
+  const s = String(raw).trim();
+
+  let type: string | null = null;
+  if (/\bILAT\b/i.test(s)) type = "ILAT";
+  else if (/\bILC\b/i.test(s)) type = "ILC";
+  else if (/\bIRL\b/i.test(s)) type = "IRL";
+  else if (/\bICC\b/i.test(s)) type = "ICC";
+
+  let trimestre: string | null = null;
+  const m1 = s.match(/(\d)T(\d{4})/);
+  const m2 = s.match(/T(\d)-(\d{4})/);
+  const m3 = s.match(/(\d{4})-T(\d)/);
+  const m4 = s.match(/(\d{4})-Q(\d)/);
+  if (m1) trimestre = `T${m1[1]}-${m1[2]}`;
+  else if (m2) trimestre = `T${m2[1]}-${m2[2]}`;
+  else if (m3) trimestre = `T${m3[2]}-${m3[1]}`;
+  else if (m4) trimestre = `T${m4[2]}-${m4[1]}`;
+
+  let valeur: number | null = null;
+  const valMatch = s.match(/=\s*([\d.,]+)/);
+  if (valMatch) valeur = num(valMatch[1]);
+
+  if (type && !trimestre && dateDebut) {
+    const d = new Date(dateDebut);
+    if (!isNaN(d.getTime())) {
+      const q = Math.floor(d.getUTCMonth() / 3) + 1;
+      trimestre = `T${q}-${d.getUTCFullYear()}`;
+    }
+  }
+
+  return { type, trimestre, valeur };
+}
+
 // ── SCI name mapping ─────────────────────────────────────────────────
 
 const SCI_FULL_NAMES: Record<string, string> = {
@@ -1172,23 +1210,10 @@ export async function importExcelData(): Promise<{
 
       // Create Bail
       if (b.locataire) {
-        let indiceRef: string | null = null;
-        let valeurIndice: number | null = null;
-        if (b.indiceRevalorisation) {
-          if (b.indiceRevalorisation.includes("ILC")) indiceRef = "ILC";
-          else if (b.indiceRevalorisation.includes("IRL")) indiceRef = "IRL";
-          else if (b.indiceRevalorisation.includes("ICC")) indiceRef = "ICC";
-          else if (b.indiceRevalorisation.includes("ILAT")) indiceRef = "ILAT";
-
-          const valMatch = b.indiceRevalorisation.match(/=\s*([\d.,]+)/);
-          if (valMatch) valeurIndice = num(valMatch[1]);
-        }
-
-        let trimestreRef: string | null = null;
-        if (b.indiceRevalorisation) {
-          const trimMatch = b.indiceRevalorisation.match(/(\d)T(\d{4})/);
-          if (trimMatch) trimestreRef = `T${trimMatch[1]}-${trimMatch[2]}`;
-        }
+        const parsed = parseIndiceString(b.indiceRevalorisation, b.dateDebut);
+        const indiceRef = parsed.type;
+        const trimestreRef = parsed.trimestre;
+        const valeurIndice = parsed.valeur;
 
         // Distribute P&L dépôt de garantie across lots of this SCI
         const sciDgTotal = dgBySci[b.sciName] || 0;
@@ -1236,6 +1261,7 @@ export async function importExcelData(): Promise<{
             "actif",
             [
               b.soumisTVA === "oui" ? "Soumis à TVA" : null,
+              b.indiceRevalorisation ? `Indice source Excel: ${b.indiceRevalorisation.trim()}` : null,
             ].filter(Boolean).join("\n") || null,
           ]
         );
@@ -1482,6 +1508,27 @@ export async function importExcelData(): Promise<{
     geocodeImportedActifs().catch((err) =>
       logger.warn("import: geocoding failed (non-blocking)", { error: err.message })
     );
+
+    // Post-import INSEE pipeline (non-blocking)
+    (async () => {
+      try {
+        const { syncIndicesINSEE, backfillBaseIndexValues, autoIndexBaux } =
+          await import("./lib/sync-insee");
+        logger.info("import: post-import INSEE sync starting");
+        const syncRes = await syncIndicesINSEE();
+        logger.info("import: INSEE indices synced", { synced: syncRes.synced });
+        if (typeof backfillBaseIndexValues === "function") {
+          const fillRes = await backfillBaseIndexValues();
+          logger.info("import: backfilled indice base values", fillRes);
+        }
+        if (typeof autoIndexBaux === "function") {
+          const idxRes = await autoIndexBaux();
+          logger.info("import: auto-indexed baux", idxRes);
+        }
+      } catch (err: any) {
+        logger.warn("import: post-import INSEE pipeline failed (non-blocking)", { error: err.message });
+      }
+    })();
 
     return counts;
   } catch (error: any) {
