@@ -45,15 +45,7 @@ const amNavGroups: NavGroup[] = [
     items: [
       { label: "Tableau de bord", href: "/asset-management/dashboard", icon: LayoutDashboard },
       { label: "Patrimoine", href: "/asset-management/patrimoine", icon: TreePine },
-      { label: "Carte", href: "/asset-management/carte", icon: Map },
-    ],
-  },
-  {
-    label: "Entités & Financement",
-    items: [
       { label: "SCI & Associes", href: "/asset-management/scis-associes", icon: Landmark },
-      { label: "Emprunts & Crédit", href: "/asset-management/emprunts", icon: PiggyBank },
-      { label: "Travaux", href: "/asset-management/travaux", icon: Hammer },
     ],
   },
   {
@@ -61,27 +53,16 @@ const amNavGroups: NavGroup[] = [
     items: [
       { label: "Valorisation", href: "/asset-management/valorisation", icon: BarChart3 },
       { label: "Contrôle de gestion", href: "/asset-management/controle-gestion", icon: ClipboardList },
-      { label: "Score de santé", href: "/asset-management/score-sante", icon: Heart },
-      { label: "Analyse patrimoniale", href: "/asset-management/etude-marche", icon: Search },
-    ],
-  },
-  {
-    label: "Projection & Reporting",
-    items: [
       { label: "Projections", href: "/asset-management/projections-predictives", icon: Brain },
-      { label: "Simulateur SCPI", href: "/asset-management/simulateur", icon: FlaskConical },
-      { label: "Arbitrages", href: "/asset-management/arbitrages", icon: ArrowUpDown },
       { label: "Reporting", href: "/asset-management/reporting", icon: FileBarChart },
     ],
   },
   {
-    label: "Opérations & Outils",
+    label: "Outils",
     items: [
       { label: "Alertes", href: "/asset-management/alertes", icon: Bell },
-      { label: "Calendrier", href: "/asset-management/calendrier", icon: Calendar },
-      { label: "Indexation auto", href: "/asset-management/indexation-auto", icon: Zap },
       { label: "Import de données", href: "/asset-management/import", icon: DatabaseBackup },
-      { label: "Extraction bail PDF", href: "/asset-management/extraction-bail", icon: FileUp },
+      { label: "Indexation auto", href: "/asset-management/indexation-auto", icon: Zap },
     ],
   },
 ];
@@ -97,7 +78,6 @@ const glNavGroups: NavGroup[] = [
     label: "Tableau de bord",
     items: [
       { label: "Vue d'ensemble", href: "/gestion-locative/dashboard", icon: LayoutDashboard },
-      { label: "KPI", href: "/gestion-locative/kpi", icon: BarChart3 },
     ],
   },
   {
@@ -106,13 +86,11 @@ const glNavGroups: NavGroup[] = [
       { label: "Baux", href: "/gestion-locative/baux", icon: FileText },
       { label: "Bailleurs", href: "/gestion-locative/bailleurs", icon: Building2 },
       { label: "Locataires", href: "/gestion-locative/locataires", icon: Users },
-      { label: "Contrôle bailleur", href: "/gestion-locative/controle-bailleur", icon: ShieldCheck },
     ],
   },
   {
     label: "Analyse",
     items: [
-      { label: "Projections", href: "/gestion-locative/projections", icon: TrendingUp },
       { label: "Trésorerie", href: "/gestion-locative/tresorerie", icon: DollarSign },
       { label: "Paiements", href: "/gestion-locative/paiements", icon: PiggyBank },
       { label: "Indices", href: "/gestion-locative/indices", icon: Calculator },
@@ -123,7 +101,6 @@ const glNavGroups: NavGroup[] = [
     items: [
       { label: "Documents", href: "/gestion-locative/documents", icon: FolderOpen },
       { label: "Alertes", href: "/gestion-locative/alertes", icon: AlertTriangle },
-      { label: "Calendrier", href: "/gestion-locative/calendrier", icon: Calendar },
     ],
   },
 ];
