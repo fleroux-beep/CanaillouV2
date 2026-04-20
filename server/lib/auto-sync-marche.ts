@@ -145,9 +145,9 @@ async function runFullSync(): Promise<void> {
     logger.error("auto-sync: assign default indices failed", { error: err.message });
   }
 
-  // 6. Auto-indexation des baux GL
+  // 6. Auto-indexation des baux AM
   try {
-    logger.info("auto-sync: indexation automatique baux GL");
+    logger.info("auto-sync: indexation automatique baux AM");
     const indexResult = await autoIndexBaux();
     logger.info("auto-sync: indexation terminée", { indexed: indexResult.indexed });
   } catch (err: any) {

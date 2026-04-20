@@ -344,3 +344,32 @@ export async function autoIndexBaux(): Promise<{
   logger.info(`auto-index: ${indexed} baux indexés, ${skipped.length} ignorés`);
   return { indexed, errors, skipped };
 }
+
+/**
+ * Remplit valeurIndiceBase pour les baux qui ont un indiceReference + trimestreRef
+ * mais pas de valeur numérique (le xlsx n'en contenait pas).
+ * Cherche dans la table `indices` la valeur correspondante.
+ */
+export async function backfillBaseIndexValues(): Promise<{ filled: number }> {
+  let filled = 0;
+  const allBaux = await db.select().from(bauxGL)
+    .where(and(eq(bauxGL.archived, false), isNull(bauxGL.deletedAt)));
+  const allIndices = await db.select().from(indices);
+
+  for (const bail of allBaux) {
+    if (!bail.indiceReference || !bail.trimestreRef || bail.valeurIndiceBase) continue;
+
+    const match = allIndices.find(
+      (idx) => idx.type === bail.indiceReference && idx.trimestre === bail.trimestreRef
+    );
+    if (match && match.valeur) {
+      await db.update(bauxGL)
+        .set({ valeurIndiceBase: String(match.valeur) })
+        .where(eq(bauxGL.id, bail.id));
+      filled++;
+    }
+  }
+
+  logger.info(`backfill: ${filled} baux received valeurIndiceBase from indices table`);
+  return { filled };
+}
