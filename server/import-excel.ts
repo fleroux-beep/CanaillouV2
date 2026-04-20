@@ -232,6 +232,8 @@ function parseBDDSheet(wb: XLSX.WorkBook): BDDResult {
     if (SOLD_SCIS.has(sciName)) continue;
     // Skip "VENDU" rows
     if (str(r[1]) === "VENDU") continue;
+    const sciUpperBDD = sciName.toUpperCase();
+    if (sciUpperBDD.includes("TOTAL") || sciUpperBDD.startsWith("S/")) continue;
 
     // Patrimoine data
     patrimoine.push({
@@ -349,8 +351,9 @@ function parseSyntheseLots(wb: XLSX.WorkBook): BDDResult {
     const sciName = str(r[1]);
     if (!sciName) continue;
     if (SOLD_SCIS.has(sciName)) continue;
-    // Skip TOTAL row
-    if (sciName === "TOTAL PORTEFEUILLE") continue;
+    // Skip TOTAL / sub-total rows (e.g. "TOTAL SCI ABC", "TOTAL PORTEFEUILLE", "S/TOTAL")
+    const sciUpper = sciName.toUpperCase();
+    if (sciUpper.includes("TOTAL") || sciUpper.startsWith("S/")) continue;
 
     patrimoine.push({
       sciName,
