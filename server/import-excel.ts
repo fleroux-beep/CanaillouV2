@@ -134,6 +134,11 @@ interface PatrimoineRow {
   description: string | null;
   cadastre: string | null;
   statut: string | null;
+  chargesRefacturees: number | null;
+  chargesReelles: number | null;
+  taxeFonciere: number | null;
+  vo: number | null;
+  vnc: number | null;
 }
 
 interface BailRow {
@@ -149,6 +154,9 @@ interface BailRow {
   indiceRevalorisation: string | null;
   loyerActuelHC: number | null;
   surfaceLouee: number | null;
+  depotGarantie: number | null;
+  depotGarantieActuel: number | null;
+  franchise: string | null;
 }
 
 interface FinancementRow {
@@ -196,7 +204,7 @@ interface EmpruntDetailRow {
   dateFin: string | null; // last year with significant payment → "YYYY-12-31"
 }
 
-// ── Parse combined "BDD" sheet (new format) ─────────────────────────
+// ── Parse combined "BDD" sheet (old format) ─────────────────────────
 // The BDD sheet combines Patrimoine + Baux + Financement + Détention in one
 // Row 0 = group headers, Row 1 = column headers, data starts at row 2
 
@@ -242,6 +250,11 @@ function parseBDDSheet(wb: XLSX.WorkBook): BDDResult {
       description: str(r[12]),
       cadastre: str(r[13]),
       statut: null,
+      chargesRefacturees: null,
+      chargesReelles: null,
+      taxeFonciere: null,
+      vo: null,
+      vnc: null,
     });
 
     // Bail data (columns 14-22)
@@ -258,6 +271,9 @@ function parseBDDSheet(wb: XLSX.WorkBook): BDDResult {
       indiceRevalorisation: str(r[20]),
       loyerActuelHC: num(r[21]),
       surfaceLouee: num(r[22]),
+      depotGarantie: null,
+      depotGarantieActuel: null,
+      franchise: null,
     });
 
     // Financement data (columns 23-37)
@@ -302,6 +318,121 @@ function parseBDDSheet(wb: XLSX.WorkBook): BDDResult {
   };
 }
 
+// ── Parse "Synthèse_Lots" sheet (new restructured format) ───────────
+// Row 0 = title, Row 1 = sub-group headers, Row 2 = column headers, data from row 3
+// Column mapping:
+//  0=N°, 1=SCI, 2=Bailleur, 3=Ville, 4=CP, 5=Adresse, 6=Cadastre, 7=Copro,
+//  8=Destination, 9=Surface terrain, 10=Surface privative, 11=Surface louée,
+//  12=Date acquisition, 13=Prix acquisition, 14=QP prix achat, 15=QP apport,
+//  16=Locataire, 17=Type bail, 18=Date début, 19=Date fin, 20=Durée, 21=Échéance,
+//  22=Franchise, 23=Loyer départ, 24=Loyer actuel HC, 25=Loyer €/m²,
+//  26=Loyer mensuel, 27=Indice revalorisation, 28=Indice initial, 29=Soumis TVA,
+//  30=DG origine, 31=DG actuel, 32=Banques, 33=Garantie, 34=Total emprunts SCI,
+//  35=QP emprunt lot, 36=QP restant fin 2025, 37=Taux intérêt, 38=Taux assurance,
+//  39=Durée emprunt, 40=Date fin emprunt, 41=VO, 42=VNC,
+//  43=Valeur 7% renta, 44=Prix m², 45=Charges refacturées, 46=Charges réelles,
+//  47=Solde charges, 48=Taxe foncière, 49=Dossier charges,
+//  50=Damien%, 51=Sébastien%, 52=HIO%, 53=AXORIEL%, 54=Démembrement
+
+function parseSyntheseLots(wb: XLSX.WorkBook): BDDResult {
+  const sheet = wb.Sheets["Synthèse_Lots"];
+  const raw = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+
+  const patrimoine: PatrimoineRow[] = [];
+  const baux: BailRow[] = [];
+  const financement: FinancementRow[] = [];
+  const detentionMap: Record<string, DetentionRow> = {};
+
+  for (let i = 3; i < raw.length; i++) {
+    const r = raw[i];
+    if (!r || r[0] == null) continue;
+    const sciName = str(r[1]);
+    if (!sciName) continue;
+    if (SOLD_SCIS.has(sciName)) continue;
+    // Skip TOTAL row
+    if (sciName === "TOTAL PORTEFEUILLE") continue;
+
+    patrimoine.push({
+      sciName,
+      dateAcquisition: excelDateToISO(r[12]),
+      codePostal: str(r[4]),
+      ville: str(r[3]),
+      adresse: str(r[5]),
+      numLot: str(r[0]),
+      destination: str(r[8]),
+      surfaceTerrain: num(r[9]),
+      surfacesPrivatives: num(r[10]),
+      usage: str(r[8]),
+      copro: str(r[7]),
+      prixAcquisition: num(r[13]),
+      description: str(r[6]),
+      cadastre: str(r[6]),
+      statut: null,
+      chargesRefacturees: num(r[45]),
+      chargesReelles: num(r[46]),
+      taxeFonciere: num(r[48]),
+      vo: num(r[41]),
+      vnc: num(r[42]),
+    });
+
+    baux.push({
+      sciName,
+      adresse: str(r[5]),
+      destination: str(r[8]),
+      typeBail: str(r[17]),
+      locataire: str(r[16]),
+      dateDebut: excelDateToISO(r[18]),
+      dateFin: excelDateToISO(r[19]),
+      loyerAnnuelDepart: num(r[23]),
+      soumisTVA: str(r[29]),
+      indiceRevalorisation: str(r[27]),
+      loyerActuelHC: num(r[24]),
+      surfaceLouee: num(r[11]),
+      depotGarantie: num(r[30]),
+      depotGarantieActuel: num(r[31]),
+      franchise: str(r[22]),
+    });
+
+    financement.push({
+      sciName,
+      adresse: str(r[5]),
+      quotePartPrixAchat: num(r[14]),
+      apport: num(r[15]),
+      totalEmprunts: num(r[34]),
+      vo: num(r[41]),
+      vnc: num(r[42]),
+      quotePartEmprunt: num(r[35]),
+      empruntRestantFin2025: num(r[36]),
+      banques: str(r[32]),
+      garantie: str(r[33]),
+      duree: str(r[39]),
+      dateFinEmprunt: excelDateToISO(r[40]),
+      tauxInteret: str(r[37]),
+      tauxAssurance: str(r[38]),
+      tauxIRA: null,
+      comptesCourants: null,
+    });
+
+    if (!detentionMap[sciName]) {
+      detentionMap[sciName] = {
+        sciName,
+        damien: num(r[50]) || 0,
+        sebastien: num(r[51]) || 0,
+        hio: num(r[52]) || 0,
+        axoriel: num(r[53]) || 0,
+        demembrement: str(r[54]),
+      };
+    }
+  }
+
+  return {
+    patrimoine,
+    baux,
+    financement,
+    detention: Object.values(detentionMap),
+  };
+}
+
 // ── Fallback parsers for old format (separate sheets) ───────────────
 
 function parsePatrimoine(wb: XLSX.WorkBook): PatrimoineRow[] {
@@ -333,6 +464,11 @@ function parsePatrimoine(wb: XLSX.WorkBook): PatrimoineRow[] {
       description: str(r[12]),
       cadastre: str(r[13]),
       statut,
+      chargesRefacturees: null,
+      chargesReelles: null,
+      taxeFonciere: null,
+      vo: null,
+      vnc: null,
     });
   }
   return rows;
@@ -363,6 +499,9 @@ function parseBaux(wb: XLSX.WorkBook): BailRow[] {
       indiceRevalorisation: str(r[9]),
       loyerActuelHC: num(r[10]),
       surfaceLouee: num(r[11]),
+      depotGarantie: null,
+      depotGarantieActuel: null,
+      franchise: null,
     });
   }
   return rows;
@@ -434,23 +573,80 @@ function parseEmpruntsDetailles(wb: XLSX.WorkBook): EmpruntDetailRow[] {
   const sheet = oldSheet || newSheet;
   if (!sheet) return [];
 
-  const isNewFormat = !oldSheet && !!newSheet;
   const raw = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
   const emprunts: EmpruntDetailRow[] = [];
 
-  // New format: data starts at row 3, old format: row 2
-  const startRow = isNewFormat ? 3 : 2;
+  // Detect format by header row content:
+  // - Synthèse format: row 2 headers, ≤ 13 cols (Nom, SCI, Banque, Compte, Montant, Taux, Date, Éch 2026, Solde 2025, ...)
+  // - Year-by-year format: row 2 headers, many cols with year-by-year échéances
+  // - Old "Emprunts Détaillés": separate sheet, data at row 2
+  const headerRow = raw[2] || [];
+  const isSyntheseFormat = !oldSheet && headerRow.length <= 15 &&
+    String(headerRow[0] || "").includes("Nom");
+  const isYearByYear = !oldSheet && !isSyntheseFormat;
+  const startRow = (isSyntheseFormat || isYearByYear) ? 3 : 2;
 
-  // Year columns for deriving loan end date from payment schedule
-  // New format: échéances at cols 9,11,13,15,17,19,21,23,...
-  // Old format: échéances at cols 7,9,11,13,15,17,...
-  const newYears =  [2020,2021,2022,2023,2024,2025,2026,2027,2028,2029,2030,2031,2032,2033,2034,2035,2036,2037,2038,2039,2040,2041,2042,2043];
-  const newEchCols = [9,   11,  13,  15,  17,  19,  21,  23,  25,  27,  29,  31,  33,  35,  37,  39,  41,  43,  45,  47,  49,  51,  53,  55];
-  const oldYears =  [2020,2021,2022,2023,2024,2025];
-  const oldEchCols = [7,  9,   11,  13,  15,  17];
+  if (isSyntheseFormat) {
+    // Synthèse Emprunts format:
+    //  0=Nom, 1=SCI, 2=Banque, 3=Compte compta, 4=Montant, 5=Taux,
+    //  6=Date 1ère éch, 7=Éch 2026, 8=Solde fin 2025, 9=Solde fin 2026,
+    //  10=Solde fin 2030, 11=Solde fin 2035, 12=Statut
+    for (let i = startRow; i < raw.length; i++) {
+      const r = raw[i];
+      if (!r || !r[0] || String(r[0]).includes("TOTAL")) continue;
 
-  const years = isNewFormat ? newYears : oldYears;
-  const echCols = isNewFormat ? newEchCols : oldEchCols;
+      const statut = str(r[12]) || "";
+      if (statut === "Soldé") continue;
+
+      const societe = str(r[3]) || str(r[1]) || "";
+      if (societe.includes("HOCHE") || societe.includes("MADELI") || societe.includes("ARAGO")) continue;
+
+      const dateDebut = excelDateToISO(r[6]);
+
+      // Estimate end date from solde columns
+      let dateFin: string | null = null;
+      let dureeTotaleAns: number | null = null;
+      const solde2035 = num(r[11]) || 0;
+      const solde2030 = num(r[10]) || 0;
+      if (solde2035 > 0) {
+        dateFin = "2040-12-31";
+      } else if (solde2030 > 0) {
+        dateFin = "2035-12-31";
+      } else {
+        dateFin = "2030-12-31";
+      }
+      if (dateDebut && dateFin) {
+        const sy = new Date(dateDebut).getFullYear();
+        const ey = parseInt(dateFin);
+        dureeTotaleAns = ey - sy;
+      }
+
+      emprunts.push({
+        nomPret: str(r[0])!,
+        societe,
+        banque: str(r[2]) || "",
+        comptaNo: str(r[3]),
+        montant: num(r[4]) || 0,
+        taux: num(r[5]) || 0,
+        dateDebut,
+        echeanceAnnuelle2025: null,
+        capitalRestantDu2025: num(r[8]),
+        echeanceAnnuelle2026: num(r[7]),
+        capitalRestantDu2026: num(r[9]),
+        dureeTotaleAns,
+        dateFin,
+      });
+    }
+    return emprunts;
+  }
+
+  // Year-by-year and old formats
+  const years = isYearByYear
+    ? [2020,2021,2022,2023,2024,2025,2026,2027,2028,2029,2030,2031,2032,2033,2034,2035,2036,2037,2038,2039,2040,2041,2042,2043]
+    : [2020,2021,2022,2023,2024,2025];
+  const echCols = isYearByYear
+    ? [9,   11,  13,  15,  17,  19,  21,  23,  25,  27,  29,  31,  33,  35,  37,  39,  41,  43,  45,  47,  49,  51,  53,  55]
+    : [7,  9,   11,  13,  15,  17];
 
   for (let i = startRow; i < raw.length; i++) {
     const r = raw[i];
@@ -459,17 +655,15 @@ function parseEmpruntsDetailles(wb: XLSX.WorkBook): EmpruntDetailRow[] {
     const societe = str(r[1]) || "";
     if (societe.includes("HOCHE") || societe.includes("MADELI") || societe.includes("ARAGO")) continue;
 
-    // Derive loan end date from the last year with a significant payment (> 100€)
     let lastPaymentYear = 0;
     for (let y = 0; y < years.length && y < echCols.length; y++) {
       const ech = num(r[echCols[y]]) || 0;
       if (ech > 100) lastPaymentYear = years[y];
     }
 
-    const dateDebutCol = isNewFormat ? 7 : 6;
+    const dateDebutCol = isYearByYear ? 7 : 6;
     const dateDebut = excelDateToISO(r[dateDebutCol]);
 
-    // Calculate total loan duration from first payment to last
     let dureeTotaleAns: number | null = null;
     let dateFin: string | null = null;
     if (lastPaymentYear > 0) {
@@ -480,7 +674,7 @@ function parseEmpruntsDetailles(wb: XLSX.WorkBook): EmpruntDetailRow[] {
       }
     }
 
-    if (isNewFormat) {
+    if (isYearByYear) {
       emprunts.push({
         nomPret: str(r[0])!,
         societe,
@@ -757,11 +951,13 @@ export async function importExcelData(): Promise<{
   const fs = await import("fs");
   let xlsxPath: string | undefined;
 
-  // Search directories: __dirname, parent, cwd, and cwd parent
+  // Search directories: __dirname, parent, BDD - AM, cwd, cwd parent
   const searchDirs = [
     __dirname,
     path.resolve(__dirname, ".."),
+    path.resolve(__dirname, "..", "BDD - AM"),
     process.cwd(),
+    path.resolve(process.cwd(), "BDD - AM"),
     path.resolve(process.cwd(), ".."),
   ];
   logger.info("import: searching for Excel", { searchDirs, __dirname, cwd: process.cwd() });
@@ -785,14 +981,25 @@ export async function importExcelData(): Promise<{
   logger.info("import: using Excel file", { path: xlsxPath });
   const wb = XLSX.readFile(xlsxPath);
 
-  // Detect format: new combined "BDD" sheet vs old separate sheets
+  // Detect format: Synthèse_Lots (restructured) vs BDD (old combined) vs separate sheets
+  const hasSyntheseSheet = !!wb.Sheets["Synthèse_Lots"];
   const hasBDDSheet = !!wb.Sheets["BDD"];
   let patrimoineRows: PatrimoineRow[];
   let bauxRows: BailRow[];
   let financementRows: FinancementRow[];
   let detentionRows: DetentionRow[];
+  let formatLabel: string;
 
-  if (hasBDDSheet) {
+  if (hasSyntheseSheet) {
+    formatLabel = "Synthèse_Lots";
+    logger.info("import: detected Synthèse_Lots format (restructured)");
+    const result = parseSyntheseLots(wb);
+    patrimoineRows = result.patrimoine;
+    bauxRows = result.baux;
+    financementRows = result.financement;
+    detentionRows = result.detention;
+  } else if (hasBDDSheet) {
+    formatLabel = "BDD combined";
     logger.info("import: detected combined BDD sheet format");
     const bddResult = parseBDDSheet(wb);
     patrimoineRows = bddResult.patrimoine;
@@ -800,6 +1007,7 @@ export async function importExcelData(): Promise<{
     financementRows = bddResult.financement;
     detentionRows = bddResult.detention;
   } else {
+    formatLabel = "separate sheets";
     logger.info("import: using separate sheets format (old)");
     patrimoineRows = parsePatrimoine(wb);
     bauxRows = parseBaux(wb);
@@ -807,7 +1015,8 @@ export async function importExcelData(): Promise<{
     detentionRows = parseDetention(wb);
   }
 
-  // Emprunts: works for both old ("Emprunts Détaillés") and new ("Emprunts") sheets
+  // Emprunts: works for old ("Emprunts Détaillés"), mid ("Emprunts" year-by-year),
+  // and new synthèse format ("Emprunts" with simple columns)
   const empruntRows = parseEmpruntsDetailles(wb);
   // P&L charges: works for both "P&L xxx" and "SCI xxx" sheet names
   const plCharges = parsePLCharges(wb);
@@ -817,7 +1026,7 @@ export async function importExcelData(): Promise<{
   const { financials: synthFinancials, rows: synthRows } = parseSynthFinancials(wb);
 
   logger.info("import: parsed sheets", {
-    format: hasBDDSheet ? "BDD combined" : "separate sheets",
+    format: formatLabel,
     patrimoine: patrimoineRows.length,
     baux: bauxRows.length,
     financement: financementRows.length,
@@ -1036,24 +1245,27 @@ export async function importExcelData(): Promise<{
       // Financement data for this actif
       const finRows = financementBySciAddr[key] || [];
       const firstFin = finRows[0];
-      const vo = firstFin?.vo;
-      const vnc = firstFin?.vnc;
+      const vo = firstFin?.vo || rows.find(r => r.vo)?.vo;
+      const vnc = firstFin?.vnc || rows.find(r => r.vnc)?.vnc;
 
-      // Charges from P&L, distributed evenly across actifs of same SCI
-      // NET of refacturations — charges récupérables are billed back to tenants,
-      // so the net cash impact is (charges brutes - refacturations).
-      // We distribute the refacturation proportionally across charge categories.
-      const sciCharges = chargesBySci[sciName];
-      const actifCount = actifCountBySci[sciName] || 1;
+      // Charges: prefer per-lot data from Synthèse_Lots, fallback to P&L
       let taxeFonciere = 0, assurance = 0, chargesCopro = 0;
-      if (sciCharges) {
-        const totalBrut = sciCharges.taxeFonciere + sciCharges.assurance + sciCharges.chargesCopro;
-        const refactRatio = totalBrut > 0 ? Math.min(sciCharges.refacturations / totalBrut, 1) : 0;
-        // Net charges = brut × (1 - ratio de refacturation)
-        const netFactor = (1 - refactRatio) / actifCount;
-        taxeFonciere = sciCharges.taxeFonciere * netFactor;
-        assurance = sciCharges.assurance * netFactor;
-        chargesCopro = sciCharges.chargesCopro * netFactor;
+      const lotTaxe = rows.reduce((s, r) => s + (r.taxeFonciere || 0), 0);
+      const lotChargesReelles = rows.reduce((s, r) => s + (r.chargesReelles || 0), 0);
+      if (lotTaxe > 0 || lotChargesReelles > 0) {
+        taxeFonciere = lotTaxe;
+        chargesCopro = lotChargesReelles;
+      } else {
+        const sciCharges = chargesBySci[sciName];
+        const actifCount = actifCountBySci[sciName] || 1;
+        if (sciCharges) {
+          const totalBrut = sciCharges.taxeFonciere + sciCharges.assurance + sciCharges.chargesCopro;
+          const refactRatio = totalBrut > 0 ? Math.min(sciCharges.refacturations / totalBrut, 1) : 0;
+          const netFactor = (1 - refactRatio) / actifCount;
+          taxeFonciere = sciCharges.taxeFonciere * netFactor;
+          assurance = sciCharges.assurance * netFactor;
+          chargesCopro = sciCharges.chargesCopro * netFactor;
+        }
       }
 
       const isCopro = first.copro === "oui";
@@ -1215,10 +1427,13 @@ export async function importExcelData(): Promise<{
         const trimestreRef = parsed.trimestre;
         const valeurIndice = parsed.valeur;
 
-        // Distribute P&L dépôt de garantie across lots of this SCI
-        const sciDgTotal = dgBySci[b.sciName] || 0;
-        const sciBauxCount = bauxRows.filter((x) => x.sciName === b.sciName && x.locataire).length || 1;
-        const depotGarantie = sciDgTotal > 0 ? Math.round(sciDgTotal / sciBauxCount) : null;
+        // Per-lot DG from Synthèse_Lots (preferred), fallback to P&L-derived pro rata
+        let depotGarantie = b.depotGarantie;
+        if (!depotGarantie) {
+          const sciDgTotal = dgBySci[b.sciName] || 0;
+          const sciBauxCount = bauxRows.filter((x) => x.sciName === b.sciName && x.locataire).length || 1;
+          depotGarantie = sciDgTotal > 0 ? Math.round(sciDgTotal / sciBauxCount) : null;
+        }
 
         // Insert into unified gl_baux with scope='am'.
         // Modèle loyer durable :
@@ -1262,6 +1477,7 @@ export async function importExcelData(): Promise<{
             [
               b.soumisTVA === "oui" ? "Soumis à TVA" : null,
               b.indiceRevalorisation ? `Indice source Excel: ${b.indiceRevalorisation.trim()}` : null,
+              b.franchise ? `Franchise: ${b.franchise}` : null,
             ].filter(Boolean).join("\n") || null,
           ]
         );
