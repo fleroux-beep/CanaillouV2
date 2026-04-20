@@ -16,9 +16,11 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 /**
  * Extract and validate a UUID :id param. Returns the id string.
  * If `res` is provided and the id is invalid, sends a 400 response and returns "".
+ * Pass `paramName` to read a route param other than ":id" (e.g. ":actifId").
  */
-export function paramId(req: any, res?: any): string {
-  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+export function paramId(req: any, res?: any, paramName: string = "id"): string {
+  const raw = req.params[paramName];
+  const id = Array.isArray(raw) ? raw[0] : raw;
   if (res && !UUID_RE.test(id)) {
     res.status(400).json({ error: "ID invalide" });
     return "";

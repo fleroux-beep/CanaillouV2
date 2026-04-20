@@ -10,6 +10,7 @@ import { requireAuth, requireWriteAdmin } from "../middleware/auth";
 import { validate, refTauxEmpruntSchema, refValeursVenalesSchema, refValeursLocativesSchema, refTauxCapitalisationSchema } from "../lib/validation";
 import { logger } from "../lib/logger";
 import { rateLimit } from "../lib/rate-limit";
+import { paramId } from "../lib/crud-factory";
 
 const syncLimiter = rateLimit(3, 30 * 60 * 1000, "sync-marche"); // 3 per 30 min
 const analyseIALimiter = rateLimit(5, 10 * 60 * 1000, "analyse-ia"); // 5 per 10 min
@@ -17,8 +18,6 @@ import { syncDVF } from "../lib/sync-dvf";
 import { syncANIL } from "../lib/sync-anil";
 import { computeTauxCapiFromRefs } from "../lib/compute-taux-capi";
 import { mapActifTypeToSearch } from "../lib/scrapers/base";
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function registerMarketCrud(
   app: Express,
@@ -48,8 +47,8 @@ function registerMarketCrud(
 
   app.patch(`/api/am/marche/${path}/:id`, requireWriteAdmin, validate(schema.partial()), async (req: any, res: any) => {
     try {
-      const id = req.params.id;
-      if (!UUID_RE.test(id)) return res.status(400).json({ error: "ID invalide" });
+      const id = paramId(req, res);
+      if (!id) return;
       const rows = await db.update(table).set(req.body).where(eq(table.id, id)).returning() as any[];
       if (rows.length === 0) return res.status(404).json({ error: "Non trouvé" });
       res.json(rows[0]);
@@ -61,8 +60,8 @@ function registerMarketCrud(
 
   app.delete(`/api/am/marche/${path}/:id`, requireWriteAdmin, async (req: any, res: any) => {
     try {
-      const id = req.params.id;
-      if (!UUID_RE.test(id)) return res.status(400).json({ error: "ID invalide" });
+      const id = paramId(req, res);
+      if (!id) return;
       await db.delete(table).where(eq(table.id, id));
       res.json({ ok: true });
     } catch (error: any) {
@@ -376,8 +375,8 @@ Règles :
   // ─── Analyse IA : un seul actif ─────────────────────────────
   app.post("/api/am/marche/analyse-ia/:actifId", requireWriteAdmin, analyseIALimiter, async (req: any, res: any) => {
     try {
-      const actifId = req.params.actifId;
-      if (!UUID_RE.test(actifId)) return res.status(400).json({ error: "ID invalide" });
+      const actifId = paramId(req, res, "actifId");
+      if (!actifId) return;
 
       const [actifRow] = await db.select().from(actifs).where(eq(actifs.id, actifId));
       if (!actifRow) return res.status(404).json({ error: "Actif non trouvé" });
@@ -623,8 +622,8 @@ Règles :
 
   app.get("/api/am/marche/etude/:actifId", requireAuth, async (req: any, res: any) => {
     try {
-      const actifId = req.params.actifId;
-      if (!UUID_RE.test(actifId)) return res.status(400).json({ error: "ID invalide" });
+      const actifId = paramId(req, res, "actifId");
+      if (!actifId) return;
 
       const [actifRow] = await db.select().from(actifs).where(eq(actifs.id, actifId));
       if (!actifRow) return res.status(404).json({ error: "Actif non trouvé" });
