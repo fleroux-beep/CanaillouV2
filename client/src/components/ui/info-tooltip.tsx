@@ -28,9 +28,6 @@ export function InfoTooltip({ metricKey, metric: customMetric, children, classNa
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const triggerRef = useRef<HTMLSpanElement>(null);
 
-  const def = customMetric || (metricKey ? glossary[metricKey] : undefined);
-  if (!def) return <>{children}</>;
-
   const updatePosition = useCallback(() => {
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
@@ -39,6 +36,9 @@ export function InfoTooltip({ metricKey, metric: customMetric, children, classNa
       left: Math.max(8, rect.left + window.scrollX),
     });
   }, []);
+
+  const def = customMetric || (metricKey ? glossary[metricKey] : undefined);
+  if (!def) return <>{children}</>;
 
   const handleEnter = () => {
     clearTimeout(timeoutRef.current);

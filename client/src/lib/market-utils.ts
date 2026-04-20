@@ -79,7 +79,7 @@ export function findRefTauxEmprunt(
   const duree = dureeAns || 20;
 
   // Exact match first
-  let match = refs.find((r) => r.typeActif.toLowerCase() === type && r.dureeAns === duree);
+  const match = refs.find((r) => r.typeActif.toLowerCase() === type && r.dureeAns === duree);
   if (match) return match;
 
   // Same type, closest duration
