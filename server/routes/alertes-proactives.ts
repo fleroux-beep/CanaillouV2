@@ -15,7 +15,7 @@ import {
 import { eq, and, isNull, desc } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { logger } from "../lib/logger";
-import { getBailLoyer } from "@shared/utils/bail";
+import { getBailLoyer, isResilie } from "@shared/utils/bail";
 
 // ─── Alert generation engine ───────────────────────────────
 
@@ -51,7 +51,7 @@ async function generateAMAlerts(): Promise<GeneratedAlert[]> {
   ]);
 
   for (const actif of allActifs) {
-    const actifBaux = allBaux.filter((b: any) => b.actifId === actif.id && b.statut !== "résilié");
+    const actifBaux = allBaux.filter((b: any) => b.actifId === actif.id && !isResilie(b.statut));
     const actifLots = allLots.filter((l: any) => l.actifId === actif.id);
     const actifEmprunts = allEmprunts.filter((e: any) => e.actifId === actif.id);
     const sciEmprunts = allEmprunts.filter((e: any) => e.sciId === actif.sciId && !e.actifId);

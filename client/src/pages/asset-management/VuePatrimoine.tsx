@@ -19,7 +19,7 @@ import LotsPage from "./Lots";
 import BauxAMPage from "./Baux";
 import LocatairesAMPage from "./Locataires";
 import CartePage from "./Carte";
-import { getBailLoyer } from "@shared/utils/bail";
+import { getBailLoyer, isResilie } from "@shared/utils/bail";
 
 interface SCI { id: string; nom: string; }
 interface Actif { id: string; nom: string; sciId?: string; ville?: string; type?: string; surface?: string; prixAcquisition?: string; archived?: boolean; }
@@ -110,7 +110,7 @@ function ArbrePatrimoine() {
                     )}
                     {sciActifs.map((actif) => {
                       const actifLots = activeLots.filter((l) => l.actifId === actif.id);
-                      const actifBaux = baux.filter((b) => b.actifId === actif.id && b.statut !== "résilié");
+                      const actifBaux = baux.filter((b) => b.actifId === actif.id && !isResilie(b.statut));
                       const actifKey = `actif-${actif.id}`;
                       const actifExpanded = expanded[actifKey] !== false;
 
@@ -181,7 +181,7 @@ function ArbrePatrimoine() {
                                           </Badge>
                                         )}
                                         {(() => {
-                                          const bail = lotBaux.find((b) => !b.archived && b.statut !== "résilié");
+                                          const bail = lotBaux.find((b) => !b.archived && !isResilie(b.statut));
                                           const annuel = bail ? getBailLoyer(bail) : 0;
                                           return annuel > 0 ? (
                                             <span className="text-xs font-medium ml-auto">

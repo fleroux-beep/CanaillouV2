@@ -21,7 +21,7 @@ import {
   TrendingUp,
   FileText,
 } from "lucide-react";
-import { getBailLoyer } from "@shared/utils/bail";
+import { getBailLoyer, isResilie } from "@shared/utils/bail";
 
 interface Actif {
   id: string;
@@ -126,7 +126,7 @@ export default function ActifDetailPage() {
 
   const getLoyerMensuelLot = (lotId: string): number => {
     const bail = actifBaux.find(
-      (b) => b.lotId === lotId && !b.archived && b.statut !== "résilié",
+      (b) => b.lotId === lotId && !b.archived && !isResilie(b.statut),
     );
     if (!bail) return 0;
     const annuel = getBailLoyer(bail);

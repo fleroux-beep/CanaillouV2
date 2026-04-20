@@ -24,7 +24,7 @@ import {
   BarChart3, Shield, Wallet, CircleDollarSign, Activity,
   AlertTriangle, Layers, ArrowLeft,
 } from "lucide-react";
-import { getBailLoyer } from "@shared/utils/bail";
+import { getBailLoyer, isResilie } from "@shared/utils/bail";
 
 const COLORS = ["#3b82f6", "#8b5cf6", "#06b6d4", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#6366f1"];
 
@@ -86,7 +86,7 @@ function computeActifKpi(actif: any, allBaux: any[], allLots: any[], allEmprunts
   const serviceDette = getServiceDette(actifEmprunts) + getServiceDette(sciEmprunts) / nbActifsInSci;
   const cashFlowNet = noi - serviceDette;
   const lotsLoues = actifLots.filter((l: any) => normLoue(l.statut)).length;
-  const actifBaux = allBaux.filter((b: any) => b.actifId === actif.id && !b.archived && b.statut !== "résilié");
+  const actifBaux = allBaux.filter((b: any) => b.actifId === actif.id && !b.archived && !isResilie(b.statut));
 
   return {
     label: actif.nom || actif.adresse || "—",
@@ -382,7 +382,7 @@ export default function AMDashboard() {
 
   const selectedActifBaux = useMemo(() => {
     if (!selectedActifId) return [];
-    return baux.filter((b: any) => b.actifId === selectedActifId && !b.archived && b.statut !== "résilié");
+    return baux.filter((b: any) => b.actifId === selectedActifId && !b.archived && !isResilie(b.statut));
   }, [selectedActifId, baux]);
 
   // ─── Chart data ────────────────────────────────────────────────
@@ -647,7 +647,7 @@ export default function AMDashboard() {
                             {selectedActifLots.map((lot: any) => {
                               // Loyer = dérivé du bail rattaché au lot (source unique).
                               const bailLot = selectedActifBaux.find(
-                                (b: any) => b.lotId === lot.id && b.statut !== "résilié" && !b.archived,
+                                (b: any) => b.lotId === lot.id && !isResilie(b.statut) && !b.archived,
                               );
                               const annuelLot = bailLot
                                 ? getBailLoyer(bailLot)

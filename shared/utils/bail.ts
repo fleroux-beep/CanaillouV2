@@ -21,6 +21,14 @@ function toNumberSafe(v: string | number | null | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/**
+ * Accent-insensitive check for "résilié" / "resilie" / "Résilié" etc.
+ */
+export function isResilie(statut: string | null | undefined): boolean {
+  if (!statut) return false;
+  return statut.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === "resilie";
+}
+
 export function getBailLoyer(b: BailLoyerFields | null | undefined): number {
   if (!b) return 0;
   if (b.forceManual) {

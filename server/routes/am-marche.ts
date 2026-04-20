@@ -11,7 +11,7 @@ import { validate, refTauxEmpruntSchema, refValeursVenalesSchema, refValeursLoca
 import { logger } from "../lib/logger";
 import { rateLimit } from "../lib/rate-limit";
 import { paramId } from "../lib/crud-factory";
-import { getBailLoyer } from "@shared/utils/bail";
+import { getBailLoyer, isResilie } from "@shared/utils/bail";
 
 const syncLimiter = rateLimit(3, 30 * 60 * 1000, "sync-marche"); // 3 per 30 min
 const analyseIALimiter = rateLimit(5, 10 * 60 * 1000, "analyse-ia"); // 5 per 10 min
@@ -212,7 +212,7 @@ export function registerMarcheRoutes(app: Express) {
     const lotsOccupes = actifLots.filter((l: any) => l.statut === "loué").length;
 
     // Bail details with locataire names
-    const bauxDetail = actifBaux.filter((b: any) => b.statut !== "résilié").map((b: any) => {
+    const bauxDetail = actifBaux.filter((b: any) => !isResilie(b.statut)).map((b: any) => {
       const loc = b.locataireId ? allLocataires.find((l: any) => l.id === b.locataireId) : null;
       return {
         locataire: loc?.nom || null,
@@ -495,7 +495,7 @@ Règles :
   /** Build bail summaries for an asset */
   function buildBauxSummary(actifBaux: any[], allLocataires: any[]) {
     return actifBaux
-      .filter((b: any) => b.statut !== "résilié")
+      .filter((b: any) => !isResilie(b.statut))
       .map((b: any) => {
         const loc = b.locataireId ? allLocataires.find((l: any) => l.id === b.locataireId) : null;
         const loyerAnn = getBailLoyer(b);

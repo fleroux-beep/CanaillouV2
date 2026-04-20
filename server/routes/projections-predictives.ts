@@ -13,7 +13,7 @@ import type { Express } from "express";
 import { db } from "../db";
 import { actifs, lots, bauxGL, emprunts, scis } from "@shared/schema";
 import { eq, and, isNull } from "drizzle-orm";
-import { getBailLoyer } from "@shared/utils/bail";
+import { getBailLoyer, isResilie } from "@shared/utils/bail";
 import { requireAuth } from "../middleware/auth";
 import { logger } from "../lib/logger";
 
@@ -79,7 +79,7 @@ export function registerProjectionsPredictivesRoutes(app: Express) {
       for (const actif of allActifs) {
         const sci = allScis.find((s: any) => s.id === actif.sciId);
         const actifLots = allLots.filter((l: any) => l.actifId === actif.id);
-        const actifBaux = allBaux.filter((b: any) => b.actifId === actif.id && b.statut !== "résilié");
+        const actifBaux = allBaux.filter((b: any) => b.actifId === actif.id && !isResilie(b.statut));
         const actifEmprunts = allEmprunts.filter((e: any) => e.actifId === actif.id);
         const sciEmprunts = allEmprunts.filter((e: any) => e.sciId === actif.sciId && !e.actifId);
         const nbActifsInSci = allActifs.filter((a: any) => a.sciId === actif.sciId).length || 1;

@@ -10,7 +10,7 @@ import { formatCurrency, formatNumber } from "../../lib/utils";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { InfoTooltip } from "../../components/ui/info-tooltip";
-import { getBailLoyer } from "@shared/utils/bail";
+import { getBailLoyer, isResilie } from "@shared/utils/bail";
 
 interface Lot { id: string; actifId: string; designation: string; type?: string; etage?: string; surface?: string; statut?: string; notes?: string; archived?: boolean; }
 interface Actif { id: string; nom: string; }
@@ -33,7 +33,7 @@ export default function LotsPage() {
   // du premier bail actif rattaché au lot (si présent).
   const getLoyerMensuelLot = (lotId: string): number => {
     const bail = baux.find(
-      (b) => b.lotId === lotId && !b.archived && b.statut !== "résilié",
+      (b) => b.lotId === lotId && !b.archived && !isResilie(b.statut),
     );
     if (!bail) return 0;
     const annuel = getBailLoyer(bail);

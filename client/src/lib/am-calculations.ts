@@ -66,8 +66,8 @@ export interface AMLot {
  * Loyer annuel HT d'un bail. Alias historique — la vraie implémentation
  * vit dans `shared/utils/bail.ts` pour être partagée avec le serveur.
  */
-import { getBailLoyer } from "@shared/utils/bail";
-export { getBailLoyer } from "@shared/utils/bail";
+import { getBailLoyer, isResilie } from "@shared/utils/bail";
+export { getBailLoyer, isResilie } from "@shared/utils/bail";
 
 export function getBailLoyerAnnuel(b: AMBail | null | undefined): number {
   return getBailLoyer(b);
@@ -121,7 +121,7 @@ export interface AMSCI {
 export function getLoyerAnnuelActif(actif: AMActif, baux: AMBail[], _lots?: AMLot[]): number {
   if (!actif || !baux) return 0;
   return baux
-    .filter((b) => b.actifId === actif.id && b.statut !== "résilié" && !b.archived)
+    .filter((b) => b.actifId === actif.id && !isResilie(b.statut) && !b.archived)
     .reduce((sum, b) => sum + getBailLoyerAnnuel(b), 0);
 }
 

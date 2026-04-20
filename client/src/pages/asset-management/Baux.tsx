@@ -10,7 +10,7 @@ import { formatCurrency } from "../../lib/utils";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { InfoTooltip } from "../../components/ui/info-tooltip";
-import { getBailLoyer } from "@shared/utils/bail";
+import { getBailLoyer, isResilie } from "@shared/utils/bail";
 
 interface BailAM {
   id: string;
@@ -105,7 +105,7 @@ export default function BauxAMPage() {
       key: "statut", label: "Statut", sortable: true,
       render: (r) => {
         if (!r.statut) return "—";
-        const variant = r.statut === "actif" ? "success" : r.statut === "expiré" ? "warning" : r.statut === "résilié" ? "danger" : "default";
+        const variant = r.statut === "actif" ? "success" : r.statut === "expiré" ? "warning" : isResilie(r.statut) ? "danger" : "default";
         return <Badge variant={variant}>{r.statut}</Badge>;
       },
     },
