@@ -1373,7 +1373,7 @@ export async function importExcelData(): Promise<{
         continue;
       }
 
-      // Priority: BDD loyerActuelHC (col 21) → P&L 2026 rent by matching lot label → BDD loyerDepart
+      // Priority: BDD loyerActuelHC (col 24) → P&L 2026 rent by matching lot label → BDD loyerDepart
       let loyerActuel = b.loyerActuelHC;
       if (!loyerActuel && b.destination) {
         const sciRents = lotRentsBySci[b.sciName] || [];
@@ -1387,6 +1387,18 @@ export async function importExcelData(): Promise<{
         }
       }
       if (!loyerActuel) loyerActuel = b.loyerAnnuelDepart;
+
+      // Detect partial-year pro-rata: if loyerActuelHC < 50% of loyerDepart AND
+      // bail starts in current/next year, it's a prorated amount for a partial year.
+      // Use the contractual annual rent (loyerDepart) as loyerHTActu instead.
+      if (b.loyerActuelHC && b.loyerAnnuelDepart && b.loyerActuelHC < b.loyerAnnuelDepart * 0.5 && b.dateDebut) {
+        const startYear = new Date(b.dateDebut).getFullYear();
+        const thisYear = new Date().getFullYear();
+        if (startYear >= thisYear - 1) {
+          logger.info(`import: partial-year pro-rata detected for ${b.destination}: loyerActuel ${b.loyerActuelHC} < 50% of loyerDepart ${b.loyerAnnuelDepart} — using loyerDepart as current rent`);
+          loyerActuel = b.loyerAnnuelDepart;
+        }
+      }
 
       // Modèle durable :
       //  - loyer_base_ht = loyer de signature (loyerAnnuelDepart). Source de
