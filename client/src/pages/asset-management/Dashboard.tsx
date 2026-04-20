@@ -24,6 +24,7 @@ import {
   BarChart3, Shield, Wallet, CircleDollarSign, Activity,
   AlertTriangle, Layers, ArrowLeft,
 } from "lucide-react";
+import { getBailLoyer, isResilie } from "@shared/utils/bail";
 
 const COLORS = ["#3b82f6", "#8b5cf6", "#06b6d4", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#6366f1"];
 
@@ -85,7 +86,7 @@ function computeActifKpi(actif: any, allBaux: any[], allLots: any[], allEmprunts
   const serviceDette = getServiceDette(actifEmprunts) + getServiceDette(sciEmprunts) / nbActifsInSci;
   const cashFlowNet = noi - serviceDette;
   const lotsLoues = actifLots.filter((l: any) => normLoue(l.statut)).length;
-  const actifBaux = allBaux.filter((b: any) => b.actifId === actif.id && !b.archived && b.statut !== "résilié");
+  const actifBaux = allBaux.filter((b: any) => b.actifId === actif.id && !b.archived && !isResilie(b.statut));
 
   return {
     label: actif.nom || actif.adresse || "—",
@@ -381,7 +382,7 @@ export default function AMDashboard() {
 
   const selectedActifBaux = useMemo(() => {
     if (!selectedActifId) return [];
-    return baux.filter((b: any) => b.actifId === selectedActifId && !b.archived && b.statut !== "résilié");
+    return baux.filter((b: any) => b.actifId === selectedActifId && !b.archived && !isResilie(b.statut));
   }, [selectedActifId, baux]);
 
   // ─── Chart data ────────────────────────────────────────────────
@@ -646,10 +647,10 @@ export default function AMDashboard() {
                             {selectedActifLots.map((lot: any) => {
                               // Loyer = dérivé du bail rattaché au lot (source unique).
                               const bailLot = selectedActifBaux.find(
-                                (b: any) => b.lotId === lot.id && b.statut !== "résilié" && !b.archived,
+                                (b: any) => b.lotId === lot.id && !isResilie(b.statut) && !b.archived,
                               );
                               const annuelLot = bailLot
-                                ? Number(bailLot.loyerHTActu || bailLot.loyerBaseHT || 0)
+                                ? getBailLoyer(bailLot)
                                 : 0;
                               const mensuelLot = annuelLot > 0 ? Math.round((annuelLot / 12) * 100) / 100 : 0;
                               return (
@@ -694,7 +695,7 @@ export default function AMDashboard() {
                           </thead>
                           <tbody>
                             {selectedActifBaux.map((bail: any) => {
-                              const loyerAn = Number(bail.loyerHTActu || bail.loyerBaseHT || 0);
+                              const loyerAn = getBailLoyer(bail);
                               return (
                                 <tr key={bail.id} className="border-t hover:bg-muted/20">
                                   <td className="px-4 py-2 font-medium">{bail.typeBail || "—"}</td>

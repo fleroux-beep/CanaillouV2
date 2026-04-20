@@ -134,7 +134,7 @@ export default function TresoreriePage() {
   const toggleMonth = (key: string) => {
     setExpandedMonths((prev) => {
       const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
+      if (next.has(key)) next.delete(key); else next.add(key);
       return next;
     });
   };

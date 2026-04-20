@@ -15,14 +15,20 @@ import { logger } from "../lib/logger";
 import fs from "fs";
 import path from "path";
 
+const ALLOWED_BAIL_PDF_MIMES = [
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+];
 const upload = multer({
   dest: "/tmp/canaillou-uploads/",
   limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB
   fileFilter: (_req, file, cb) => {
-    if (file.mimetype === "application/pdf" || file.mimetype.startsWith("image/")) {
+    if (ALLOWED_BAIL_PDF_MIMES.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error("Seuls les fichiers PDF et images sont acceptés"));
+      cb(new Error("Seuls les fichiers PDF/PNG/JPEG/WebP sont acceptés"));
     }
   },
 });

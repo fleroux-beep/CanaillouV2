@@ -7,7 +7,7 @@ export function useCrud<T extends { id: string }>(basePath: string, label: strin
   const { toast } = useToast();
   const queryKey = [basePath];
 
-  const { data = [], isLoading } = useQuery<T[]>({
+  const { data = [], isLoading, isError, error } = useQuery<T[]>({
     queryKey,
     queryFn: () => apiRequest(basePath),
     staleTime: 30 * 1000, // 30 seconds — avoid excessive refetches
@@ -52,6 +52,8 @@ export function useCrud<T extends { id: string }>(basePath: string, label: strin
   return {
     data,
     isLoading,
+    isError,
+    error,
     create: createMutation.mutateAsync,
     update: updateMutation.mutateAsync,
     remove: deleteMutation.mutateAsync,

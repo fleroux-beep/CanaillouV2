@@ -19,6 +19,7 @@ import LotsPage from "./Lots";
 import BauxAMPage from "./Baux";
 import LocatairesAMPage from "./Locataires";
 import CartePage from "./Carte";
+import { getBailLoyer, isResilie } from "@shared/utils/bail";
 
 interface SCI { id: string; nom: string; }
 interface Actif { id: string; nom: string; sciId?: string; ville?: string; type?: string; surface?: string; prixAcquisition?: string; archived?: boolean; }
@@ -109,14 +110,14 @@ function ArbrePatrimoine() {
                     )}
                     {sciActifs.map((actif) => {
                       const actifLots = activeLots.filter((l) => l.actifId === actif.id);
-                      const actifBaux = baux.filter((b) => b.actifId === actif.id && b.statut !== "résilié");
+                      const actifBaux = baux.filter((b) => b.actifId === actif.id && !isResilie(b.statut));
                       const actifKey = `actif-${actif.id}`;
                       const actifExpanded = expanded[actifKey] !== false;
 
                       // Financial summary
                       const lotsLoues = actifLots.filter((l) => l.statut?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === "loue").length;
                       const loyerTotal = actifBaux.reduce(
-                        (s, b) => s + Number(b.loyerHTActu || b.loyerBaseHT || 0),
+                        (s, b) => s + getBailLoyer(b),
                         0,
                       );
                       const occupation = actifLots.length > 0 ? Math.round((lotsLoues / actifLots.length) * 100) : (actifBaux.length > 0 ? 100 : 0);
@@ -180,8 +181,8 @@ function ArbrePatrimoine() {
                                           </Badge>
                                         )}
                                         {(() => {
-                                          const bail = lotBaux.find((b) => !b.archived && b.statut !== "résilié");
-                                          const annuel = bail ? Number(bail.loyerHTActu || bail.loyerBaseHT || 0) : 0;
+                                          const bail = lotBaux.find((b) => !b.archived && !isResilie(b.statut));
+                                          const annuel = bail ? getBailLoyer(bail) : 0;
                                           return annuel > 0 ? (
                                             <span className="text-xs font-medium ml-auto">
                                               {formatCurrency(Math.round((annuel / 12) * 100) / 100)}/mois
@@ -210,7 +211,7 @@ function ArbrePatrimoine() {
                                         <span>{locataireMap[bail.locataireId || ""] || "Bail sans locataire"}</span>
                                         {bail.typeBail && <Badge variant="outline" className="text-xs">{bail.typeBail}</Badge>}
                                         {(() => {
-                                          const annuel = Number(bail.loyerHTActu || bail.loyerBaseHT || 0);
+                                          const annuel = getBailLoyer(bail);
                                           return annuel > 0 ? (
                                             <span className="text-xs font-medium ml-auto">
                                               {formatCurrency(Math.round((annuel / 12) * 100) / 100)}/mois

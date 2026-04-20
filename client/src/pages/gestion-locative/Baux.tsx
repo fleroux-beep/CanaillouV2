@@ -13,6 +13,7 @@ import { formatCurrency } from "../../lib/utils";
 import { Plus, Pencil, Trash2, MapPin } from "lucide-react";
 import { motion } from "framer-motion";
 import { InfoTooltip } from "../../components/ui/info-tooltip";
+import { getBailLoyer } from "@shared/utils/bail";
 import type { BailGL as Bail, Bailleur } from "../../types";
 
 const empty: Partial<Bail> = { nom: "" };
@@ -32,9 +33,17 @@ export default function BauxGLPage() {
     { key: "nom", label: "Site", sortable: true, render: (r) => <span className="font-medium">{r.nom}</span> },
     { key: "ville", label: "Ville", sortable: true, render: (r) => r.ville ? <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3 text-muted-foreground" />{r.ville}</span> : "—" },
     { key: "bailleurId", label: "Bailleur", sortable: true, render: (r) => r.bailleurId ? bailleurMap[r.bailleurId] || "—" : "—", exportValue: (r) => r.bailleurId ? bailleurMap[r.bailleurId] || "" : "" },
-    { key: "loyerBaseHT", label: <InfoTooltip metricKey="loyerHT">Loyer HT</InfoTooltip>, exportLabel: "Loyer HT", align: "right", sortable: true, render: (r) => (r.loyerHTActu || r.loyerBaseHT) ? formatCurrency(r.loyerHTActu || r.loyerBaseHT) : "—" },
+    { key: "loyerBaseHT", label: <InfoTooltip metricKey="loyerHT">Loyer HT</InfoTooltip>, exportLabel: "Loyer HT", align: "right", sortable: true, render: (r) => {
+      const loyer = getBailLoyer(r);
+      if (loyer <= 0) return "—";
+      if (r.forceManual && Number(r.loyerManuelOverride || 0) > 0) {
+        return <span title={`Forcé manuellement — base: ${formatCurrency(r.loyerBaseHT || 0)}`}>{formatCurrency(loyer)}<span className="ml-1 text-[10px] text-amber-600">M</span></span>;
+      }
+      const indexed = r.loyerHTActu && Number(r.loyerHTActu) !== Number(r.loyerBaseHT || 0);
+      return <span title={indexed ? `Base: ${formatCurrency(r.loyerBaseHT || 0)} — indexé auto` : undefined}>{formatCurrency(loyer)}{indexed ? <span className="ml-1 text-[10px] text-emerald-600">↗</span> : null}</span>;
+    }},
     { key: "loyerTTC", label: <InfoTooltip metricKey="loyerTTC">Loyer TTC</InfoTooltip>, exportLabel: "Loyer TTC", align: "right", sortable: true, render: (r) => {
-      const ht = Number(r.loyerHTActu || r.loyerBaseHT || 0);
+      const ht = getBailLoyer(r);
       if (ht <= 0) return "—";
       const tva = Number(r.tvaTaux || DEFAULT_TVA_RATE);
       if (r.taxe === "TVA") {
@@ -129,6 +138,38 @@ export default function BauxGLPage() {
             <FormField label="Taux TVA" name="tvaTaux" value={form.tvaTaux} onChange={onChange} type="number" suffix="%" />
           )}
         </FormGrid>
+        <div className="mt-5 rounded-xl border border-amber-200/60 bg-amber-50/50 p-4 dark:border-amber-900/40 dark:bg-amber-950/20">
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              checked={!!form.forceManual}
+              onChange={(e) => setForm((f) => ({ ...f, forceManual: e.target.checked }))}
+              className="mt-1 h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+            />
+            <div className="flex-1">
+              <div className="text-sm font-semibold text-foreground">
+                Forcer la valeur du loyer (gestion manuelle)
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                Activez uniquement en cas de renégociation ponctuelle, réduction
+                commerciale ou dérogation temporaire. L'indexation INSEE automatique
+                n'écrasera pas ce bail tant que cette option est cochée.
+              </div>
+            </div>
+          </label>
+          {form.forceManual && (
+            <div className="mt-4">
+              <FormField
+                label="Loyer HT annuel forcé"
+                name="loyerManuelOverride"
+                value={form.loyerManuelOverride}
+                onChange={onChange}
+                type="number"
+                suffix="EUR"
+              />
+            </div>
+          )}
+        </div>
         <h3 className="mt-5 mb-3 text-sm font-semibold text-muted-foreground uppercase">Indexation</h3>
         <FormGrid cols={4}>
           <FormField label="Indice de référence" name="indiceReference" value={form.indiceReference} onChange={onChange} options={[

@@ -1579,7 +1579,7 @@ export async function importExcelData(): Promise<{
 
     for (const e of empruntRows) {
       // Determine SCI from société code
-      let sciName = SOCIETE_TO_SCI[e.societe];
+      const sciName = SOCIETE_TO_SCI[e.societe];
 
       // AXORIEL/HIO holding level emprunts - skip for now
       if (!sciName) {

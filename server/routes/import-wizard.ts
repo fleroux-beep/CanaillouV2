@@ -83,17 +83,27 @@ const excelUpload = multer({
   },
 });
 
+const ALLOWED_DOC_MIMES = [
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-excel",
+  "text/csv",
+  "application/csv",
+  "message/rfc822",
+  "application/vnd.ms-outlook",
+];
 const docUpload = multer({
   dest: uploadDir,
   limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    if (
-      file.mimetype === "application/pdf" ||
-      file.mimetype.startsWith("image/") ||
-      file.mimetype.includes("spreadsheet") ||
-      file.mimetype.includes("excel") ||
-      file.originalname.match(/\.(pdf|png|jpg|jpeg|xlsx|xls|eml|msg)$/i)
-    ) {
+    const extOk = /\.(pdf|png|jpg|jpeg|webp|xlsx|xls|csv|eml|msg)$/i.test(file.originalname);
+    if (ALLOWED_DOC_MIMES.includes(file.mimetype) && extOk) {
+      cb(null, true);
+    } else if (extOk && file.mimetype === "application/octet-stream") {
+      // Browsers occasionally send octet-stream for known extensions — accept if ext matches
       cb(null, true);
     } else {
       cb(new Error("Type de fichier non supporté"));

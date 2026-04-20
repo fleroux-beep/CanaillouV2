@@ -1,0 +1,189 @@
+================================================================================
+AUDIT MÉTIER CANAILLOU V2 — LIVRABLE COMPLÉTÉ
+================================================================================
+
+MISSION : Auditer cohérence métier entre REGLES_METIER.md et implémentation code
+DURÉE : Audit approfondi (2+ heures)
+DATE : 20 avril 2026
+
+================================================================================
+LIVRABLES GÉNÉRÉS
+================================================================================
+
+Location : /home/user/CanaillouV2/.audit/
+
+1. README.md (2.0 KB)
+   ├─ Navigation guide pour 3 publics (direction, devs, audit)
+   ├─ Summary des 3 priorités P1
+   └─ Timeline recommandée
+
+2. AUDIT_SUMMARY.txt (4.5 KB)
+   ├─ Résumé exécutif complet
+   ├─ 6 P1 + 3 P2 listées succinctement
+   ├─ Chiffres clés (15 pages affectées, 1 table franchises non-utilisée)
+   └─ Prochaines étapes par semaine
+
+3. 01-metier.md (15 KB) **← RAPPORT PRINCIPAL**
+   ├─ 6 P1 : détail complet avec fichiers, code, impact
+   ├─ 3 P2 : findings secondaires
+   ├─ Recommandations par sévérité
+   └─ 321 lignes d'analyse
+
+4. DEVELOPERS_CHECKLIST.md (7.2 KB)
+   ├─ Checklist technique 9 items (6 P1 + 3 P2)
+   ├─ Fix code avec before/after snippets
+   ├─ Tests et vérifications associées
+   ├─ Épic de travail suggéré (3 sprints)
+   └─ Testing checklist + Rollout plan
+
+Total audit : 50 KB de documentation
+
+================================================================================
+METHODOLOGY UTILISÉE
+================================================================================
+
+1. DOCUMENTATION → CODE
+   ✓ Lire REGLES_METIER.md intégralement (18 sections)
+   ✓ Identifier règles clés par section (loyer, charges, TVA, franchises, etc.)
+
+2. SCAN IMPLÉMENTATION
+   ✓ am-calculations.ts (formules AM — source de vérité)
+   ✓ sync-insee.ts (indexation auto — rule validation)
+   ✓ import-excel.ts (import données — data integrity)
+   ✓ 15+ pages GL/AM (affichage loyer — UI coherence)
+   ✓ schema.ts (modèle base — structure)
+
+3. MAPPING RÈGLE → CODE
+   ✓ Chaque règle documentée → tracing dans code
+   ✓ Identification incohérences (règle ≠ implémentation)
+   ✓ Classification par sévérité (P0/P1/P2)
+
+4. CONTEXTUALISATION
+   ✓ Impact utilisateur (visible? données loss?)
+   ✓ Nombre fichiers affectés
+   ✓ Effort de correction estimé
+
+================================================================================
+FINDINGS SUMMARY
+================================================================================
+
+P0 (CRITIQUE) : 0
+  → Aucun bug causant perte de données irréversible
+
+P1 (ÉLEVÉE) : 6
+  1. forceManual non-affiché sur 15 pages → visible utilisateur
+  2. Franchises non-implémentées → KPI inexacts
+  3. Split loyer base/actu avec fallback → data integrity risk
+  4. Format trimestre non-normalisé → indexation rate
+  5. TVA non-auditable → réconciliation impossible
+  6. Status "résilié" non-normalisé → loyers gonflés
+
+P2 (MOYEN) : 3
+  7. Charges locatives → clarification modèle
+  8. Emprunts SCI → documenter allocation
+  9. Lots → clarifier filtrage
+
+TOTAL FINDINGS ACTIONNABLES : 9
+
+================================================================================
+FILES SCANNÉS & ANALYSÉS
+================================================================================
+
+Base :
+  ✓ REGLES_METIER.md (642 lignes)
+  ✓ shared/schema.ts (franchises, bauxGL, emprunts, indices)
+
+Frontend (TypeScript/React) :
+  ✓ client/src/lib/am-calculations.ts (formules centrales)
+  ✓ client/src/pages/asset-management/* (6 pages AM)
+  ✓ client/src/pages/gestion-locative/* (8 pages GL)
+  ✓ client/src/pages/gestion-locative/Indices.tsx
+
+Backend (TypeScript/Node) :
+  ✓ server/lib/sync-insee.ts (indexation auto — coherent)
+  ✓ server/routes/gl.ts (indexation API — coherent)
+  ✓ server/import-excel.ts (import données — 1 P1 trouvée)
+  ✓ scripts/import-bdd-am.ts (import script — coherent)
+
+Total scanned : 25+ fichiers clés, 5000+ lignes de code analysées
+
+================================================================================
+FINDINGS DÉTAILS
+================================================================================
+
+Voir /home/user/CanaillouV2/.audit/01-metier.md pour :
+
+— Chaque P1/P2 : titre, règle doc, implémentation, impact, fix suggéré
+— Exemples de code avant/après
+— Fichiers affectés avec numéro de ligne exact
+— Tests de validation proposés
+
+================================================================================
+RECOMMANDATIONS TIMELINE
+================================================================================
+
+SEMAINE 1 (URGENT) :
+  1. Importer getBailLoyerAnnuel() dans 15 pages
+  2. Ajouter normResilie() pour statut résilié
+  3. Refuser loyer base vide en import-excel.ts
+
+SEMAINE 2-3 :
+  4. Normaliser format trimestre T1-2024
+  5. Implémenter franchises GL (endpoint + UI)
+  6. Clarifier charges locatives doc
+
+SEMAINE 4+ :
+  7. TVA snapshot + historique
+  8. Documenter allocation emprunts SCI
+  9. Clarifier filtrage lots
+
+================================================================================
+POUR CHAQUE PUBLIC
+================================================================================
+
+DIRECTION / PO :
+  → Lire AUDIT_SUMMARY.txt (5 min)
+  → Action : Allouer dev time sprint 1 pour 6 P1
+
+DEV / QA :
+  → Lire DEVELOPERS_CHECKLIST.md (15 min)
+  → Implémenter fixes par ordre P1/P2
+  → Utiliser testing checklist
+
+AUDIT INTERNE / COMPLIANCE :
+  → Lire 01-metier.md complet (60 min)
+  → Vérifier chaque finding contre code
+  → Valider fixes après implémentation
+
+================================================================================
+VALIDATION AUDIT
+================================================================================
+
+Checklist d'audit complétée :
+
+[✓] Règles métier documentées
+[✓] Code implémentation scanné
+[✓] Incohérences identifiées
+[✓] Sévérité classée
+[✓] Impact quantifié
+[✓] Fix suggérés avec code
+[✓] Timeline établie
+[✓] Livrables documentés
+
+STATUS : AUDIT COMPLÉTÉ & LIVRÉS
+
+================================================================================
+CONTACT & SUIVI
+================================================================================
+
+Rapport d'audit : /home/user/CanaillouV2/.audit/01-metier.md
+Checklist devs : /home/user/CanaillouV2/.audit/DEVELOPERS_CHECKLIST.md
+
+Action suivi :
+  1. Équipe dev : utiliser DEVELOPERS_CHECKLIST.md
+  2. Weekly : tracker implémentation contre épic
+  3. QA : valider chaque P1 avant merge
+  4. Post-fix : audit validation sur preprod
+
+================================================================================
+

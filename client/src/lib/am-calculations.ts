@@ -63,28 +63,14 @@ export interface AMLot {
 }
 
 /**
- * Loyer annuel HT d'un bail. Source de vérité unique pour toute l'UI AM.
- *
- * Priorité (du plus prioritaire au moins prioritaire) :
- *   1. `loyerManuelOverride` — UNIQUEMENT si `forceManual === true` ET la
- *       valeur est strictement positive. Court-circuite tout le reste.
- *   2. `loyerHTActu`         — loyer courant après indexation INSEE auto.
- *   3. `loyerBaseHT`         — loyer de signature (fallback).
- *
- * Note : `forceManual` est désactivé par défaut (cf. migration 0003). Tant
- * qu'un utilisateur ne l'a pas explicitement coché, la chaîne base → INSEE
- * → actu fait foi, ce qui garantit que la ré-indexation auto continue de
- * fonctionner sans intervention.
+ * Loyer annuel HT d'un bail. Alias historique — la vraie implémentation
+ * vit dans `shared/utils/bail.ts` pour être partagée avec le serveur.
  */
+import { getBailLoyer, isResilie } from "@shared/utils/bail";
+export { getBailLoyer, isResilie } from "@shared/utils/bail";
+
 export function getBailLoyerAnnuel(b: AMBail | null | undefined): number {
-  if (!b) return 0;
-  if (b.forceManual) {
-    const override = Number(b.loyerManuelOverride || 0);
-    if (override > 0) return override;
-  }
-  const actu = Number(b.loyerHTActu || 0);
-  if (actu > 0) return actu;
-  return Number(b.loyerBaseHT || 0);
+  return getBailLoyer(b);
 }
 
 export interface AMEmprunt {
@@ -135,7 +121,7 @@ export interface AMSCI {
 export function getLoyerAnnuelActif(actif: AMActif, baux: AMBail[], _lots?: AMLot[]): number {
   if (!actif || !baux) return 0;
   return baux
-    .filter((b) => b.actifId === actif.id && b.statut !== "résilié" && !b.archived)
+    .filter((b) => b.actifId === actif.id && !isResilie(b.statut) && !b.archived)
     .reduce((sum, b) => sum + getBailLoyerAnnuel(b), 0);
 }
 

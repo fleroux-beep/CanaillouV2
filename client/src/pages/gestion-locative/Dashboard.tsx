@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { InfoTooltip } from "../../components/ui/info-tooltip";
+import { getBailLoyer } from "@shared/utils/bail";
 
 const COLORS = ["#3b82f6", "#8b5cf6", "#06b6d4", "#10b981", "#f59e0b", "#ef4444", "#ec4899"];
 
@@ -48,7 +49,7 @@ export default function GLDashboard() {
   const errorDetail = [err1, err2, err3].filter(Boolean).map((e: any) => e?.message).join(" | ");
 
   const bauxActifs = baux.filter((b: any) => !b.archived);
-  const totalLoyerHT = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.loyerHTActu || b.loyerBaseHT || 0), 0);
+  const totalLoyerHT = bauxActifs.reduce((sum: number, b: any) => sum + getBailLoyer(b), 0);
   const totalSurface = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.surface || 0), 0);
   const totalCapacite = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.capacite || 0), 0);
   const totalCharges = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.charges || 0), 0);
@@ -96,7 +97,7 @@ export default function GLDashboard() {
   const loyerParVille: Record<string, number> = {};
   bauxActifs.forEach((b: any) => {
     const v = b.ville || "Non renseigné";
-    loyerParVille[v] = (loyerParVille[v] || 0) + Number(b.loyerHTActu || b.loyerBaseHT || 0);
+    loyerParVille[v] = (loyerParVille[v] || 0) + getBailLoyer(b);
   });
   const pieData = Object.entries(loyerParVille)
     .map(([name, value]) => ({ name, value }))
@@ -104,10 +105,10 @@ export default function GLDashboard() {
 
   // Bar chart: loyer par bail
   const barData = bauxActifs
-    .filter((b: any) => b.loyerHTActu || b.loyerBaseHT)
+    .filter((b: any) => getBailLoyer(b) > 0)
     .map((b: any) => ({
       name: b.nom?.length > 15 ? b.nom.substring(0, 15) + "..." : b.nom,
-      loyer: Number(b.loyerHTActu || b.loyerBaseHT || 0),
+      loyer: getBailLoyer(b),
       charges: Number(b.charges || 0),
     }))
     .sort((a: any, b: any) => b.loyer - a.loyer)
@@ -410,11 +411,11 @@ export default function GLDashboard() {
                           {b.ville || "—"}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right font-medium">{formatCurrency(b.loyerHTActu || b.loyerBaseHT)}</td>
+                      <td className="px-4 py-3 text-right font-medium">{getBailLoyer(b) > 0 ? formatCurrency(getBailLoyer(b)) : "—"}</td>
                       <td className="px-4 py-3 text-right">{b.charges ? formatCurrency(b.charges) : "—"}</td>
                       <td className="px-4 py-3 text-right">{b.surface ? `${b.surface} m²` : "—"}</td>
                       <td className="px-4 py-3 text-right">{b.capacite || "—"}</td>
-                      <td className="px-4 py-3 text-right">{b.capacite && (b.loyerHTActu || b.loyerBaseHT) ? formatCurrency(Number(b.loyerHTActu || b.loyerBaseHT) / Number(b.capacite)) : "—"}</td>
+                      <td className="px-4 py-3 text-right">{b.capacite && getBailLoyer(b) > 0 ? formatCurrency(getBailLoyer(b) / Number(b.capacite)) : "—"}</td>
                       <td className="px-4 py-3 text-right">{b.capacite && b.surface ? `${formatNumber(Number(b.surface) / Number(b.capacite))} m²` : "—"}</td>
                       <td className="px-4 py-3">
                         {b.indiceReference ? (
