@@ -100,8 +100,8 @@ export function registerCrud(
 
         const [rows, totalResult] = await Promise.all([
           whereClause
-            ? db.select().from(table).where(whereClause).orderBy(desc(table.createdAt)).limit(limit).offset(offset)
-            : db.select().from(table).orderBy(desc(table.createdAt)).limit(limit).offset(offset),
+            ? db.select().from(table).where(whereClause).orderBy(desc(table.createdAt), desc(table.id)).limit(limit).offset(offset)
+            : db.select().from(table).orderBy(desc(table.createdAt), desc(table.id)).limit(limit).offset(offset),
           whereClause
             ? db.select({ value: count() }).from(table).where(whereClause)
             : db.select({ value: count() }).from(table),
@@ -111,11 +111,15 @@ export function registerCrud(
 
       // No pagination — return all (backward compatible)
       const rows = whereClause
-        ? await db.select().from(table).where(whereClause).orderBy(desc(table.createdAt))
-        : await db.select().from(table).orderBy(desc(table.createdAt));
+        ? await db.select().from(table).where(whereClause).orderBy(desc(table.createdAt), desc(table.id))
+        : await db.select().from(table).orderBy(desc(table.createdAt), desc(table.id));
       res.json(rows);
     } catch (error: any) {
-      logger.error("route error", { path: apiPath, error: error.message, stack: error.stack });
+      logger.error("route error", {
+        path: apiPath,
+        error: error.message,
+        ...(process.env.NODE_ENV !== "production" ? { stack: error.stack } : {}),
+      });
       res.status(500).json({ error: "Erreur interne" });
     }
   });
