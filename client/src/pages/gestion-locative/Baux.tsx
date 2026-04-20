@@ -65,9 +65,22 @@ export default function BauxGLPage() {
 
   const onChange = (name: string, value: string) => setForm((f) => {
     const next = { ...f, [name]: value };
-    // Auto-assign default index when typeBail changes and indiceReference is not yet set by user
+    // Auto-assign default index when typeBail changes and indiceReference is not yet set by user.
+    // Doit rester aligné avec defaultIndiceForType() côté serveur (server/lib/sync-insee.ts)
+    // et conforme au droit français :
+    //   - habitation/logement → IRL (loi du 6 juillet 1989, obligatoire depuis 2006)
+    //   - tertiaire/bureau/professionnel → ILAT (depuis 2022)
+    //   - commercial/boutique/crèche → ILC (depuis 2008)
+    //   - construction/chantier → ICC
     if (name === "typeBail" && !f.indiceReference) {
-      next.indiceReference = value === "habitation" ? "ICC" : "ILC";
+      const normalized = value
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+      if (/(habitation|logement|residentiel|resid)/.test(normalized)) next.indiceReference = "IRL";
+      else if (/(tertiaire|bureau|professionnel|prof)/.test(normalized)) next.indiceReference = "ILAT";
+      else if (/(commercial|boutique|creche|commerce|derogatoire)/.test(normalized)) next.indiceReference = "ILC";
+      else if (/(construction|chantier|industriel)/.test(normalized)) next.indiceReference = "ICC";
     }
     return next;
   });

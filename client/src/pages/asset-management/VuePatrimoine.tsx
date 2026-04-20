@@ -22,8 +22,8 @@ import CartePage from "./Carte";
 
 interface SCI { id: string; nom: string; }
 interface Actif { id: string; nom: string; sciId?: string; ville?: string; type?: string; surface?: string; prixAcquisition?: string; archived?: boolean; }
-interface Lot { id: string; actifId: string; designation: string; type?: string; surface?: string; statut?: string; loyerMensuel?: string; loyerAnnuel?: string; archived?: boolean; }
-interface BailAM { id: string; lotId?: string; actifId?: string; sciId?: string; locataireId?: string; loyerMensuel?: string; loyerAnnuel?: string; statut?: string; typeBail?: string; }
+interface Lot { id: string; actifId: string; designation: string; type?: string; surface?: string; statut?: string; archived?: boolean; }
+interface BailAM { id: string; lotId?: string; actifId?: string; sciId?: string; locataireId?: string; loyerBaseHT?: string; loyerHTActu?: string; statut?: string; typeBail?: string; archived?: boolean; }
 interface Locataire { id: string; nom: string; prenom?: string; }
 
 function ArbrePatrimoine() {
@@ -115,13 +115,10 @@ function ArbrePatrimoine() {
 
                       // Financial summary
                       const lotsLoues = actifLots.filter((l) => l.statut?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === "loue").length;
-                      const loyerTotal = actifBaux.reduce((s, b: any) => {
-                        const annuel = Number(b.loyerAnnuel || 0);
-                        return s + (annuel > 0 ? annuel : Number(b.loyerMensuel || 0) * 12);
-                      }, 0) || actifLots.reduce((s, l) => {
-                        const annuel = Number(l.loyerAnnuel || 0);
-                        return s + (annuel > 0 ? annuel : Number(l.loyerMensuel || 0) * 12);
-                      }, 0);
+                      const loyerTotal = actifBaux.reduce(
+                        (s, b) => s + Number(b.loyerHTActu || b.loyerBaseHT || 0),
+                        0,
+                      );
                       const occupation = actifLots.length > 0 ? Math.round((lotsLoues / actifLots.length) * 100) : (actifBaux.length > 0 ? 100 : 0);
 
                       return (
@@ -182,9 +179,15 @@ function ArbrePatrimoine() {
                                             {lot.statut}
                                           </Badge>
                                         )}
-                                        {lot.loyerMensuel && (
-                                          <span className="text-xs font-medium ml-auto">{formatCurrency(lot.loyerMensuel)}/mois</span>
-                                        )}
+                                        {(() => {
+                                          const bail = lotBaux.find((b) => !b.archived && b.statut !== "résilié");
+                                          const annuel = bail ? Number(bail.loyerHTActu || bail.loyerBaseHT || 0) : 0;
+                                          return annuel > 0 ? (
+                                            <span className="text-xs font-medium ml-auto">
+                                              {formatCurrency(Math.round((annuel / 12) * 100) / 100)}/mois
+                                            </span>
+                                          ) : null;
+                                        })()}
                                         {lotBaux.map((bail) => (
                                           <Badge key={bail.id} variant="primary" className="text-xs ml-1">
                                             {locataireMap[bail.locataireId || ""] || "Bail"}
@@ -206,9 +209,14 @@ function ArbrePatrimoine() {
                                         <FileText className="h-3.5 w-3.5 text-green-500" />
                                         <span>{locataireMap[bail.locataireId || ""] || "Bail sans locataire"}</span>
                                         {bail.typeBail && <Badge variant="outline" className="text-xs">{bail.typeBail}</Badge>}
-                                        {bail.loyerMensuel && (
-                                          <span className="text-xs font-medium ml-auto">{formatCurrency(bail.loyerMensuel)}/mois</span>
-                                        )}
+                                        {(() => {
+                                          const annuel = Number(bail.loyerHTActu || bail.loyerBaseHT || 0);
+                                          return annuel > 0 ? (
+                                            <span className="text-xs font-medium ml-auto">
+                                              {formatCurrency(Math.round((annuel / 12) * 100) / 100)}/mois
+                                            </span>
+                                          ) : null;
+                                        })()}
                                       </div>
                                     ))}
                                 </div>

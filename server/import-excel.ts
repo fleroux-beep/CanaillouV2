@@ -5,8 +5,9 @@
  * Source file: BDD_SCI_restructuree.xlsx
  * Sheets used: Patrimoine, Baux, Financement, Détention Capital, Emprunts Détaillés, P&L *
  *
- * Tables populated: am_scis, am_actifs, am_lots, am_baux, am_emprunts,
- *                   am_locataires, am_associes, am_participations
+ * Tables populated: am_scis, am_actifs, am_lots, am_emprunts,
+ *                   am_associes, am_participations, gl_baux (scope='am'),
+ *                   gl_locataires
  */
 import XLSX from "xlsx";
 import path from "path";
@@ -53,8 +54,6 @@ function id(): string {
   return randomUUID();
 }
 
-// Parse "ILC 2T2017 = 110" / "ICC 4T2023 = 2162" / "IRL 3T2023 = 141,03" /
-// "ILC 3T2024" / "ILC" / "ILAT " → { type, trimestre, valeur }
 function parseIndiceString(
   raw: string | null,
   dateDebut: string | null,
@@ -62,14 +61,12 @@ function parseIndiceString(
   if (!raw) return { type: null, trimestre: null, valeur: null };
   const s = String(raw).trim();
 
-  // Type — order matters: "ILAT" before "ILC" because ILC is substring? No they're distinct.
   let type: string | null = null;
   if (/\bILAT\b/i.test(s)) type = "ILAT";
   else if (/\bILC\b/i.test(s)) type = "ILC";
   else if (/\bIRL\b/i.test(s)) type = "IRL";
   else if (/\bICC\b/i.test(s)) type = "ICC";
 
-  // Trimestre — supports "1T2024", "T1-2024", "2024-T1", "2024-Q1"
   let trimestre: string | null = null;
   const m1 = s.match(/(\d)T(\d{4})/);
   const m2 = s.match(/T(\d)-(\d{4})/);
@@ -80,13 +77,10 @@ function parseIndiceString(
   else if (m3) trimestre = `T${m3[2]}-${m3[1]}`;
   else if (m4) trimestre = `T${m4[2]}-${m4[1]}`;
 
-  // Valeur: "= 110" or "= 141,03" (French decimal)
   let valeur: number | null = null;
   const valMatch = s.match(/=\s*([\d.,]+)/);
   if (valMatch) valeur = num(valMatch[1]);
 
-  // If a type is mentioned but no trimestre, derive it from the bail start date.
-  // The "base" index is the one in force when the bail was signed.
   if (type && !trimestre && dateDebut) {
     const d = new Date(dateDebut);
     if (!isNaN(d.getTime())) {
@@ -841,15 +835,61 @@ export async function importExcelData(): Promise<{
   try {
     await client.query("BEGIN");
 
-    // Clean existing AM data (in reverse FK order)
+    // ─── 0. Snapshot indice metadata from existing baux ──────────
+    // Avant de supprimer, on sauvegarde les métadonnées d'indexation
+    // (indiceReference, trimestreRef, valeurIndiceBase) par clé
+    // (SCI nom, locataire nom). Après le réimport, on les réinjecte
+    // sur les baux où le xlsx n'avait pas d'indice complet.
+    // On sauvegarde aussi loyerBaseHT / loyerHTActu / forceManual /
+    // loyerManuelOverride pour ne pas perdre les valeurs saisies.
+    interface IndiceSnapshot {
+      indiceReference: string | null;
+      trimestreRef: string | null;
+      valeurIndiceBase: string | null;
+      loyerHTActu: string | null;
+      forceManual: boolean;
+      loyerManuelOverride: string | null;
+    }
+    const indiceSnapshots = new Map<string, IndiceSnapshot>();
+    try {
+      const { rows: existingBaux } = await client.query(`
+        SELECT b.indice_reference, b.trimestre_ref, b.valeur_indice_base,
+               b.loyer_ht_actu, b.force_manual, b.loyer_manuel_override,
+               s.nom as sci_nom, l.nom as loc_nom
+        FROM gl_baux b
+        LEFT JOIN am_scis s ON s.id = b.sci_id
+        LEFT JOIN gl_locataires l ON l.id = b.locataire_id
+        WHERE b.scope = 'am'
+      `);
+      for (const row of existingBaux) {
+        if (!row.sci_nom || !row.loc_nom) continue;
+        const key = `${row.sci_nom.trim().toUpperCase()}::${row.loc_nom.trim().toUpperCase()}`;
+        indiceSnapshots.set(key, {
+          indiceReference: row.indice_reference,
+          trimestreRef: row.trimestre_ref,
+          valeurIndiceBase: row.valeur_indice_base,
+          loyerHTActu: row.loyer_ht_actu,
+          forceManual: row.force_manual ?? false,
+          loyerManuelOverride: row.loyer_manuel_override,
+        });
+      }
+      logger.info(`import: snapshotted ${indiceSnapshots.size} indice records from existing baux`);
+    } catch (err: any) {
+      logger.warn("import: indice snapshot failed (first import?)", { error: err.message });
+    }
+
+    // Clean existing AM data (in reverse FK order).
+    // Post-unification: AM-scoped baux live in gl_baux with scope='am'.
+    // Locataires are now shared with GL so we deliberately do NOT wipe them
+    // here — re-imports may leave orphaned rows, but that's acceptable and
+    // avoids nuking GL-side data. Fresh imports still allocate new UUIDs.
     await client.query(`DELETE FROM am_participations`);
-    await client.query(`DELETE FROM am_baux`);
+    await client.query(`DELETE FROM gl_baux WHERE scope = 'am'`);
     await client.query(`DELETE FROM am_lots`);
     await client.query(`DELETE FROM am_emprunts`);
     await client.query(`DELETE FROM am_travaux`);
     await client.query(`DELETE FROM am_documents`);
     await client.query(`DELETE FROM am_actifs`);
-    await client.query(`DELETE FROM am_locataires`);
     await client.query(`DELETE FROM am_associes`);
     await client.query(`DELETE FROM am_scis`);
     logger.info("import: cleaned existing AM data");
@@ -1091,7 +1131,7 @@ export async function importExcelData(): Promise<{
       locataireIds[b.locataire] = locId;
 
       await client.query(
-        `INSERT INTO am_locataires (id, nom, notes, created_at, updated_at) VALUES ($1, $2, $3, now(), now())`,
+        `INSERT INTO gl_locataires (id, nom, notes, created_at, updated_at) VALUES ($1, $2, $3, now(), now())`,
         [locId, b.locataire, b.typeBail ? `Type: ${b.typeBail}` : null]
       );
       counts.locataires++;
@@ -1111,14 +1151,6 @@ export async function importExcelData(): Promise<{
       if (c.depotGarantieLots > 0) dgBySci[c.sciName] = c.depotGarantieLots;
     }
 
-    // Index SYNTH per-row rent by (sciName, destination) for cross-check fallback
-    const synthRentByKey = new Map<string, number>();
-    for (const sr of synthRows) {
-      if (sr.destination && sr.loyerActuelHC > 0) {
-        synthRentByKey.set(`${sr.sciName}|${sr.destination}`, sr.loyerActuelHC);
-      }
-    }
-
     for (const b of bauxRows) {
       const actifKey = `${b.sciName}|${b.adresse}`;
       const actifId = actifIds[actifKey];
@@ -1129,31 +1161,35 @@ export async function importExcelData(): Promise<{
         continue;
       }
 
-      // Priority: BDD loyerActuelHC → SYNTH loyerActuelHC → P&L 2026 → BDD loyerDepart
-      let loyerAnnuel = b.loyerActuelHC && b.loyerActuelHC > 0 ? b.loyerActuelHC : null;
-      if (!loyerAnnuel && b.destination) {
-        const synthVal = synthRentByKey.get(`${b.sciName}|${b.destination}`);
-        if (synthVal) loyerAnnuel = synthVal;
-      }
-      if (!loyerAnnuel && b.destination) {
+      // Priority: BDD loyerActuelHC (col 21) → P&L 2026 rent by matching lot label → BDD loyerDepart
+      let loyerActuel = b.loyerActuelHC;
+      if (!loyerActuel && b.destination) {
         const sciRents = lotRentsBySci[b.sciName] || [];
         const match = sciRents.find((lr) =>
           lr.label.includes(b.destination!.substring(0, 15)) ||
           b.destination!.includes(lr.label.substring(0, 15))
         );
         if (match) {
-          loyerAnnuel = match.loyer;
-          logger.info(`import: P&L 2026 rent fallback for ${b.destination}: ${loyerAnnuel}`);
+          loyerActuel = match.loyer;
+          logger.info(`import: P&L 2026 rent fallback for ${b.destination}: ${loyerActuel}`);
         }
       }
-      if (!loyerAnnuel) loyerAnnuel = b.loyerAnnuelDepart;
+      if (!loyerActuel) loyerActuel = b.loyerAnnuelDepart;
 
-      // Create Lot
+      // Modèle durable :
+      //  - loyer_base_ht = loyer de signature (loyerAnnuelDepart). Source de
+      //    vérité immuable utilisée par l'indexation INSEE automatique.
+      //  - loyer_ht_actu = meilleure valeur courante disponible (loyerActuel).
+      //    Sera écrasé par le cron INSEE au prochain run si l'indice est renseigné.
+      const loyerBaseHT = b.loyerAnnuelDepart || loyerActuel;
+      const loyerHTActu = loyerActuel || b.loyerAnnuelDepart;
+
+      // Create Lot — loyer vit uniquement sur le bail, plus aucune colonne loyer sur am_lots.
       const lotId = id();
       await client.query(
         `INSERT INTO am_lots (id, actif_id, sci_id, designation, type, surface, surface_carrez,
-         loyer_mensuel, loyer_annuel, statut, locataire_id, notes, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now(), now())`,
+         statut, locataire_id, notes, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), now())`,
         [
           lotId,
           actifId,
@@ -1165,8 +1201,6 @@ export async function importExcelData(): Promise<{
             b.typeBail?.includes("dérogatoire") ? "commercial" : "autre",
           b.surfaceLouee,
           b.surfaceLouee,
-          loyerAnnuel ? (loyerAnnuel / 12).toFixed(2) : null,
-          loyerAnnuel,
           b.locataire ? "loué" : "vacant",
           b.locataire ? locataireIds[b.locataire] : null,
           null,
@@ -1186,19 +1220,31 @@ export async function importExcelData(): Promise<{
         const sciBauxCount = bauxRows.filter((x) => x.sciName === b.sciName && x.locataire).length || 1;
         const depotGarantie = sciDgTotal > 0 ? Math.round(sciDgTotal / sciBauxCount) : null;
 
-        // loyerBaseHT = loyer de départ (base for indexation formula)
-        // loyerHTActu = loyer actuel HC (current indexed rent)
-        const loyerBase = b.loyerAnnuelDepart || loyerAnnuel;
-        const loyerActu = loyerAnnuel;
-
+        // Insert into unified gl_baux with scope='am'.
+        // Modèle loyer durable :
+        //   loyer_base_ht = loyer de signature (immuable, source INSEE)
+        //   loyer_ht_actu = loyer courant (snapshot xlsx, puis cron INSEE)
+        const bailNom = `${b.destination || "Bail"} — ${b.locataire}`;
         await client.query(
-          `INSERT INTO am_baux (id, lot_id, actif_id, sci_id, locataire_id, type_bail,
-           date_debut, date_fin, loyer_mensuel, loyer_annuel, depot_garantie, indice_reference,
-           trimestre_ref, valeur_indice_base, loyer_base_ht, loyer_ht_actu,
-           statut, loyer_theorique, notes, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, now(), now())`,
+          `INSERT INTO gl_baux (
+             id, scope, nom,
+             lot_id, actif_id, sci_id, locataire_id, type_bail,
+             date_debut, date_fin,
+             loyer_base_ht, loyer_ht_actu,
+             depot_garantie, indice_reference, trimestre_ref, valeur_indice_base,
+             statut, notes, created_at, updated_at
+           )
+           VALUES (
+             $1, 'am', $2,
+             $3, $4, $5, $6, $7,
+             $8::timestamp, $9::timestamp,
+             $10, $11,
+             $12, $13, $14, $15,
+             $16, $17, now(), now()
+           )`,
           [
             id(),
+            bailNom,
             lotId,
             actifId,
             sciId,
@@ -1206,16 +1252,13 @@ export async function importExcelData(): Promise<{
             b.typeBail,
             b.dateDebut,
             b.dateFin,
-            loyerAnnuel ? (loyerAnnuel / 12).toFixed(2) : null,
-            loyerAnnuel,
+            loyerBaseHT,
+            loyerHTActu,
             depotGarantie,
             indiceRef,
             trimestreRef,
             valeurIndice,
-            loyerBase,
-            loyerActu,
             "actif",
-            null, // loyer_theorique: reserved for market rent, not loyer de départ
             [
               b.soumisTVA === "oui" ? "Soumis à TVA" : null,
               b.indiceRevalorisation ? `Indice source Excel: ${b.indiceRevalorisation.trim()}` : null,
@@ -1226,6 +1269,74 @@ export async function importExcelData(): Promise<{
       }
     }
     logger.info(`import: created ${counts.lots} lots, ${counts.baux} baux`);
+
+    // ─── 6b. Restore indice snapshots for baux with incomplete xlsx data ─
+    // Pour chaque bail fraîchement créé, si le xlsx n'avait pas d'indice
+    // complet, on cherche dans le snapshot pré-delete et on restaure les
+    // métadonnées d'indexation + les valeurs de forceManual/override.
+    if (indiceSnapshots.size > 0) {
+      let restored = 0;
+      const { rows: newBaux } = await client.query(`
+        SELECT b.id, b.indice_reference, b.trimestre_ref, b.valeur_indice_base,
+               b.force_manual, b.loyer_manuel_override, b.loyer_ht_actu,
+               s.nom as sci_nom, l.nom as loc_nom
+        FROM gl_baux b
+        LEFT JOIN am_scis s ON s.id = b.sci_id
+        LEFT JOIN gl_locataires l ON l.id = b.locataire_id
+        WHERE b.scope = 'am'
+      `);
+      for (const bail of newBaux) {
+        if (!bail.sci_nom || !bail.loc_nom) continue;
+        const key = `${bail.sci_nom.trim().toUpperCase()}::${bail.loc_nom.trim().toUpperCase()}`;
+        const snap = indiceSnapshots.get(key);
+        if (!snap) continue;
+
+        const updates: string[] = [];
+        const vals: any[] = [];
+        let idx = 1;
+
+        // Restaurer indice si le xlsx n'en avait pas ou était incomplet
+        if (!bail.indice_reference && snap.indiceReference) {
+          updates.push(`indice_reference = $${idx++}`);
+          vals.push(snap.indiceReference);
+        }
+        if (!bail.trimestre_ref && snap.trimestreRef) {
+          updates.push(`trimestre_ref = $${idx++}`);
+          vals.push(snap.trimestreRef);
+        }
+        if (!bail.valeur_indice_base && snap.valeurIndiceBase) {
+          updates.push(`valeur_indice_base = $${idx++}`);
+          vals.push(snap.valeurIndiceBase);
+        }
+
+        // Restaurer loyer_ht_actu indexé si le snapshot avait une valeur
+        // plus haute que le xlsx (= indexation INSEE déjà passée)
+        if (snap.loyerHTActu && Number(snap.loyerHTActu) > Number(bail.loyer_ht_actu || 0)) {
+          updates.push(`loyer_ht_actu = $${idx++}`);
+          vals.push(snap.loyerHTActu);
+        }
+
+        // Restaurer forceManual + override si l'utilisateur les avait activés
+        if (snap.forceManual) {
+          updates.push(`force_manual = $${idx++}`);
+          vals.push(true);
+          if (snap.loyerManuelOverride) {
+            updates.push(`loyer_manuel_override = $${idx++}`);
+            vals.push(snap.loyerManuelOverride);
+          }
+        }
+
+        if (updates.length > 0) {
+          vals.push(bail.id);
+          await client.query(
+            `UPDATE gl_baux SET ${updates.join(", ")}, updated_at = now() WHERE id = $${idx}`,
+            vals,
+          );
+          restored++;
+        }
+      }
+      logger.info(`import: restored indice/override data on ${restored} baux from snapshot`);
+    }
 
     // ─── 7. Create Emprunts (from Emprunts Détaillés + Financement) ─
     // Index garanties by "sciName|banque" for lookup
@@ -1322,11 +1433,10 @@ export async function importExcelData(): Promise<{
       const garantieKey = `${sciName}|${e.banque}`;
       const garantieText = garantieBySciBank[garantieKey] || null;
 
-      // Pick the representative annual payment: prefer the larger of 2025/2026
-      // (smaller value usually means a partial final year or an already-closed loan).
-      const ech2025 = e.echeanceAnnuelle2025 || 0;
-      const ech2026 = e.echeanceAnnuelle2026 || 0;
-      const echeanceAnnuelle = Math.max(ech2025, ech2026) || null;
+      // Use 2026 annual payment if available (more representative full-year),
+      // otherwise fall back to 2025
+      const echeanceAnnuelle = e.echeanceAnnuelle2026 && e.echeanceAnnuelle2026 > 0
+        ? e.echeanceAnnuelle2026 : e.echeanceAnnuelle2025;
       const mensualiteReelle = echeanceAnnuelle ? (echeanceAnnuelle / 12) : null;
 
       // Capital restant dû: use end-2025 (= start 2026) as the reference snapshot
@@ -1394,27 +1504,31 @@ export async function importExcelData(): Promise<{
     await client.query("COMMIT");
     logger.info("import: transaction committed successfully", counts);
 
-    // Post-import indexation pipeline: sync INSEE indices, backfill base values,
-    // then auto-index. Runs in background so the HTTP response returns quickly.
-    (async () => {
-      try {
-        const { syncIndicesINSEE, backfillBaseIndexValues, autoIndexBauxAM } =
-          await import("./lib/sync-insee");
-        const syncRes = await syncIndicesINSEE();
-        logger.info("import: post-sync INSEE", { synced: syncRes.synced, errors: syncRes.errors.length });
-        const fillRes = await backfillBaseIndexValues();
-        logger.info("import: post-backfill indices", fillRes);
-        const idxRes = await autoIndexBauxAM();
-        logger.info("import: post-auto-index", { indexed: idxRes.indexed, skipped: idxRes.skipped });
-      } catch (err: any) {
-        logger.warn("import: post-import indexation pipeline failed (non-blocking)", { error: err.message });
-      }
-    })();
-
     // Géocoder automatiquement les actifs importés (en arrière-plan, sans bloquer)
     geocodeImportedActifs().catch((err) =>
       logger.warn("import: geocoding failed (non-blocking)", { error: err.message })
     );
+
+    // Post-import INSEE pipeline (non-blocking)
+    (async () => {
+      try {
+        const { syncIndicesINSEE, backfillBaseIndexValues, autoIndexBaux } =
+          await import("./lib/sync-insee");
+        logger.info("import: post-import INSEE sync starting");
+        const syncRes = await syncIndicesINSEE();
+        logger.info("import: INSEE indices synced", { synced: syncRes.synced });
+        if (typeof backfillBaseIndexValues === "function") {
+          const fillRes = await backfillBaseIndexValues();
+          logger.info("import: backfilled indice base values", fillRes);
+        }
+        if (typeof autoIndexBaux === "function") {
+          const idxRes = await autoIndexBaux();
+          logger.info("import: auto-indexed baux", idxRes);
+        }
+      } catch (err: any) {
+        logger.warn("import: post-import INSEE pipeline failed (non-blocking)", { error: err.message });
+      }
+    })();
 
     return counts;
   } catch (error: any) {

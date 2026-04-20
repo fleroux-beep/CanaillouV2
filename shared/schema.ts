@@ -157,13 +157,13 @@ export const lots = pgTable("am_lots", {
   surface: numeric("surface"),
   surfaceCarrez: numeric("surface_carrez"),
   dpe: varchar("dpe"),
-  // Loyer
-  loyerMensuel: numeric("loyer_mensuel"),
-  loyerAnnuel: numeric("loyer_annuel"),
+  // Loyer : stocké uniquement sur le bail (gl_baux.loyerBaseHT / loyerHTActu).
+  // Un lot vide n'a pas de loyer ; un lot loué hérite du loyer de son bail
+  // via l'agrégation côté UI (cf. client/src/lib/am-calculations.ts).
   chargesLot: numeric("charges_lot"),
   // Occupation
   statut: varchar("statut").default("vacant"), // loué, vacant
-  locataireId: varchar("locataire_id").references(() => locatairesAM.id, { onDelete: "set null" }),
+  locataireId: varchar("locataire_id").references(() => locatairesGL.id, { onDelete: "set null" }),
   notes: text("notes"),
   archived: boolean("archived").default(false),
   deletedAt: timestamp("deleted_at"),
@@ -173,82 +173,6 @@ export const lots = pgTable("am_lots", {
   index("idx_lots_actif_id").on(table.actifId),
   index("idx_lots_sci_id").on(table.sciId),
   index("idx_lots_locataire_id").on(table.locataireId),
-]);
-
-// ============================================================
-// ASSET MANAGEMENT — Locataires & Baux
-// ============================================================
-
-export const locatairesAM = pgTable("am_locataires", {
-  id: varchar("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  ownerId: varchar("owner_id").references(() => users.id, { onDelete: "cascade" }),
-  nom: varchar("nom").notNull(),
-  prenom: varchar("prenom"),
-  email: varchar("email"),
-  telephone: varchar("telephone"),
-  adresse: text("adresse"),
-  siret: varchar("siret"),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-export const bauxAM = pgTable("am_baux", {
-  id: varchar("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  lotId: varchar("lot_id").references(() => lots.id, { onDelete: "set null" }),
-  actifId: varchar("actif_id").references(() => actifs.id, { onDelete: "set null" }),
-  sciId: varchar("sci_id").references(() => scis.id, { onDelete: "set null" }),
-  locataireId: varchar("locataire_id").references(() => locatairesAM.id, { onDelete: "set null" }),
-  typeBail: varchar("type_bail"), // habitation, commercial, professionnel
-  dateDebut: date("date_debut"),
-  dateFin: date("date_fin"),
-  dateSignature: date("date_signature"),
-  loyerMensuel: numeric("loyer_mensuel"),
-  loyerAnnuel: numeric("loyer_annuel"),
-  charges: numeric("charges"),
-  depotGarantie: numeric("depot_garantie"),
-  // Indexation
-  indiceReference: varchar("indice_reference"), // IRL, ILC, ILAT, ICC
-  trimestreRef: varchar("trimestre_ref"),
-  valeurIndiceBase: numeric("valeur_indice_base"),
-  dateIndiceBase: date("date_indice_base"),
-  loyerBaseHT: numeric("loyer_base_ht"),
-  loyerHTActu: numeric("loyer_ht_actu"),
-  forceManual: boolean("force_manual").default(false),
-  // Statut
-  statut: varchar("statut").default("actif"), // actif, expiré, résilié
-  loyerTheorique: numeric("loyer_theorique"),
-  notes: text("notes"),
-  archived: boolean("archived").default(false),
-  deletedAt: timestamp("deleted_at"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-}, (table) => [
-  index("idx_baux_am_lot_id").on(table.lotId),
-  index("idx_baux_am_actif_id").on(table.actifId),
-  index("idx_baux_am_sci_id").on(table.sciId),
-  index("idx_baux_am_locataire_id").on(table.locataireId),
-]);
-
-// ============================================================
-// ASSET MANAGEMENT — Indexations (audit trail)
-// ============================================================
-
-export const indexationsAM = pgTable("am_indexations", {
-  id: varchar("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  bailId: varchar("bail_id").notNull().references(() => bauxAM.id, { onDelete: "cascade" }),
-  dateApplication: date("date_application").notNull(),
-  ancienLoyer: numeric("ancien_loyer"),
-  nouveauLoyer: numeric("nouveau_loyer"),
-  indiceBase: numeric("indice_base"),
-  indiceNouveau: numeric("indice_nouveau"),
-  typeIndice: varchar("type_indice"),
-  trimestre: varchar("trimestre"),
-  tauxVariation: numeric("taux_variation"),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow(),
-}, (table) => [
-  index("idx_indexations_am_bail_id").on(table.bailId),
 ]);
 
 // ============================================================
@@ -369,9 +293,27 @@ export const locatairesGL = pgTable("gl_locataires", {
 // GESTION LOCATIVE — Baux (vous êtes locataire)
 // ============================================================
 
+// ============================================================
+// BAUX — Table unifiée (AM + GL)
+// ============================================================
+// Cette table remplace les anciennes `am_baux` et `gl_baux`. Le nom physique
+// reste `gl_baux` pour ne pas casser les 7 tables enfants (paiements, factures,
+// quittances, indexations, avenants, renouvellements, documents) qui référencent
+// son id par FK. La colonne `scope` ('am' ou 'gl') permet aux deux interfaces
+// (asset-management + gestion-locative) de continuer à filtrer sur leur
+// périmètre d'origine tout en partageant une source de données unique — ce qui
+// est indispensable pour que l'indexation automatique INSEE puisse agir sur
+// l'ensemble des baux, toutes interfaces confondues.
 export const bauxGL = pgTable("gl_baux", {
   id: varchar("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  // Scope : 'am' (Asset Management — user est bailleur) ou 'gl' (Gestion Locative — user est locataire)
+  scope: varchar("scope").notNull().default("gl"),
   nom: varchar("nom").notNull(),
+  // AM hierarchy (scope='am' uniquement)
+  lotId: varchar("lot_id").references(() => lots.id, { onDelete: "set null" }),
+  actifId: varchar("actif_id").references(() => actifs.id, { onDelete: "set null" }),
+  sciId: varchar("sci_id").references(() => scis.id, { onDelete: "set null" }),
+  // Parties
   locataireId: varchar("locataire_id").references(() => locatairesGL.id, { onDelete: "set null" }),
   bailleurId: varchar("bailleur_id").references(() => bailleurs.id, { onDelete: "set null" }),
   gestionnaireId: varchar("gestionnaire_id").references(() => gestionnaires.id, { onDelete: "set null" }),
@@ -392,10 +334,35 @@ export const bauxGL = pgTable("gl_baux", {
   echTrien1: date("ech_trien1"),
   echTrien2: date("ech_trien2"),
   echTrien3: date("ech_trien3"),
-  // Loyer
+  // Loyer — modèle à trois niveaux (annuel HT en EUR).
+  //
+  // 1. `loyerBaseHT`           — loyer de signature, IMMUABLE après création
+  //                              (sauf avenant de renégociation). Source de
+  //                              vérité pour l'indexation INSEE.
+  // 2. `loyerHTActu`            — loyer courant après indexation automatique
+  //                              (cf. `autoIndexBaux` dans sync-insee.ts).
+  //                              Recalculé à partir de `loyerBaseHT ×
+  //                              (indice_nouveau / valeurIndiceBase)`.
+  //                              Cache : jamais modifié à la main.
+  // 3. `loyerManuelOverride`    — valeur forcée par l'utilisateur quand il
+  //                              coche `forceManual`. Permet de gérer les
+  //                              cas exceptionnels (renégociation en cours,
+  //                              réduction commerciale, erreur INSEE…).
+  //                              Par défaut `forceManual = false`, donc
+  //                              ignoré et la chaîne loyerBaseHT → INSEE →
+  //                              loyerHTActu fait foi.
+  //
+  // Priorité de lecture (cf. getBailLoyerAnnuel côté client) :
+  //   forceManual && loyerManuelOverride > 0  → loyerManuelOverride
+  //   loyerHTActu > 0                          → loyerHTActu
+  //   sinon                                    → loyerBaseHT
+  //
+  // Les franchises (rent-free) et prorata temporels NE modifient PAS ces
+  // champs : ils sont modélisés séparément via `gl_baux_franchises`.
   loyerBaseHT: numeric("loyer_base_ht"),
   loyerHTActu: numeric("loyer_ht_actu"),
-  forceManual: boolean("force_manual").default(false),
+  forceManual: boolean("force_manual").notNull().default(false),
+  loyerManuelOverride: numeric("loyer_manuel_override"),
   // Indexation
   indiceReference: varchar("indice_reference"),
   trimestreRef: varchar("trimestre_ref"),
@@ -422,9 +389,41 @@ export const bauxGL = pgTable("gl_baux", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
+  index("idx_baux_gl_scope").on(table.scope),
   index("idx_baux_gl_locataire_id").on(table.locataireId),
   index("idx_baux_gl_bailleur_id").on(table.bailleurId),
   index("idx_baux_gl_gestionnaire_id").on(table.gestionnaireId),
+  index("idx_baux_gl_lot_id").on(table.lotId),
+  index("idx_baux_gl_actif_id").on(table.actifId),
+  index("idx_baux_gl_sci_id").on(table.sciId),
+]);
+
+
+// ============================================================
+// BAUX — Franchises de loyer & prorata
+// ============================================================
+// Une franchise est une période pendant laquelle le locataire ne paie pas
+// (ou paie moins) sans que cela modifie le loyer contractuel annuel. Elles
+// sont stockées séparément du loyer pour ne pas polluer l'indexation INSEE
+// ni la projection cash-flow de long terme.
+//
+// - `montant` est exprimé en EUR TOTAL sur la période [dateDebut, dateFin].
+// - `motif` texte libre : "franchise commerciale", "prorata entrée", "travaux
+//    preneur", "réduction exceptionnelle", etc.
+//
+// Le cash-flow de l'année N = loyer_annuel_actif(bail) − Σ franchises
+// actives pendant N, au prorata des jours couverts par l'année.
+export const franchisesBaux = pgTable("gl_baux_franchises", {
+  id: varchar("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  bailId: varchar("bail_id").notNull().references(() => bauxGL.id, { onDelete: "cascade" }),
+  dateDebut: date("date_debut").notNull(),
+  dateFin: date("date_fin").notNull(),
+  montant: numeric("montant").notNull(),
+  motif: varchar("motif"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_franchises_baux_bail_id").on(table.bailId),
 ]);
 
 // ============================================================
@@ -508,9 +507,7 @@ export const indices = pgTable("indices", {
   trimestre: varchar("trimestre").notNull(),
   valeur: numeric("valeur").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
-}, (table) => [
-  uniqueIndex("idx_indices_type_trimestre").on(table.type, table.trimestre),
-]);
+});
 
 // ============================================================
 // GESTION LOCATIVE — Avenants & Renouvellements
@@ -740,19 +737,12 @@ export const scisRelations = relations(scis, ({ many }) => ({
 export const actifsRelations = relations(actifs, ({ one, many }) => ({
   sci: one(scis, { fields: [actifs.sciId], references: [scis.id] }),
   lots: many(lots),
-  baux: many(bauxAM),
+  baux: many(bauxGL),
 }));
 
 export const lotsRelations = relations(lots, ({ one, many }) => ({
   actif: one(actifs, { fields: [lots.actifId], references: [actifs.id] }),
-  baux: many(bauxAM),
-}));
-
-export const bauxAMRelations = relations(bauxAM, ({ one }) => ({
-  actif: one(actifs, { fields: [bauxAM.actifId], references: [actifs.id] }),
-  lot: one(lots, { fields: [bauxAM.lotId], references: [lots.id] }),
-  locataire: one(locatairesAM, { fields: [bauxAM.locataireId], references: [locatairesAM.id] }),
-  sci: one(scis, { fields: [bauxAM.sciId], references: [scis.id] }),
+  baux: many(bauxGL),
 }));
 
 export const empruntsRelations = relations(emprunts, ({ one }) => ({
@@ -777,6 +767,10 @@ export const bauxGLRelations = relations(bauxGL, ({ one, many }) => ({
   bailleur: one(bailleurs, { fields: [bauxGL.bailleurId], references: [bailleurs.id] }),
   locataire: one(locatairesGL, { fields: [bauxGL.locataireId], references: [locatairesGL.id] }),
   gestionnaire: one(gestionnaires, { fields: [bauxGL.gestionnaireId], references: [gestionnaires.id] }),
+  // AM hierarchy (scope='am')
+  actif: one(actifs, { fields: [bauxGL.actifId], references: [actifs.id] }),
+  lot: one(lots, { fields: [bauxGL.lotId], references: [lots.id] }),
+  sci: one(scis, { fields: [bauxGL.sciId], references: [scis.id] }),
   paiements: many(paiementsGL),
   indexations: many(indexationsGL),
   quittances: many(quittancesGL),

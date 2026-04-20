@@ -41,8 +41,15 @@ export interface AMBail {
   actifId?: string | null;
   lotId?: string | null;
   statut?: string | null;
-  loyerMensuel?: string | null;
-  loyerAnnuel?: string | null;
+  // Modèle loyer à trois niveaux — cf. shared/schema.ts `bauxGL`.
+  //   1. `loyerBaseHT`         — valeur de signature (immuable).
+  //   2. `loyerHTActu`          — valeur courante indexée INSEE (cache).
+  //   3. `loyerManuelOverride`  — valeur forcée quand `forceManual` = true.
+  // La fonction `getBailLoyerAnnuel` ci-dessous encapsule la priorité.
+  loyerBaseHT?: string | null;
+  loyerHTActu?: string | null;
+  forceManual?: boolean | null;
+  loyerManuelOverride?: string | null;
   archived?: boolean | null;
 }
 
@@ -50,9 +57,34 @@ export interface AMLot {
   id: string;
   actifId: string;
   statut?: string | null;
-  loyerMensuel?: string | null;
-  loyerAnnuel?: string | null;
+  // Les lots ne portent plus de loyer : cf. getLoyerAnnuelActif qui lit les
+  // baux associés, jamais les lots.
   archived?: boolean | null;
+}
+
+/**
+ * Loyer annuel HT d'un bail. Source de vérité unique pour toute l'UI AM.
+ *
+ * Priorité (du plus prioritaire au moins prioritaire) :
+ *   1. `loyerManuelOverride` — UNIQUEMENT si `forceManual === true` ET la
+ *       valeur est strictement positive. Court-circuite tout le reste.
+ *   2. `loyerHTActu`         — loyer courant après indexation INSEE auto.
+ *   3. `loyerBaseHT`         — loyer de signature (fallback).
+ *
+ * Note : `forceManual` est désactivé par défaut (cf. migration 0003). Tant
+ * qu'un utilisateur ne l'a pas explicitement coché, la chaîne base → INSEE
+ * → actu fait foi, ce qui garantit que la ré-indexation auto continue de
+ * fonctionner sans intervention.
+ */
+export function getBailLoyerAnnuel(b: AMBail | null | undefined): number {
+  if (!b) return 0;
+  if (b.forceManual) {
+    const override = Number(b.loyerManuelOverride || 0);
+    if (override > 0) return override;
+  }
+  const actu = Number(b.loyerHTActu || 0);
+  if (actu > 0) return actu;
+  return Number(b.loyerBaseHT || 0);
 }
 
 export interface AMEmprunt {
@@ -92,36 +124,19 @@ export interface AMSCI {
 // Loyers
 // ============================================================
 
-/** Loyer annuel d'un actif = somme des loyers des baux actifs */
-export function getLoyerAnnuelActif(actif: AMActif, baux: AMBail[], lots?: AMLot[]): number {
+/**
+ * Loyer annuel HT d'un actif = somme des loyers HT de ses baux actifs.
+ * Le loyer vit uniquement sur les baux (cf. getBailLoyerAnnuel) ; il n'y a
+ * plus de fallback sur les lots depuis la refonte de l'indexation auto :
+ * un lot sans bail est réputé vacant, donc sans revenu locatif.
+ *
+ * Le paramètre `lots` est conservé pour compat de signature mais ignoré.
+ */
+export function getLoyerAnnuelActif(actif: AMActif, baux: AMBail[], _lots?: AMLot[]): number {
   if (!actif || !baux) return 0;
-
-  // Baux liés à cet actif
-  const bauxActif = baux.filter(
-    (b) => b.actifId === actif.id && b.statut !== "résilié" && !b.archived
-  );
-
-  if (bauxActif.length > 0) {
-    return bauxActif.reduce((sum, b) => {
-      const annuel = Number(b.loyerAnnuel || 0);
-      if (annuel > 0) return sum + annuel;
-      return sum + Number(b.loyerMensuel || 0) * 12;
-    }, 0);
-  }
-
-  // Fallback: somme des loyers des lots loués
-  if (lots) {
-    const lotsActif = lots.filter(
-      (l) => l.actifId === actif.id && l.statut?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === "loue" && !l.archived
-    );
-    return lotsActif.reduce((sum, l) => {
-      const annuel = Number(l.loyerAnnuel || 0);
-      if (annuel > 0) return sum + annuel;
-      return sum + Number(l.loyerMensuel || 0) * 12;
-    }, 0);
-  }
-
-  return 0;
+  return baux
+    .filter((b) => b.actifId === actif.id && b.statut !== "résilié" && !b.archived)
+    .reduce((sum, b) => sum + getBailLoyerAnnuel(b), 0);
 }
 
 // ============================================================

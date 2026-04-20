@@ -2,8 +2,8 @@ import type { Express } from "express";
 import { db } from "../db";
 import {
   refTauxEmprunt, refValeursVenales, refValeursLocatives,
-  refTauxCapitalisation, actifs, etudesIA, lots, bauxAM, emprunts,
-  locatairesAM, scis,
+  refTauxCapitalisation, actifs, etudesIA, lots, bauxGL, emprunts,
+  locatairesGL, scis,
 } from "@shared/schema";
 import { eq, desc, and, isNull } from "drizzle-orm";
 import { requireAuth, requireWriteAdmin } from "../middleware/auth";
@@ -195,15 +195,17 @@ export function registerMarcheRoutes(app: Express) {
       db.select().from(refValeursLocatives),
       db.select().from(refTauxCapitalisation),
       db.select().from(lots).where(and(eq(lots.actifId, actifRow.id), isNull(lots.deletedAt))),
-      db.select().from(bauxAM).where(and(eq(bauxAM.actifId, actifRow.id), isNull(bauxAM.deletedAt))),
+      db.select().from(bauxGL).where(and(eq(bauxGL.actifId, actifRow.id), eq(bauxGL.scope, "am"), isNull(bauxGL.deletedAt))),
       db.select().from(emprunts).where(and(eq(emprunts.actifId, actifRow.id), isNull(emprunts.deletedAt))),
-      db.select().from(locatairesAM),
+      db.select().from(locatairesGL),
     ]);
 
     const phase1 = getPhase1(actifRow, allVenales, allLocatives, allTauxCapi);
 
-    const loyerAnnuel = actifBaux.reduce((s: number, b: any) => s + Number(b.loyerAnnuel || 0) + Number(b.loyerMensuel || 0) * 12, 0)
-      || actifLots.reduce((s: number, l: any) => s + Number(l.loyerAnnuel || 0) + Number(l.loyerMensuel || 0) * 12, 0);
+    const loyerAnnuel = actifBaux.reduce(
+      (s: number, b: any) => s + Number(b.loyerHTActu || b.loyerBaseHT || 0),
+      0,
+    );
     const surface = Number(actifRow.surfaceCarrez || actifRow.surface || 0);
     const prixAcq = Number(actifRow.prixAcquisition || 0) + Number(actifRow.fraisNotaire || 0) + Number(actifRow.fraisAgence || 0) + Number(actifRow.montantTravaux || 0);
     const chargesTotal = Number(actifRow.chargesCopropriete || actifRow.chargesAnnuelles || 0) + Number(actifRow.taxeFonciere || 0) + Number(actifRow.assurancePno || 0);
@@ -217,7 +219,7 @@ export function registerMarcheRoutes(app: Express) {
         typeBail: b.typeBail,
         dateDebut: b.dateDebut,
         dateFin: b.dateFin,
-        loyerAnnuel: Number(b.loyerAnnuel || 0) || Number(b.loyerMensuel || 0) * 12,
+        loyerAnnuel: Number(b.loyerHTActu || b.loyerBaseHT || 0),
         depotGarantie: Number(b.depotGarantie || 0),
         indiceReference: b.indiceReference,
       };
@@ -452,8 +454,10 @@ Règles :
     const surface = Number(actifRow.surfaceCarrez || actifRow.surface || 0);
     const prixAcq = Number(actifRow.prixAcquisition || 0) + Number(actifRow.fraisNotaire || 0)
       + Number(actifRow.fraisAgence || 0) + Number(actifRow.montantTravaux || 0);
-    const loyerAnnuel = actifBaux.reduce((s: number, b: any) => s + Number(b.loyerAnnuel || 0) + Number(b.loyerMensuel || 0) * 12, 0)
-      || actifLots.reduce((s: number, l: any) => s + Number(l.loyerAnnuel || 0) + Number(l.loyerMensuel || 0) * 12, 0);
+    const loyerAnnuel = actifBaux.reduce(
+      (s: number, b: any) => s + Number(b.loyerHTActu || b.loyerBaseHT || 0),
+      0,
+    );
     const lotsOccupes = actifLots.filter((l: any) => l.statut === "loué").length;
 
     const prixM2 = surface > 0 ? Math.round(prixAcq / surface) : 0;
@@ -494,7 +498,7 @@ Règles :
       .filter((b: any) => b.statut !== "résilié")
       .map((b: any) => {
         const loc = b.locataireId ? allLocataires.find((l: any) => l.id === b.locataireId) : null;
-        const loyerAnn = Number(b.loyerAnnuel || 0) || Number(b.loyerMensuel || 0) * 12;
+        const loyerAnn = Number(b.loyerHTActu || b.loyerBaseHT || 0);
         return {
           locataire: loc ? loc.nom : null,
           typeBail: b.typeBail,
@@ -537,9 +541,9 @@ Règles :
         db.select().from(refValeursLocatives),
         db.select().from(refTauxCapitalisation),
         db.select().from(lots).where(isNull(lots.deletedAt)),
-        db.select().from(bauxAM).where(isNull(bauxAM.deletedAt)),
+        db.select().from(bauxGL).where(and(eq(bauxGL.scope, "am"), isNull(bauxGL.deletedAt))),
         db.select().from(emprunts).where(isNull(emprunts.deletedAt)),
-        db.select().from(locatairesAM),
+        db.select().from(locatairesGL),
         db.select().from(scis),
       ]);
 
@@ -630,9 +634,9 @@ Règles :
         db.select().from(refValeursLocatives),
         db.select().from(refTauxCapitalisation),
         db.select().from(lots).where(and(eq(lots.actifId, actifId), isNull(lots.deletedAt))),
-        db.select().from(bauxAM).where(and(eq(bauxAM.actifId, actifId), isNull(bauxAM.deletedAt))),
+        db.select().from(bauxGL).where(and(eq(bauxGL.actifId, actifId), eq(bauxGL.scope, "am"), isNull(bauxGL.deletedAt))),
         db.select().from(emprunts).where(and(eq(emprunts.actifId, actifId), isNull(emprunts.deletedAt))),
-        db.select().from(locatairesAM),
+        db.select().from(locatairesGL),
       ]);
 
       const phase1 = getPhase1(actifRow, allVenales, allLocatives, allTauxCapi);

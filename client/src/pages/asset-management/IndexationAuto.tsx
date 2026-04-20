@@ -1,5 +1,6 @@
 /**
- * Indexation automatique — Sync INSEE + indexation baux AM
+ * Axe 2 — Indexation automatique INSEE + cron
+ * Interface pour déclencher la sync INSEE et l'auto-indexation
  */
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -9,153 +10,80 @@ import { KpiCard } from "../../components/ui/kpi-card";
 import { GlassCard } from "../../components/ui/glass-card";
 import { PageHeader } from "../../components/ui/page-header";
 import { Section } from "../../components/ui/section";
-import { DataTable, type Column } from "../../components/ui/data-table";
-import { Badge } from "../../components/ui/badge";
 import {
   RefreshCw, Database, Calculator, Zap, CheckCircle,
-  TrendingUp, Calendar, AlertTriangle, History,
+  TrendingUp, Calendar, AlertTriangle,
 } from "lucide-react";
-
-interface IndexRecord {
-  id: string;
-  type: string;
-  trimestre: string;
-  valeur: string;
-}
-
-interface BailAM {
-  id: string;
-  actifId: string | null;
-  typeBail: string | null;
-  indiceReference: string | null;
-  trimestreRef: string | null;
-  valeurIndiceBase: string | null;
-  loyerBaseHT: string | null;
-  loyerHTActu: string | null;
-  loyerAnnuel: string | null;
-  forceManual: boolean | null;
-  archived: boolean | null;
-  notes: string | null;
-}
-
-interface HistoriqueRow {
-  id: string;
-  bailId: string;
-  dateApplication: string;
-  ancienLoyer: string | null;
-  nouveauLoyer: string | null;
-  indiceBase: string | null;
-  indiceNouveau: string | null;
-  typeIndice: string | null;
-  trimestre: string | null;
-  tauxVariation: string | null;
-  notes: string | null;
-  createdAt: string;
-}
-
-function fmtEuro(v: string | number | null | undefined): string {
-  const n = Number(v);
-  if (!v || isNaN(n) || n === 0) return "—";
-  return new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(n) + " €";
-}
-
-function fmtTaux(v: string | number | null | undefined): string {
-  const n = Number(v);
-  if (!v || isNaN(n)) return "—";
-  return (n > 0 ? "+" : "") + n.toFixed(2) + "%";
-}
 
 export default function IndexationAutoPage() {
   const queryClient = useQueryClient();
   const [lastResult, setLastResult] = useState<any>(null);
 
-  const { data: allIndices = [] } = useQuery<IndexRecord[]>({
-    queryKey: ["/api/indexation/indices"],
-    queryFn: () => apiRequest("/api/indexation/indices"),
+  const { data: indices = [] } = useQuery({
+    queryKey: ["/api/gl/indices"],
+    queryFn: () => apiRequest("/api/gl/indices"),
   });
 
-  const { data: baux = [] } = useQuery<BailAM[]>({
-    queryKey: ["/api/indexation/baux-am"],
-    queryFn: () => apiRequest("/api/indexation/baux-am"),
+  const { data: baux = [] } = useQuery({
+    queryKey: ["/api/gl/baux"],
+    queryFn: () => apiRequest("/api/gl/baux"),
   });
-
-  const { data: historique = [] } = useQuery<HistoriqueRow[]>({
-    queryKey: ["/api/indexation/historique"],
-    queryFn: () => apiRequest("/api/indexation/historique"),
-  });
-
-  const invalidateAll = () => {
-    queryClient.invalidateQueries({ queryKey: ["/api/indexation/indices"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/indexation/baux-am"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/indexation/historique"] });
-  };
 
   const syncINSEEMutation = useMutation({
     mutationFn: () => apiRequest("/api/indexation/sync-insee", { method: "POST" }),
-    onSuccess: (data) => { setLastResult({ type: "insee", ...data }); invalidateAll(); },
+    onSuccess: (data) => {
+      setLastResult({ type: "insee", ...data });
+      queryClient.invalidateQueries({ queryKey: ["/api/gl/indices"] });
+    },
   });
 
   const autoIndexMutation = useMutation({
     mutationFn: () => apiRequest("/api/indexation/auto-index", { method: "POST" }),
-    onSuccess: (data) => { setLastResult({ type: "index", ...data }); invalidateAll(); },
+    onSuccess: (data) => {
+      setLastResult({ type: "index", ...data });
+      queryClient.invalidateQueries({ queryKey: ["/api/gl/baux"] });
+    },
   });
 
   const fullPipelineMutation = useMutation({
     mutationFn: () => apiRequest("/api/indexation/full-pipeline", { method: "POST" }),
-    onSuccess: (data) => { setLastResult({ type: "pipeline", ...data }); invalidateAll(); },
+    onSuccess: (data) => {
+      setLastResult({ type: "pipeline", ...data });
+      queryClient.invalidateQueries({ queryKey: ["/api/gl/indices"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/gl/baux"] });
+    },
   });
 
   // Stats
   const indiceTypes = ["IRL", "ILC", "ILAT", "ICC"];
   const latestByType = indiceTypes.map((type) => {
-    const vals = allIndices.filter((i) => i.type === type).sort((a, b) => b.trimestre.localeCompare(a.trimestre));
+    const vals = indices.filter((i: any) => i.type === type).sort((a: any, b: any) => b.trimestre.localeCompare(a.trimestre));
     return { type, latest: vals[0] || null, count: vals.length };
   });
 
-  const bauxEligibles = baux.filter((b) =>
-    b.indiceReference && b.loyerBaseHT && Number(b.loyerBaseHT) > 0
-    && b.valeurIndiceBase && Number(b.valeurIndiceBase) > 0
-    && !b.forceManual && !b.archived,
-  );
-  const bauxNonIndexes = bauxEligibles.filter((b) => {
+  const bauxEligibles = baux.filter((b: any) => b.indiceReference && b.loyerBaseHT && b.valeurIndiceBase && !b.forceManual && !b.archived);
+  const bauxNonIndexes = bauxEligibles.filter((b: any) => {
     const base = Number(b.loyerBaseHT);
     const actu = Number(b.loyerHTActu || 0);
-    return actu === 0 || Math.abs(actu - base) < 0.01;
+    return actu === 0 || actu === base;
   });
-  const bauxSansIndice = baux.filter((b) => !b.indiceReference && !b.archived);
 
   const isAnyLoading = syncINSEEMutation.isPending || autoIndexMutation.isPending || fullPipelineMutation.isPending;
-
-  // Historique columns
-  const histColumns: Column<HistoriqueRow>[] = [
-    { key: "dateApplication", label: "Date", sortable: true, render: (r) => r.dateApplication || "—" },
-    { key: "typeIndice", label: "Indice", sortable: true, render: (r) => r.typeIndice ? <Badge>{r.typeIndice}</Badge> : "—" },
-    { key: "trimestre", label: "Trimestre", sortable: true, render: (r) => r.trimestre || "—" },
-    { key: "ancienLoyer", label: "Ancien loyer", align: "right", render: (r) => fmtEuro(r.ancienLoyer) },
-    { key: "nouveauLoyer", label: "Nouveau loyer", align: "right", render: (r) => <span className="font-semibold">{fmtEuro(r.nouveauLoyer)}</span> },
-    { key: "tauxVariation", label: "Variation", align: "right", render: (r) => {
-      const n = Number(r.tauxVariation);
-      if (isNaN(n)) return "—";
-      return <span className={n > 0 ? "text-emerald-600 font-medium" : n < 0 ? "text-red-500 font-medium" : ""}>{fmtTaux(r.tauxVariation)}</span>;
-    }},
-    { key: "notes", label: "Notes", render: (r) => <span className="text-xs text-muted-foreground truncate max-w-[200px] block">{r.notes || "—"}</span> },
-  ];
 
   return (
     <AnimatePresence>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
         <PageHeader
           title="Indexation Automatique"
-          description="Synchronisation INSEE et indexation automatique des loyers (baux AM)"
+          description="Synchronisation INSEE et indexation automatique des loyers"
         />
 
         {/* KPIs */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <KpiCard label="Indices en base" value={allIndices.length} icon={Database} variant="primary" gradient delay={0} />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard label="Indices en base" value={indices.length} icon={Database} variant="primary" gradient delay={0} />
           <KpiCard label="Baux éligibles" value={bauxEligibles.length} icon={Calculator} variant="primary" gradient delay={1} />
-          <KpiCard label="En attente" value={bauxNonIndexes.length} icon={AlertTriangle} variant={bauxNonIndexes.length > 0 ? "warning" : "success"} gradient delay={2} />
-          <KpiCard label="Sans indice" value={bauxSansIndice.length} icon={AlertTriangle} variant={bauxSansIndice.length > 0 ? "warning" : "success"} gradient delay={3} />
-          <KpiCard label="Indexations appliquées" value={historique.length} icon={History} variant="primary" gradient delay={4} />
+          <KpiCard label="En attente d'indexation" value={bauxNonIndexes.length} icon={AlertTriangle} variant={bauxNonIndexes.length > 0 ? "warning" : "success"} gradient delay={2} />
+          <KpiCard label="Types d'indices" value={indiceTypes.length} icon={TrendingUp} variant="primary" gradient delay={3} />
         </div>
 
         {/* Actions */}
@@ -169,7 +97,8 @@ export default function IndexationAutoPage() {
                 <h3 className="text-sm font-semibold mb-1">Sync INSEE</h3>
                 <p className="text-xs text-muted-foreground mb-4">Récupère les derniers indices IRL, ILC, ILAT, ICC depuis l'API INSEE</p>
                 <motion.button
-                  whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={() => syncINSEEMutation.mutate()}
                   disabled={isAnyLoading}
                   className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
@@ -186,9 +115,10 @@ export default function IndexationAutoPage() {
                   <Calculator className="h-6 w-6 text-amber-600 dark:text-amber-400" />
                 </div>
                 <h3 className="text-sm font-semibold mb-1">Auto-Indexation</h3>
-                <p className="text-xs text-muted-foreground mb-4">Applique l'indexation sur les {bauxEligibles.length} baux AM éligibles</p>
+                <p className="text-xs text-muted-foreground mb-4">Applique l'indexation sur les {bauxEligibles.length} baux éligibles</p>
                 <motion.button
-                  whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={() => autoIndexMutation.mutate()}
                   disabled={isAnyLoading}
                   className="flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
@@ -205,9 +135,10 @@ export default function IndexationAutoPage() {
                   <Zap className="h-6 w-6 text-orange-600 dark:text-orange-400" />
                 </div>
                 <h3 className="text-sm font-semibold mb-1">Pipeline Complet</h3>
-                <p className="text-xs text-muted-foreground mb-4">Sync INSEE + attribution indices + indexation</p>
+                <p className="text-xs text-muted-foreground mb-4">Sync INSEE + Auto-indexation en une seule opération</p>
                 <motion.button
-                  whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={() => fullPipelineMutation.mutate()}
                   disabled={isAnyLoading}
                   className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-orange-500 to-rose-600 px-4 py-2 text-sm font-medium text-white hover:shadow-md disabled:opacity-50 transition-shadow"
@@ -221,47 +152,110 @@ export default function IndexationAutoPage() {
         </Section>
 
         {/* Result feedback */}
-        {lastResult && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-            <GlassCard>
-              <div className="flex items-start gap-3 p-4">
-                <CheckCircle className="h-5 w-5 text-green-500 mt-0.5" />
-                <div className="text-sm space-y-1">
-                  <h4 className="font-semibold">{lastResult.message}</h4>
-                  {lastResult.sync && (
-                    <p className="text-muted-foreground">
-                      INSEE: {lastResult.sync.synced} indices synchronisés
-                      {lastResult.sync.errors?.length > 0 && <span className="text-amber-500"> — {lastResult.sync.errors.join(", ")}</span>}
-                    </p>
+        {lastResult && (() => {
+          // Aggrège les erreurs et baux ignorés provenant des différentes formes de réponses :
+          // - sync direct : { synced, errors, skipped }
+          // - pipeline : { sync: {...}, indexation: {...} }
+          const inseeErrors: string[] = [
+            ...(lastResult.errors && lastResult.type === "insee" ? lastResult.errors : []),
+            ...(lastResult.sync?.errors ?? []),
+          ];
+          const indexErrors: string[] = [
+            ...(lastResult.errors && lastResult.type === "index" ? lastResult.errors : []),
+            ...(lastResult.indexation?.errors ?? []),
+          ];
+          const indexSkipped: { bail: string; reason: string }[] = [
+            ...(lastResult.skipped && lastResult.type === "index" ? lastResult.skipped : []),
+            ...(lastResult.indexation?.skipped ?? []),
+          ];
+          const hasIssues = inseeErrors.length > 0 || indexErrors.length > 0 || indexSkipped.length > 0;
+          return (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+              <GlassCard>
+                <div className="flex items-start gap-3 p-4">
+                  {hasIssues ? (
+                    <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5 shrink-0" />
+                  ) : (
+                    <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 shrink-0" />
                   )}
-                  {lastResult.assignDefaults && (
-                    <p className="text-muted-foreground">
-                      Attribution: {lastResult.assignDefaults.assigned} baux mis à jour
-                    </p>
-                  )}
-                  {lastResult.indexation && (
-                    <p className="text-muted-foreground">
-                      Indexation: {lastResult.indexation.indexed} baux indexés, {lastResult.indexation.skipped || 0} ignorés
-                      {lastResult.indexation.errors?.length > 0 && <span className="text-amber-500"> — {lastResult.indexation.errors.length} erreur(s)</span>}
-                    </p>
-                  )}
-                  {lastResult.synced !== undefined && !lastResult.sync && (
-                    <p className="text-muted-foreground">{lastResult.synced} indices synchronisés</p>
-                  )}
-                  {lastResult.indexed !== undefined && !lastResult.indexation && (
-                    <p className="text-muted-foreground">{lastResult.indexed} baux indexés</p>
-                  )}
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-sm font-semibold">Opération terminée</h4>
+                    <p className="text-sm text-muted-foreground mt-1">{lastResult.message}</p>
+                    {lastResult.sync && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        INSEE: {lastResult.sync.synced} indices synchronisés
+                      </p>
+                    )}
+                    {lastResult.indexation && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Indexation: {lastResult.indexation.indexed} baux indexés
+                      </p>
+                    )}
+                    {lastResult.synced !== undefined && (
+                      <p className="text-xs text-muted-foreground mt-0.5">{lastResult.synced} indices synchronisés</p>
+                    )}
+                    {lastResult.indexed !== undefined && (
+                      <p className="text-xs text-muted-foreground mt-0.5">{lastResult.indexed} baux indexés</p>
+                    )}
+
+                    {inseeErrors.length > 0 && (
+                      <details className="mt-3" open>
+                        <summary className="cursor-pointer text-xs font-semibold text-red-600 dark:text-red-400">
+                          Erreurs INSEE ({inseeErrors.length}) — séries non récupérées
+                        </summary>
+                        <ul className="mt-1 ml-4 list-disc text-xs text-muted-foreground space-y-0.5">
+                          {inseeErrors.map((err, i) => (
+                            <li key={i}>{err}</li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+
+                    {indexErrors.length > 0 && (
+                      <details className="mt-3" open>
+                        <summary className="cursor-pointer text-xs font-semibold text-red-600 dark:text-red-400">
+                          Erreurs d'indexation ({indexErrors.length})
+                        </summary>
+                        <ul className="mt-1 ml-4 list-disc text-xs text-muted-foreground space-y-0.5">
+                          {indexErrors.map((err, i) => (
+                            <li key={i}>{err}</li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+
+                    {indexSkipped.length > 0 && (
+                      <details className="mt-3">
+                        <summary className="cursor-pointer text-xs font-semibold text-amber-600 dark:text-amber-400">
+                          Baux ignorés ({indexSkipped.length}) — pourquoi ils n'ont pas été indexés
+                        </summary>
+                        <ul className="mt-1 ml-4 list-disc text-xs text-muted-foreground space-y-0.5 max-h-60 overflow-y-auto">
+                          {indexSkipped.map((s, i) => (
+                            <li key={i}>
+                              <span className="font-medium">{s.bail}</span>
+                              <span className="text-muted-foreground"> — {s.reason}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </GlassCard>
-          </motion.div>
-        )}
+              </GlassCard>
+            </motion.div>
+          );
+        })()}
 
         {/* Latest indices */}
         <Section title="Derniers indices disponibles">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {latestByType.map(({ type, latest, count }, i) => (
-              <motion.div key={type} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 + i * 0.08 }}>
+              <motion.div
+                key={type}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 + i * 0.08 }}
+              >
                 <GlassCard>
                   <div className="p-4">
                     <div className="flex items-center justify-between mb-2">
@@ -285,20 +279,6 @@ export default function IndexationAutoPage() {
             ))}
           </div>
         </Section>
-
-        {/* Historique des indexations */}
-        {historique.length > 0 && (
-          <Section title="Historique des indexations">
-            <DataTable
-              data={historique}
-              columns={histColumns}
-              searchKeys={["typeIndice", "trimestre", "notes"]}
-              searchPlaceholder="Rechercher..."
-              emptyMessage="Aucune indexation appliquée"
-              exportFileName="historique-indexations"
-            />
-          </Section>
-        )}
       </motion.div>
     </AnimatePresence>
   );

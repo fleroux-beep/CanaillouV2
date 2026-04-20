@@ -5,9 +5,9 @@ import type { Express } from "express";
 import { requireAuth, requireWriteAdmin } from "../middleware/auth";
 import { logger } from "../lib/logger";
 import { rateLimit } from "../lib/rate-limit";
-import { syncIndicesINSEE, assignDefaultIndices, autoIndexBauxAM } from "../lib/sync-insee";
+import { syncIndicesINSEE, assignDefaultIndices, autoIndexBaux } from "../lib/sync-insee";
 import { db } from "../db";
-import { indices, bauxAM, indexationsAM } from "@shared/schema";
+import { indices, bauxGL, indexationsGL } from "@shared/schema";
 import { eq, and, isNull, desc } from "drizzle-orm";
 
 const indexationLimiter = rateLimit(5, 10 * 60 * 1000, "indexation");
@@ -27,8 +27,8 @@ export function registerIndexationAutoRoutes(app: Express) {
   // GET AM baux with indexation data for the frontend
   app.get("/api/indexation/baux-am", requireAuth, async (_req: any, res: any) => {
     try {
-      const rows = await db.select().from(bauxAM)
-        .where(and(eq(bauxAM.archived, false), isNull(bauxAM.deletedAt)));
+      const rows = await db.select().from(bauxGL)
+        .where(and(eq(bauxGL.scope, "am"), eq(bauxGL.archived, false), isNull(bauxGL.deletedAt)));
       res.json(rows);
     } catch (error: any) {
       logger.error("get baux-am error", { error: error.message });
@@ -39,7 +39,7 @@ export function registerIndexationAutoRoutes(app: Express) {
   // GET indexation history for AM baux
   app.get("/api/indexation/historique", requireAuth, async (_req: any, res: any) => {
     try {
-      const rows = await db.select().from(indexationsAM).orderBy(desc(indexationsAM.createdAt));
+      const rows = await db.select().from(indexationsGL).orderBy(desc(indexationsGL.createdAt));
       res.json(rows);
     } catch (error: any) {
       logger.error("get historique error", { error: error.message });
@@ -61,7 +61,7 @@ export function registerIndexationAutoRoutes(app: Express) {
   // Auto-index all eligible AM baux
   app.post("/api/indexation/auto-index", requireWriteAdmin, indexationLimiter, async (_req: any, res: any) => {
     try {
-      const result = await autoIndexBauxAM();
+      const result = await autoIndexBaux();
       res.json({ message: "Indexation automatique terminée", ...result });
     } catch (error: any) {
       logger.error("auto-index route error", { error: error.message });
@@ -74,7 +74,7 @@ export function registerIndexationAutoRoutes(app: Express) {
     try {
       const syncResult = await syncIndicesINSEE();
       const assignResult = await assignDefaultIndices();
-      const indexResult = await autoIndexBauxAM();
+      const indexResult = await autoIndexBaux();
       res.json({
         message: "Pipeline complet terminé",
         sync: syncResult,

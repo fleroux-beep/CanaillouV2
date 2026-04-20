@@ -11,7 +11,7 @@
  */
 import type { Express } from "express";
 import { db } from "../db";
-import { actifs, lots, bauxAM, emprunts, scis } from "@shared/schema";
+import { actifs, lots, bauxGL, emprunts, scis } from "@shared/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { logger } from "../lib/logger";
@@ -69,7 +69,7 @@ export function registerProjectionsPredictivesRoutes(app: Express) {
 
       const allActifs = await db.select().from(actifs).where(and(eq(actifs.archived, false), isNull(actifs.deletedAt)));
       const allLots = await db.select().from(lots).where(and(eq(lots.archived, false), isNull(lots.deletedAt)));
-      const allBaux = await db.select().from(bauxAM).where(and(eq(bauxAM.archived, false), isNull(bauxAM.deletedAt)));
+      const allBaux = await db.select().from(bauxGL).where(and(eq(bauxGL.archived, false), eq(bauxGL.scope, "am"), isNull(bauxGL.deletedAt)));
       const allEmprunts = await db.select().from(emprunts).where(and(eq(emprunts.archived, false), isNull(emprunts.deletedAt)));
       const allScis = await db.select().from(scis).where(isNull(scis.deletedAt));
 
@@ -83,15 +83,12 @@ export function registerProjectionsPredictivesRoutes(app: Express) {
         const sciEmprunts = allEmprunts.filter((e: any) => e.sciId === actif.sciId && !e.actifId);
         const nbActifsInSci = allActifs.filter((a: any) => a.sciId === actif.sciId).length || 1;
 
-        // Base values (Year 0) — use loyerAnnuel OR loyerMensuel*12, not both
-        const loyerFromBaux = actifBaux.reduce((s, b: any) => {
-          const annuel = Number(b.loyerAnnuel || 0);
-          return s + (annuel > 0 ? annuel : Number(b.loyerMensuel || 0) * 12);
-        }, 0);
-        const loyerBase = loyerFromBaux > 0 ? loyerFromBaux : actifLots.reduce((s, l: any) => {
-          const annuel = Number(l.loyerAnnuel || 0);
-          return s + (annuel > 0 ? annuel : Number(l.loyerMensuel || 0) * 12);
-        }, 0);
+        // Base values (Year 0) — rent lives on the bail only
+        // (loyerHTActu fallback loyerBaseHT).
+        const loyerBase = actifBaux.reduce(
+          (s, b: any) => s + Number(b.loyerHTActu || b.loyerBaseHT || 0),
+          0,
+        );
 
         const chargesBase = Number(actif.chargesCopropriete || actif.chargesAnnuelles || 0)
           + Number(actif.taxeFonciere || 0) + Number(actif.assurancePno || 0);

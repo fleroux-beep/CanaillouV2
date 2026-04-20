@@ -37,12 +37,52 @@ Loyer_annuel_actif = Somme des loyers des baux actifs lies a cet actif
 
 **Regles :**
 - Ne compter que les baux avec `statut != "resilie"` et `archived == false`
-- Pour chaque bail :
-  - Si `loyerAnnuel > 0` → utiliser `loyerAnnuel`
-  - Sinon → utiliser `loyerMensuel * 12`
-- **Fallback** (si aucun bail) : somme des loyers des lots avec `statut == "loue"` et `archived == false`
+- **Pas de fallback lot** : les lots ne portent plus de loyer. Un lot sans bail actif contribue pour 0.
+- Le loyer mensuel d'affichage est toujours calcule a la volee : `loyer_annuel / 12`
 
-**Fichier source :** `client/src/lib/am-calculations.ts` — `getLoyerAnnuelActif()`
+### Modele loyer durable : trois colonnes, trois niveaux
+
+Chaque bail (`gl_baux`, scope `am` ou `gl`) porte trois champs loyer distincts :
+
+| Champ | Role | Qui ecrit ? |
+|---|---|---|
+| `loyerBaseHT` | Loyer annuel HT **a la signature**. Immuable apres creation, sauf avenant formel de renegociation. | Utilisateur (UI Baux, avenants) |
+| `loyerHTActu` | Loyer annuel HT **courant** apres indexation INSEE automatique. Cache recalcule = `loyerBaseHT x (indice_nouveau / valeurIndiceBase)`. | Cron INSEE uniquement |
+| `loyerManuelOverride` | Valeur forcee ponctuellement par l'utilisateur. **Ignoree** tant que `forceManual = false`. | Utilisateur via toggle explicite |
+
+### Priorite de lecture (getBailLoyerAnnuel)
+
+```
+1. Si forceManual == true ET loyerManuelOverride > 0  → loyerManuelOverride
+2. Sinon si loyerHTActu > 0                           → loyerHTActu
+3. Sinon                                              → loyerBaseHT
+```
+
+**Fichier source :** `client/src/lib/am-calculations.ts` — `getBailLoyerAnnuel()`
+**Indexation :** `server/lib/sync-insee.ts` — `autoIndexBaux()` (ignore `forceManual == true`)
+
+### forceManual : desactive par defaut
+
+- Par defaut (`forceManual = false`), la chaine `loyerBaseHT` → INSEE → `loyerHTActu` fait foi. L'indexation auto tourne sans intervention.
+- Cocher `forceManual` coupe cette chaine pour le bail concerne. A reserver a :
+  - renegociation ponctuelle non formalisee par avenant,
+  - reduction commerciale temporaire,
+  - erreur ou incoherence INSEE detectee,
+  - litige en cours.
+- **Decocher `forceManual` = retour automatique a l'indexation base x indice.** Aucune donnee n'est perdue : `loyerBaseHT` reste la source canonique.
+
+### Franchises et prorata : modele separe
+
+Les franchises de loyer (rent-free), prorata temporels et reductions exceptionnelles ne modifient **jamais** `loyerBaseHT` / `loyerHTActu`. Elles sont stockees dans `gl_baux_franchises` :
+
+| Champ | Description |
+|---|---|
+| `bailId` | FK `gl_baux.id`, cascade delete |
+| `dateDebut`, `dateFin` | Periode couverte par la franchise |
+| `montant` | Montant total en EUR sur la periode (negatif = reduction) |
+| `motif` | "franchise commerciale", "prorata entree", "travaux preneur"… |
+
+Le cash-flow de l'annee N = `loyer_annuel_actif(bail) − Σ franchises actives pendant N, au prorata des jours couverts par l'annee`. Cela preserve la coherence long terme : la projection DCF continue d'utiliser le loyer contractuel, et les franchises ne polluent que l'annee concernee.
 
 ---
 
@@ -357,9 +397,15 @@ Avec `NAV_totale = Valorisation - CRD`
 
 ### Structure du loyer GL
 
-- `loyerBaseHT` : loyer initial a la signature du bail (**annuel**)
-- `loyerHTActu` : loyer actuel apres indexation (**annuel**)
-- Le loyer affiche = `loyerHTActu || loyerBaseHT`
+Cf. section 1 — le modele a trois niveaux (`loyerBaseHT`, `loyerHTActu`,
+`loyerManuelOverride` + `forceManual`) s'applique identiquement aux scopes `am`
+et `gl` sur la meme table `gl_baux`. Les franchises vivent dans
+`gl_baux_franchises`, partagees entre les deux interfaces.
+
+- `loyerBaseHT` : loyer initial a la signature du bail (**annuel HT EUR**)
+- `loyerHTActu` : loyer courant apres indexation INSEE auto (**cache**)
+- `loyerManuelOverride` : override manuel ponctuel (nul par defaut)
+- Le loyer affiche = cf. priorite `getBailLoyerAnnuel` en section 1
 - Loyer mensuel = loyer annuel / 12
 
 ### Indexation automatique

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   getLoyerAnnuelActif,
+  getBailLoyerAnnuel,
   getChargesAnnuelles,
   getPrixAcquisition,
   getValeurEstimee,
@@ -65,35 +66,35 @@ describe("getLoyerAnnuelActif", () => {
     expect(getLoyerAnnuelActif(makeActif(), [])).toBe(0);
   });
 
-  it("sums loyer annuel from baux linked to actif", () => {
+  it("sums loyerBaseHT from baux linked to actif", () => {
     const baux = [
-      makeBail({ loyerAnnuel: "12000" }),
-      makeBail({ id: "b2", loyerAnnuel: "8000" }),
+      makeBail({ loyerBaseHT: "12000" }),
+      makeBail({ id: "b2", loyerBaseHT: "8000" }),
     ];
     expect(getLoyerAnnuelActif(makeActif(), baux)).toBe(20000);
   });
 
-  it("falls back to loyerMensuel * 12 when loyerAnnuel missing", () => {
-    const baux = [makeBail({ loyerMensuel: "1000" })];
-    expect(getLoyerAnnuelActif(makeActif(), baux)).toBe(12000);
+  it("prefers loyerHTActu (indexé) over loyerBaseHT", () => {
+    const baux = [makeBail({ loyerBaseHT: "12000", loyerHTActu: "12500" })];
+    expect(getLoyerAnnuelActif(makeActif(), baux)).toBe(12500);
   });
 
   it("excludes baux with statut 'résilié'", () => {
     const baux = [
-      makeBail({ loyerAnnuel: "12000", statut: "résilié" }),
+      makeBail({ loyerBaseHT: "12000", statut: "résilié" }),
     ];
     expect(getLoyerAnnuelActif(makeActif(), baux)).toBe(0);
   });
 
   it("excludes archived baux", () => {
     const baux = [
-      makeBail({ loyerAnnuel: "12000", archived: true }),
+      makeBail({ loyerBaseHT: "12000", archived: true }),
     ];
     expect(getLoyerAnnuelActif(makeActif(), baux)).toBe(0);
   });
 
   it("excludes baux from other actifs", () => {
-    const baux = [makeBail({ actifId: "other", loyerAnnuel: "12000" })];
+    const baux = [makeBail({ actifId: "other", loyerBaseHT: "12000" })];
     expect(getLoyerAnnuelActif(makeActif(), baux)).toBe(0);
   });
 
@@ -104,12 +105,76 @@ describe("getLoyerAnnuelActif", () => {
   it("returns 0 with null baux", () => {
     expect(getLoyerAnnuelActif(makeActif(), null as any)).toBe(0);
   });
+});
 
-  it("falls back to lots when no baux match", () => {
-    const lots: AMLot[] = [
-      { id: "l1", actifId: "a1", statut: "loué", loyerAnnuel: "6000" },
-    ];
-    expect(getLoyerAnnuelActif(makeActif(), [], lots)).toBe(6000);
+// ============================================================
+// 1bis. Priorité loyer à trois niveaux (getBailLoyerAnnuel)
+// ============================================================
+
+describe("getBailLoyerAnnuel — modèle loyer durable", () => {
+  it("returns 0 on null/undefined", () => {
+    expect(getBailLoyerAnnuel(null)).toBe(0);
+    expect(getBailLoyerAnnuel(undefined)).toBe(0);
+  });
+
+  it("uses loyerBaseHT when no actu and no override", () => {
+    const b = makeBail({ loyerBaseHT: "10000" });
+    expect(getBailLoyerAnnuel(b)).toBe(10000);
+  });
+
+  it("prefers loyerHTActu over loyerBaseHT", () => {
+    const b = makeBail({ loyerBaseHT: "10000", loyerHTActu: "10500" });
+    expect(getBailLoyerAnnuel(b)).toBe(10500);
+  });
+
+  it("ignores loyerManuelOverride when forceManual is false", () => {
+    // C'est exactement le cas "par défaut désactivé" : la chaîne base→actu
+    // doit faire foi même si une valeur override traîne en base.
+    const b = makeBail({
+      loyerBaseHT: "10000",
+      loyerHTActu: "10500",
+      forceManual: false,
+      loyerManuelOverride: "9999",
+    });
+    expect(getBailLoyerAnnuel(b)).toBe(10500);
+  });
+
+  it("ignores loyerManuelOverride when forceManual is undefined (default false)", () => {
+    const b = makeBail({
+      loyerBaseHT: "10000",
+      loyerManuelOverride: "9999",
+    });
+    expect(getBailLoyerAnnuel(b)).toBe(10000);
+  });
+
+  it("uses loyerManuelOverride when forceManual is true and override > 0", () => {
+    const b = makeBail({
+      loyerBaseHT: "10000",
+      loyerHTActu: "10500",
+      forceManual: true,
+      loyerManuelOverride: "8000",
+    });
+    expect(getBailLoyerAnnuel(b)).toBe(8000);
+  });
+
+  it("falls back to actu when forceManual=true but override is 0/null", () => {
+    const b = makeBail({
+      loyerBaseHT: "10000",
+      loyerHTActu: "10500",
+      forceManual: true,
+      loyerManuelOverride: null,
+    });
+    expect(getBailLoyerAnnuel(b)).toBe(10500);
+  });
+
+  it("falls back to actu when forceManual=true but override is literally 0", () => {
+    const b = makeBail({
+      loyerBaseHT: "10000",
+      loyerHTActu: "10500",
+      forceManual: true,
+      loyerManuelOverride: "0",
+    });
+    expect(getBailLoyerAnnuel(b)).toBe(10500);
   });
 });
 
@@ -167,7 +232,7 @@ describe("getValeurEstimee", () => {
       tauxCapitalisation: "6",
       prixAcquisition: "100000",
     });
-    const baux = [makeBail({ loyerAnnuel: "12000" })];
+    const baux = [makeBail({ loyerBaseHT: "12000" })];
     // NOI = 12000, taux = 6% => 12000 / 0.06 = 200000
     expect(getValeurEstimee(actif, baux)).toBe(200000);
   });
@@ -188,7 +253,7 @@ describe("getValeurEstimee", () => {
       surface: "100",
       prixM2Marche: "3000",
     });
-    const baux = [makeBail({ loyerAnnuel: "20000" })];
+    const baux = [makeBail({ loyerBaseHT: "20000" })];
     // Capi: 20000 / 0.05 = 400000, Comp: 100 * 3000 = 300000
     // Average = 350000
     expect(getValeurEstimee(actif, baux)).toBe(350000);
@@ -678,7 +743,7 @@ describe("Division by zero protection", () => {
 
   it("getValeurEstimee with tauxCapi=0", () => {
     const actif = makeActif({ tauxCapitalisation: "0", prixAcquisition: "100000" });
-    const baux = [makeBail({ loyerAnnuel: "12000" })];
+    const baux = [makeBail({ loyerBaseHT: "12000" })];
     // Should fall back to prix acquisition since capi method returns 0
     expect(getValeurEstimee(actif, baux)).toBe(100000);
   });
@@ -815,20 +880,6 @@ describe("AUDIT FIX INFO-9: Stress test includes insurance in stressed debt", ()
     const base = result.find(s => s.label === "Base")!;
     // Base scenario uses flat serviceDette=30000, not recalculated
     expect(base.noiAjuste).toBe(80000); // 100000 - 20000
-  });
-});
-
-describe("AUDIT FIX B1c: Lot statut accent-agnostic matching", () => {
-  it("getLoyerAnnuelActif counts lots with accent variants", () => {
-    const actif = makeActif();
-    // No baux match → falls back to lots
-    const lots: AMLot[] = [
-      { id: "l1", actifId: "a1", statut: "loué", loyerAnnuel: "6000" },
-      { id: "l2", actifId: "a1", statut: "loue", loyerAnnuel: "4000" }, // no accent
-      { id: "l3", actifId: "a1", statut: "Loué", loyerAnnuel: "3000" }, // capitalized
-    ];
-    const result = getLoyerAnnuelActif(actif, [], lots);
-    expect(result).toBe(13000); // all three should match
   });
 });
 

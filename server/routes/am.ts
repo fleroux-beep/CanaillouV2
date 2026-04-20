@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { db } from "../db";
-import { scis, associes, participations, actifs, lots, locatairesAM, bauxAM, emprunts, travaux, documentsAM } from "@shared/schema";
+import { scis, associes, participations, actifs, lots, locatairesGL, bauxGL, emprunts, travaux, documentsAM } from "@shared/schema";
 import { eq, desc, count, isNull, and } from "drizzle-orm";
 import { requireAuth, requireWriteAdmin } from "../middleware/auth";
 import { validate, amSchemas } from "../lib/validation";
@@ -107,8 +107,9 @@ function registerActifsCrud(app: Express) {
       if ("deletedAt" in lots) {
         await db.update(lots).set({ deletedAt: now }).where(eq(lots.actifId, id));
       }
-      if ("deletedAt" in bauxAM) {
-        await db.update(bauxAM).set({ deletedAt: now }).where(eq(bauxAM.actifId, id));
+      if ("deletedAt" in bauxGL) {
+        // Only cascade to AM-scoped baux; GL baux never reference am_actifs
+        await db.update(bauxGL).set({ deletedAt: now }).where(and(eq(bauxGL.actifId, id), eq(bauxGL.scope, "am")));
       }
       await db.delete(travaux).where(eq(travaux.actifId, id));
       logger.info("cascade soft-delete actif", { actifId: id });
@@ -128,8 +129,10 @@ export function registerAMRoutes(app: Express) {
   registerCrud(app, "participations", participations, opts);
   registerActifsCrud(app);
   registerCrud(app, "lots", lots, opts);
-  registerCrud(app, "locataires", locatairesAM, opts);
-  registerCrud(app, "baux", bauxAM, opts);
+  // locataires: shared pool — multi-tenant isolation already enforced by ownerId
+  registerCrud(app, "locataires", locatairesGL, opts);
+  // baux: shared storage, AM UI only sees scope='am' rows (forced on create)
+  registerCrud(app, "baux", bauxGL, opts, { scope: "am" });
   registerCrud(app, "emprunts", emprunts, opts);
   registerCrud(app, "travaux", travaux, opts);
   registerCrud(app, "documents", documentsAM, opts);
@@ -141,9 +144,12 @@ export function registerAMRoutes(app: Express) {
     }
   };
 
+  // Note: these overrides intentionally shadow the CRUD factory registration above
+  // to run syncLotLocataire() after insert/update. They must force scope='am' to stay
+  // consistent with the factory's scope guarantees.
   app.post("/api/am/baux", requireWriteAdmin, ...(amSchemas["baux"] ? [validate(amSchemas["baux"])] : []), async (req: any, res: any) => {
     try {
-      const rows = await db.insert(bauxAM).values(req.body).returning() as any[];
+      const rows = await db.insert(bauxGL).values({ ...req.body, scope: "am" }).returning() as any[];
       await syncLotLocataire(rows[0]);
       res.status(201).json(rows[0]);
     } catch (error: any) {
@@ -156,7 +162,12 @@ export function registerAMRoutes(app: Express) {
     try {
       const id = paramId(req, res);
       if (!id) return;
-      const rows = await db.update(bauxAM).set({ ...req.body, updatedAt: new Date() }).where(eq(bauxAM.id, id)).returning() as any[];
+      const { scope: _ignored, ...safeBody } = req.body ?? {};
+      const rows = await db
+        .update(bauxGL)
+        .set({ ...safeBody, updatedAt: new Date() })
+        .where(and(eq(bauxGL.id, id), eq(bauxGL.scope, "am")))
+        .returning() as any[];
       if (rows.length === 0) return res.status(404).json({ error: "Non trouvé" });
       await syncLotLocataire(rows[0]);
       res.json(rows[0]);
@@ -262,8 +273,8 @@ export function registerAMRoutes(app: Express) {
 
   app.get("/api/am/lots/:id/baux", requireAuth, async (req: any, res: any) => {
     try {
-      const rows = await db.select().from(bauxAM).where(
-        and(eq(bauxAM.lotId, paramId(req)), isNull(bauxAM.deletedAt))
+      const rows = await db.select().from(bauxGL).where(
+        and(eq(bauxGL.lotId, paramId(req)), eq(bauxGL.scope, "am"), isNull(bauxGL.deletedAt))
       );
       res.json(rows);
     } catch (error: any) {
@@ -289,9 +300,9 @@ export function registerAMRoutes(app: Express) {
           db.select({ value: count() }).from(scis).where(isNull(scis.deletedAt)),
           db.select({ value: count() }).from(actifs).where(and(eq(actifs.archived, false), isNull(actifs.deletedAt))),
           db.select({ value: count() }).from(lots).where(and(eq(lots.archived, false), isNull(lots.deletedAt))),
-          db.select({ value: count() }).from(bauxAM).where(and(eq(bauxAM.archived, false), isNull(bauxAM.deletedAt))),
+          db.select({ value: count() }).from(bauxGL).where(and(eq(bauxGL.archived, false), eq(bauxGL.scope, "am"), isNull(bauxGL.deletedAt))),
           db.select({ value: count() }).from(emprunts).where(and(eq(emprunts.archived, false), isNull(emprunts.deletedAt))),
-          db.select({ value: count() }).from(locatairesAM),
+          db.select({ value: count() }).from(locatairesGL),
           db.select({ value: count() }).from(associes),
         ]);
 

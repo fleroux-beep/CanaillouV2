@@ -11,20 +11,33 @@ import { Plus, Pencil, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { InfoTooltip } from "../../components/ui/info-tooltip";
 
-interface Lot { id: string; actifId: string; designation: string; type?: string; etage?: string; surface?: string; statut?: string; loyerMensuel?: string; loyerAnnuel?: string; notes?: string; archived?: boolean; }
+interface Lot { id: string; actifId: string; designation: string; type?: string; etage?: string; surface?: string; statut?: string; notes?: string; archived?: boolean; }
 interface Actif { id: string; nom: string; }
+interface BailLite { id: string; lotId?: string; loyerBaseHT?: string; loyerHTActu?: string; statut?: string; archived?: boolean; }
 
 const emptyLot: Partial<Lot> = { designation: "" };
 
 export default function LotsPage() {
   const { data, create, update, remove, creating, updating, deleting } = useCrud<Lot>("/api/am/lots", "Lot");
   const { data: actifs } = useCrud<Actif>("/api/am/actifs", "Actif");
+  const { data: baux } = useCrud<BailLite>("/api/am/baux", "Bail");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Lot | null>(null);
   const [form, setForm] = useState<Partial<Lot>>(emptyLot);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const actifMap = Object.fromEntries(actifs.map((a) => [a.id, a.nom]));
+
+  // Le loyer vit uniquement sur le bail — on affiche ici le loyer HT/mois
+  // du premier bail actif rattaché au lot (si présent).
+  const getLoyerMensuelLot = (lotId: string): number => {
+    const bail = baux.find(
+      (b) => b.lotId === lotId && !b.archived && b.statut !== "résilié",
+    );
+    if (!bail) return 0;
+    const annuel = Number(bail.loyerHTActu || bail.loyerBaseHT || 0);
+    return annuel > 0 ? Math.round((annuel / 12) * 100) / 100 : 0;
+  };
 
   const columns: Column<Lot>[] = [
     { key: "designation", label: "Désignation", sortable: true, render: (r) => <span className="font-medium">{r.designation}</span> },
@@ -37,7 +50,21 @@ export default function LotsPage() {
         {r.statut || "—"}
       </Badge>
     )},
-    { key: "loyerMensuel", label: <InfoTooltip metricKey="mensualite">Loyer/mois</InfoTooltip>, exportLabel: "Loyer/mois", align: "right", sortable: true, render: (r) => r.loyerMensuel ? formatCurrency(r.loyerMensuel) : "—" },
+    {
+      key: "loyerMensuel",
+      label: <InfoTooltip metricKey="mensualite">Loyer/mois</InfoTooltip>,
+      exportLabel: "Loyer/mois (bail)",
+      align: "right",
+      sortable: true,
+      render: (r) => {
+        const m = getLoyerMensuelLot(r.id);
+        return m > 0 ? formatCurrency(m) : "—";
+      },
+      exportValue: (r) => {
+        const m = getLoyerMensuelLot(r.id);
+        return m > 0 ? String(m) : "";
+      },
+    },
     { key: "actions", label: "", align: "right", render: (r) => (
       <div className="flex items-center justify-end gap-1">
         <button onClick={(e) => { e.stopPropagation(); openEdit(r); }} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button>
@@ -49,18 +76,7 @@ export default function LotsPage() {
   const openCreate = () => { setEditing(null); setForm(emptyLot); setDialogOpen(true); };
   const openEdit = (l: Lot) => { setEditing(l); setForm(l); setDialogOpen(true); };
   const onChange = (name: string, value: string) => {
-    setForm((f) => {
-      const updated = { ...f, [name]: value };
-      // Auto-calc loyer: mensuel → annuel (et vice-versa)
-      if (name === "loyerMensuel" && value) {
-        const mensuel = parseFloat(value);
-        if (!isNaN(mensuel)) updated.loyerAnnuel = String(Math.round(mensuel * 12 * 100) / 100);
-      } else if (name === "loyerAnnuel" && value) {
-        const annuel = parseFloat(value);
-        if (!isNaN(annuel)) updated.loyerMensuel = String(Math.round((annuel / 12) * 100) / 100);
-      }
-      return updated;
-    });
+    setForm((f) => ({ ...f, [name]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -97,9 +113,11 @@ export default function LotsPage() {
           <FormField label="Statut" name="statut" value={form.statut} onChange={onChange} options={[
             { value: "loué", label: "Loué" }, { value: "vacant", label: "Vacant" },
           ]} />
-          <FormField label="Loyer mensuel" name="loyerMensuel" value={form.loyerMensuel} onChange={onChange} type="number" suffix="EUR" />
-          <FormField label="Loyer annuel" name="loyerAnnuel" value={form.loyerAnnuel} onChange={onChange} type="number" suffix="EUR" />
         </FormGrid>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Le loyer est désormais géré uniquement côté bail (indexation INSEE
+          automatique). Pour modifier un loyer, ouvrez le bail associé au lot.
+        </p>
         <FormField label="Notes" name="notes" value={form.notes} onChange={onChange} rows={3} className="mt-4" />
       </FormDialog>
 

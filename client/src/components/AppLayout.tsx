@@ -27,6 +27,12 @@ interface NavGroup {
   items: NavItem[];
 }
 
+// Navigation regroupée par workflow pour améliorer la lisibilité :
+// — Pilotage : vues d'ensemble quotidiennes
+// — Entités & Financement : données structurantes (SCI, emprunts, travaux)
+// — Analyse : diagnostics financiers et patrimoniaux
+// — Projection & Reporting : outils tournés vers le futur
+// — Opérations & Outils : tâches opérationnelles et import/automatisations
 const amNavGroups: NavGroup[] = [
   {
     label: null,
@@ -35,47 +41,47 @@ const amNavGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Patrimoine",
+    label: "Pilotage",
     items: [
       { label: "Tableau de bord", href: "/asset-management/dashboard", icon: LayoutDashboard },
       { label: "Patrimoine", href: "/asset-management/patrimoine", icon: TreePine },
-      { label: "SCI & Associes", href: "/asset-management/scis-associes", icon: Landmark },
+      { label: "Carte", href: "/asset-management/carte", icon: Map },
     ],
   },
   {
-    label: "Finance",
+    label: "Entités & Financement",
     items: [
+      { label: "SCI & Associes", href: "/asset-management/scis-associes", icon: Landmark },
       { label: "Emprunts & Crédit", href: "/asset-management/emprunts", icon: PiggyBank },
+      { label: "Travaux", href: "/asset-management/travaux", icon: Hammer },
+    ],
+  },
+  {
+    label: "Analyse",
+    items: [
       { label: "Valorisation", href: "/asset-management/valorisation", icon: BarChart3 },
       { label: "Contrôle de gestion", href: "/asset-management/controle-gestion", icon: ClipboardList },
-      { label: "Arbitrages", href: "/asset-management/arbitrages", icon: ArrowUpDown },
       { label: "Score de santé", href: "/asset-management/score-sante", icon: Heart },
       { label: "Analyse patrimoniale", href: "/asset-management/etude-marche", icon: Search },
     ],
   },
   {
-    label: "Simulation",
+    label: "Projection & Reporting",
     items: [
-      { label: "Simulateur SCPI", href: "/asset-management/simulateur", icon: FlaskConical },
       { label: "Projections", href: "/asset-management/projections-predictives", icon: Brain },
+      { label: "Simulateur SCPI", href: "/asset-management/simulateur", icon: FlaskConical },
+      { label: "Arbitrages", href: "/asset-management/arbitrages", icon: ArrowUpDown },
       { label: "Reporting", href: "/asset-management/reporting", icon: FileBarChart },
     ],
   },
   {
-    label: "Suivi",
+    label: "Opérations & Outils",
     items: [
-      { label: "Travaux", href: "/asset-management/travaux", icon: Hammer },
       { label: "Alertes", href: "/asset-management/alertes", icon: Bell },
       { label: "Calendrier", href: "/asset-management/calendrier", icon: Calendar },
-      { label: "Carte", href: "/asset-management/carte", icon: Map },
-    ],
-  },
-  {
-    label: "Outils",
-    items: [
+      { label: "Indexation auto", href: "/asset-management/indexation-auto", icon: Zap },
       { label: "Import de données", href: "/asset-management/import", icon: DatabaseBackup },
       { label: "Extraction bail PDF", href: "/asset-management/extraction-bail", icon: FileUp },
-      { label: "Indexation auto", href: "/asset-management/indexation-auto", icon: Zap },
     ],
   },
 ];
