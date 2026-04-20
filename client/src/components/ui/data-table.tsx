@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight, Download, Inbox } from "lucide-react";
+import { Search, ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight, Download, Inbox, AlertTriangle, Loader2 } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 export interface Column<T> {
@@ -25,6 +25,8 @@ interface DataTableProps<T> {
   actions?: React.ReactNode;
   pageSize?: number;
   exportFileName?: string;
+  loading?: boolean;
+  error?: string | null;
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -37,6 +39,8 @@ export function DataTable<T extends Record<string, any>>({
   actions,
   pageSize = 15,
   exportFileName = "export",
+  loading = false,
+  error = null,
 }: DataTableProps<T>) {
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<string | null>(null);
@@ -196,7 +200,30 @@ export function DataTable<T extends Record<string, any>>({
           </thead>
           <tbody className="divide-y divide-border/40">
             <AnimatePresence>
-              {paginatedData.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={columns.length} className="px-4 py-16 text-center" role="status">
+                    <div className="flex flex-col items-center gap-3">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary/60" />
+                      <p className="text-sm text-muted-foreground">Chargement…</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={columns.length} className="px-4 py-16 text-center" role="alert">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-50 dark:bg-red-950/30">
+                        <AlertTriangle className="h-6 w-6 text-red-500" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-red-600 dark:text-red-400">Erreur de chargement</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{error}</p>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              ) : paginatedData.length === 0 ? (
                 <tr>
                   <td colSpan={columns.length} className="px-4 py-16 text-center" role="status">
                     <div className="flex flex-col items-center gap-3">
