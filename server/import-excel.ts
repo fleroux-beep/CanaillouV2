@@ -1104,6 +1104,8 @@ export async function importExcelData(): Promise<{
     await client.query(`DELETE FROM am_actifs`);
     await client.query(`DELETE FROM am_associes`);
     await client.query(`DELETE FROM am_scis`);
+    // Drop legacy am_baux to prevent ensureSchema migration from re-inserting old rows
+    await client.query(`DROP TABLE IF EXISTS am_baux CASCADE`);
     logger.info("import: cleaned existing AM data");
 
     // ─── 1. Create SCIs ──────────────────────────────────────────

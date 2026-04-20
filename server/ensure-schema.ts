@@ -153,6 +153,8 @@ async function applyBauxUnificationMigration() {
           ON CONFLICT (id) DO NOTHING;
         `);
         logger.info("migration 0001: am_baux backfilled into gl_baux with scope='am'");
+        await client.query(`DROP TABLE IF EXISTS "am_baux" CASCADE`);
+        logger.info("migration 0001: am_baux table dropped (data now in gl_baux)");
       }
     } catch (err: any) {
       logger.warn("migration 0001: am_baux backfill skipped", { error: err.message });
