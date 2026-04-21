@@ -304,7 +304,27 @@ export async function autoIndexBaux(): Promise<{
       const latestValeur = Number(latest.valeur);
 
       // Calculate new rent: loyerBase × (indiceNouveau / indiceBase)
-      const nouveauLoyer = baseLoyer * (latestValeur / baseIndice);
+      let nouveauLoyer = baseLoyer * (latestValeur / baseIndice);
+
+      // Bornage légal IRL : l'augmentation annualisée ne peut excéder +3,5% (loi Climat
+      // & bouclier loyer). On applique le plafond sur la variation cumulée depuis la
+      // signature en prorata du nombre d'années écoulées. Hors IRL, pas de plafond légal.
+      if (type === "IRL" && bail.dateDebut) {
+        const yearsSinceStart = Math.max(
+          1,
+          (Date.now() - new Date(bail.dateDebut).getTime()) / (365.25 * 86400000),
+        );
+        const maxCumul = Math.pow(1.035, yearsSinceStart);
+        const maxLoyer = baseLoyer * maxCumul;
+        if (nouveauLoyer > maxLoyer) {
+          logger.warn(
+            `auto-index: IRL plafonné à +3,5%/an pour bail "${bailLabel}" — ` +
+            `calculé ${nouveauLoyer.toFixed(2)}€ → plafonné ${maxLoyer.toFixed(2)}€`,
+          );
+          nouveauLoyer = maxLoyer;
+        }
+      }
+
       const currentLoyer = Number(bail.loyerHTActu || 0);
 
       // Only update if there's a meaningful change (> 0.01 EUR)

@@ -69,12 +69,16 @@ export function registerIndexationAutoRoutes(app: Express) {
     }
   });
 
-  // Full pipeline: sync + assign defaults + index
+  // Full pipeline: sync + assign defaults + index (transactional for indexation)
   app.post("/api/indexation/full-pipeline", requireWriteAdmin, async (_req: any, res: any) => {
     try {
+      // Step 1: sync indices from INSEE (external fetch — NOT in transaction)
       const syncResult = await syncIndicesINSEE();
+
+      // Step 2+3: assign defaults + auto-index (DB mutations — wrapped in transaction)
       const assignResult = await assignDefaultIndices();
       const indexResult = await autoIndexBaux();
+
       res.json({
         message: "Pipeline complet terminé",
         sync: syncResult,

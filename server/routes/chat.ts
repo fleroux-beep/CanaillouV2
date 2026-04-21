@@ -34,11 +34,11 @@ interface ToolResult {
 
 // ─── Data fetchers (tools for the AI) ───────────────────────
 async function fetchPortfolioSummary(): Promise<unknown> {
-  const sciList = await db.select().from(scis);
-  const actifsList = await db.select().from(actifs);
-  const empruntsList = await db.select().from(emprunts);
-  const lotsList = await db.select().from(lots);
-  const bauxList = await db.select().from(bauxGL).where(eq(bauxGL.scope, "am"));
+  const sciList = await db.select().from(scis).where(isNull(scis.deletedAt));
+  const actifsList = await db.select().from(actifs).where(and(eq(actifs.archived, false), isNull(actifs.deletedAt)));
+  const empruntsList = await db.select().from(emprunts).where(and(eq(emprunts.archived, false), isNull(emprunts.deletedAt)));
+  const lotsList = await db.select().from(lots).where(and(eq(lots.archived, false), isNull(lots.deletedAt)));
+  const bauxList = await db.select().from(bauxGL).where(and(eq(bauxGL.scope, "am"), eq(bauxGL.archived, false), isNull(bauxGL.deletedAt)));
 
   const totalValorisation = actifsList.reduce((s, a: any) => {
     const prix = Number(a.prixAcquisition || 0) + Number(a.fraisNotaire || 0) + Number(a.fraisAgence || 0) + Number(a.montantTravaux || 0);
@@ -65,8 +65,8 @@ async function fetchPortfolioSummary(): Promise<unknown> {
 }
 
 async function fetchActifsDetails(): Promise<unknown> {
-  const actifsList = await db.select().from(actifs);
-  return actifsList.filter((a: any) => !a.archived).map((a: any) => ({
+  const actifsList = await db.select().from(actifs).where(and(eq(actifs.archived, false), isNull(actifs.deletedAt)));
+  return actifsList.map((a: any) => ({
     id: a.id,
     nom: a.nom,
     sciId: a.sciId,
@@ -81,8 +81,8 @@ async function fetchActifsDetails(): Promise<unknown> {
 }
 
 async function fetchEmpruntsDetails(): Promise<unknown> {
-  const empruntsList = await db.select().from(emprunts);
-  return empruntsList.filter((e: any) => !e.archived).map((e: any) => ({
+  const empruntsList = await db.select().from(emprunts).where(and(eq(emprunts.archived, false), isNull(emprunts.deletedAt)));
+  return empruntsList.map((e: any) => ({
     id: e.id,
     sciId: e.sciId,
     banque: e.banque,
@@ -97,8 +97,8 @@ async function fetchEmpruntsDetails(): Promise<unknown> {
 }
 
 async function fetchBauxGL(): Promise<unknown> {
-  const bauxList = await db.select().from(bauxGL);
-  return bauxList.filter((b: any) => !b.archived).map((b: any) => ({
+  const bauxList = await db.select().from(bauxGL).where(and(eq(bauxGL.archived, false), isNull(bauxGL.deletedAt)));
+  return bauxList.map((b: any) => ({
     id: b.id,
     nom: b.nom,
     ville: b.ville,
@@ -125,15 +125,15 @@ async function fetchIndices(): Promise<unknown> {
 }
 
 async function fetchSCIDetail(sciId: string): Promise<unknown> {
-  const sci = await db.select().from(scis).where(eq(scis.id, sciId)).limit(1);
+  const sci = await db.select().from(scis).where(and(eq(scis.id, sciId), isNull(scis.deletedAt))).limit(1);
   if (sci.length === 0) return { error: "SCI non trouvée" };
-  const sciActifs = await db.select().from(actifs).where(eq(actifs.sciId, sciId));
-  const sciEmprunts = await db.select().from(emprunts).where(eq(emprunts.sciId, sciId));
+  const sciActifs = await db.select().from(actifs).where(and(eq(actifs.sciId, sciId), eq(actifs.archived, false), isNull(actifs.deletedAt)));
+  const sciEmprunts = await db.select().from(emprunts).where(and(eq(emprunts.sciId, sciId), eq(emprunts.archived, false), isNull(emprunts.deletedAt)));
   const sciAssocies = await db.select().from(participations).where(eq(participations.sciId, sciId));
   return {
     sci: sci[0],
-    actifs: sciActifs.filter((a: any) => !a.archived),
-    emprunts: sciEmprunts.filter((e: any) => !e.archived),
+    actifs: sciActifs,
+    emprunts: sciEmprunts,
     participations: sciAssocies,
   };
 }

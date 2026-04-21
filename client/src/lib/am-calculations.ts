@@ -243,10 +243,11 @@ export function getAnnuiteEmprunt(emprunt: AMEmprunt): number {
     mensualiteCalc = factor > 1 ? montant * (tauxMensuel * factor) / (factor - 1) : montant / nbMois;
   }
 
-  // Ajouter l'assurance emprunteur (calculée sur le capital initial)
+  // Assurance emprunteur sur capital restant dû (ou initial si CRD indisponible)
   const tauxAssurance = Number(emprunt?.tauxAssurance || 0) / 100;
   if (tauxAssurance > 0) {
-    mensualiteCalc += (montant * tauxAssurance) / 12;
+    const capitalAssurance = Number(emprunt?.capitalRestantDu || 0) || montant;
+    mensualiteCalc += (capitalAssurance * tauxAssurance) / 12;
   }
 
   return mensualiteCalc * 12;
@@ -278,7 +279,10 @@ export function reconcileEmprunt(emprunt: AMEmprunt): {
   let mensuCalc = factor > 1 ? montant * (tauxMensuel * factor) / (factor - 1) : montant / nbMois;
 
   const tauxAssurance = Number(emprunt?.tauxAssurance || 0) / 100;
-  if (tauxAssurance > 0) mensuCalc += (montant * tauxAssurance) / 12;
+  if (tauxAssurance > 0) {
+    const capitalAssurance = Number(emprunt?.capitalRestantDu || 0) || montant;
+    mensuCalc += (capitalAssurance * tauxAssurance) / 12;
+  }
 
   const formulaAnnual = mensuCalc * 12;
   const ecartPct = storedAnnual !== 0 ? ((formulaAnnual - storedAnnual) / storedAnnual) * 100 : 0;
@@ -523,11 +527,15 @@ export function computeAmortSchedule(emprunt: AMEmprunt): AmortRow[] {
     if (assuranceMensuelle === 0) {
       const tauxAssurance = Number(emprunt?.tauxAssurance || 0) / 100;
       if (montant > 0 && tauxAssurance > 0) {
-        assuranceMensuelle = (montant * tauxAssurance) / 12;
+        // Will be recomputed per-year on remaining capital (CRD-based)
+        assuranceMensuelle = -1; // sentinel: dynamic per-year
       }
     }
   }
 
+  const tauxAssurancePct = Number(emprunt?.tauxAssurance || 0) / 100;
+  const dynamicAssurance = assuranceMensuelle === -1;
+  if (dynamicAssurance) assuranceMensuelle = 0;
   const assuranceAnnuelle = assuranceMensuelle * 12;
   const rows: AmortRow[] = [];
   let capital = montant;
@@ -552,17 +560,19 @@ export function computeAmortSchedule(emprunt: AMEmprunt): AmortRow[] {
     }
     const annuiteCapInt = interetsAn + capitalAmortiAn;
     const anneeReelle = startYear != null ? startYear + y - 1 : undefined;
+    const capitalDebut = capital + capitalAmortiAn;
+    const assuranceAn = dynamicAssurance ? capitalDebut * tauxAssurancePct : assuranceAnnuelle;
     rows.push({
       year: y,
       anneeReelle,
       isCurrent: anneeReelle === currentYear,
-      capitalDebut: capital + capitalAmortiAn,
+      capitalDebut,
       annuite: annuiteCapInt,
       interets: interetsAn,
       capitalAmorti: capitalAmortiAn,
       capitalFin: capital,
-      assurance: assuranceAnnuelle,
-      totalAnnuel: annuiteCapInt + assuranceAnnuelle,
+      assurance: assuranceAn,
+      totalAnnuel: annuiteCapInt + assuranceAn,
     });
   }
   return rows;

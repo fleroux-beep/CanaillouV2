@@ -499,6 +499,7 @@ export const indexationsGL = pgTable("gl_indexations", {
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   index("idx_indexations_gl_bail_id").on(table.bailId),
+  uniqueIndex("idx_indexations_gl_bail_date").on(table.bailId, table.dateApplication),
 ]);
 
 export const indices = pgTable("indices", {
@@ -507,7 +508,9 @@ export const indices = pgTable("indices", {
   trimestre: varchar("trimestre").notNull(),
   valeur: numeric("valeur").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => [
+  uniqueIndex("idx_indices_type_trimestre").on(table.type, table.trimestre),
+]);
 
 // ============================================================
 // GESTION LOCATIVE — Avenants & Renouvellements

@@ -1295,6 +1295,14 @@ export async function ensureSchema() {
       END $$;
     `);
 
+    // Unique constraint on indexations to prevent double-indexing same bail on same date
+    await client.query(`
+      DO $$ BEGIN
+        CREATE UNIQUE INDEX "idx_indexations_gl_bail_date" ON "gl_indexations" ("bail_id", "date_application");
+      EXCEPTION WHEN duplicate_table THEN NULL;
+      END $$;
+    `);
+
     // Backfill loyerBaseHT/loyerHTActu from existing data where missing
     await client.query(`
       UPDATE "am_baux" SET

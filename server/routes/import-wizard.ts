@@ -345,14 +345,17 @@ export function registerImportWizardRoutes(app: Express) {
         }
       }
 
+      const ownerId = req.session?.userId;
+      if (!ownerId) return res.status(401).json({ error: "Session invalide" });
+
       // Resolve name references
       if (resolveRefsFlag && mappedRows.length > 0) {
-        mappedRows = await resolveRefs(mappedRows, targetEntity, req.user?.id);
+        mappedRows = await resolveRefs(mappedRows, targetEntity, ownerId);
       } else {
         mappedRows = mappedRows.map((r) => {
           // Remove virtual ref fields
           const { sciNom, actifNom, locataireNom, ...rest } = r;
-          return { ...rest, ownerId: req.user?.id };
+          return { ...rest, ownerId };
         });
       }
 
