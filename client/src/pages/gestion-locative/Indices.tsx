@@ -14,6 +14,7 @@ import { apiRequest } from "../../lib/queryClient";
 import { Plus, Pencil, Trash2, Calculator, RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
 import { InfoTooltip } from "../../components/ui/info-tooltip";
+import { getBailLoyer } from "@shared/utils/bail";
 
 interface Indice { id: string; type: string; trimestre: string; valeur: string; }
 interface BailGL { id: string; nom: string; indiceReference?: string; trimestreRef?: string; valeurIndiceBase?: string; loyerBaseHT?: string; loyerHTActu?: string; forceManual?: boolean; archived?: boolean; }
@@ -57,7 +58,7 @@ export default function IndicesPage() {
         const idx = indexLookup[b.indiceReference!];
         const baseValue = Number(b.valeurIndiceBase);
         const loyerBase = Number(b.loyerBaseHT);
-        const currentLoyer = Number(b.loyerHTActu || b.loyerBaseHT || 0);
+        const currentLoyer = getBailLoyer(b);
 
         if (!idx || baseValue <= 0 || loyerBase <= 0) return null;
 

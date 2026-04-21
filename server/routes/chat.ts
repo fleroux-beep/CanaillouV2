@@ -3,6 +3,7 @@ import { db } from "../db";
 import { requireAuth } from "../middleware/auth";
 import { rateLimit } from "../lib/rate-limit";
 import { logger } from "../lib/logger";
+import { getBailLoyer } from "@shared/utils/bail";
 
 const chatLimiter = rateLimit(30, 5 * 60 * 1000, "chat"); // 30 messages per 5 minutes
 
@@ -46,7 +47,7 @@ async function fetchPortfolioSummary(): Promise<unknown> {
 
   const totalCRD = empruntsList.reduce((s, e: any) => s + Number(e.capitalRestantDu || e.montantEmprunte || 0), 0);
   const totalLoyers = bauxList.reduce(
-    (s, b: any) => s + Number(b.loyerHTActu || b.loyerBaseHT || 0),
+    (s, b: any) => s + getBailLoyer(b),
     0,
   );
 
@@ -291,8 +292,8 @@ async function createBailAM(data: Record<string, unknown>): Promise<unknown> {
   const fields = filterFields(data, BAIL_AM_FIELDS);
   const actifId = data.actifId as string;
   const lotId = data.lotId as string;
-  const nom = (data.nom as string) || "Bail AM";
-  const result = await db.insert(bauxGL).values({ scope: "am", nom, actifId, lotId, ...fields }).returning();
+  const nom = typeof fields.nom === "string" && fields.nom.trim() ? fields.nom : `Bail ${new Date().toISOString().slice(0, 10)}`;
+  const result = await db.insert(bauxGL).values({ scope: "am", actifId, lotId, ...fields, nom }).returning();
   return { success: true, created: { id: result[0].id } };
 }
 

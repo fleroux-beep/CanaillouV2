@@ -33,6 +33,7 @@ import {
   getRendementNet,
   getLTV,
   getDSCR,
+  isResilie,
 } from "../../lib/am-calculations";
 import { useSortableTable, SortHeader } from "../../hooks/useSortableTable";
 import { KpiCard } from "../../components/ui/kpi-card";
@@ -88,7 +89,7 @@ interface KpiSet {
 
 function computeActifKpi(actif: any, allBaux: any[], allLots: any[], allEmprunts: any[], allActifs: any[]): KpiSet {
   const actifLots = allLots.filter((l: any) => l.actifId === actif.id && !l.archived);
-  const actifBaux = allBaux.filter((b: any) => b.actifId === actif.id && !b.archived && b.statut !== "résilié");
+  const actifBaux = allBaux.filter((b: any) => b.actifId === actif.id && !b.archived && !isResilie(b.statut));
   const actifEmprunts = allEmprunts.filter((e: any) => e.actifId === actif.id && !e.archived);
   const sciEmprunts = allEmprunts.filter((e: any) => e.sciId === actif.sciId && !e.actifId && !e.archived);
   const nbActifsInSci = allActifs.filter((a: any) => a.sciId === actif.sciId && !a.archived).length || 1;

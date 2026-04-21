@@ -160,14 +160,15 @@ async function applyBauxUnificationMigration() {
       logger.warn("migration 0001: am_baux backfill skipped", { error: err.message });
     }
 
-    // Ensure every gl_baux row has a non-null nom (defensive; the next ALTER
-    // SET NOT NULL elsewhere would otherwise fail on legacy rows).
+    // Ensure every gl_baux row has a non-null nom, then enforce NOT NULL to
+    // match schema.ts (migration 0001 audit fix: eliminate drift).
     try {
       await client.query(`
         UPDATE "gl_baux"
         SET "nom" = CONCAT('Bail ', LEFT(id::text, 8))
         WHERE "nom" IS NULL OR "nom" = '';
       `);
+      await client.query(`ALTER TABLE "gl_baux" ALTER COLUMN "nom" SET NOT NULL`);
     } catch (_) {
       /* table may not have nom column on a very old schema — fine */
     }
@@ -744,7 +745,7 @@ export async function ensureSchema() {
       CREATE TABLE IF NOT EXISTS "gl_baux" (
         "id" varchar PRIMARY KEY NOT NULL,
         "scope" varchar NOT NULL DEFAULT 'gl',
-        "nom" varchar,
+        "nom" varchar NOT NULL,
         "lot_id" varchar,
         "actif_id" varchar,
         "sci_id" varchar,
@@ -795,13 +796,16 @@ export async function ensureSchema() {
     `);
 
     // Franchises de loyer (rent-free + prorata temporels)
+    // FK + CHECK inline : migration 0003 peut avoir déjà créé la table avec la
+    // FK ; cette CREATE IF NOT EXISTS est un no-op dans ce cas. Pour les bases
+    // vierges, c'est cette passe-ci qui pose la FK dès la création.
     await client.query(`
       CREATE TABLE IF NOT EXISTS "gl_baux_franchises" (
         "id" varchar PRIMARY KEY NOT NULL,
-        "bail_id" varchar NOT NULL,
+        "bail_id" varchar NOT NULL REFERENCES "gl_baux"("id") ON DELETE CASCADE ON UPDATE CASCADE,
         "date_debut" date NOT NULL,
         "date_fin" date NOT NULL,
-        "montant" numeric NOT NULL,
+        "montant" numeric NOT NULL CHECK ("montant" >= 0),
         "motif" varchar,
         "notes" text,
         "created_at" timestamp DEFAULT now()
@@ -1171,6 +1175,7 @@ export async function ensureSchema() {
       `ALTER TABLE "am_emprunts" ADD CONSTRAINT "chk_emprunt_taux" CHECK ("taux_annuel" IS NULL OR "taux_annuel"::numeric >= 0)`,
       `ALTER TABLE "am_emprunts" ADD CONSTRAINT "chk_emprunt_duree" CHECK ("duree_ans" IS NULL OR "duree_ans" > 0)`,
       `ALTER TABLE "am_emprunts" ADD CONSTRAINT "chk_emprunt_montant" CHECK ("montant_emprunte" IS NULL OR "montant_emprunte"::numeric >= 0)`,
+      `ALTER TABLE "gl_baux_franchises" ADD CONSTRAINT "chk_franchise_montant" CHECK ("montant" IS NULL OR "montant"::numeric >= 0)`,
     ];
     for (const ck of checks) {
       const safe = `DO $$ BEGIN ${ck}; EXCEPTION WHEN duplicate_object THEN NULL; END $$;`;

@@ -10,6 +10,8 @@ import { requireAuth, requireWriteAdmin } from "../middleware/auth";
 import { validate, refTauxEmpruntSchema, refValeursVenalesSchema, refValeursLocativesSchema, refTauxCapitalisationSchema } from "../lib/validation";
 import { logger } from "../lib/logger";
 import { rateLimit } from "../lib/rate-limit";
+import { paramId } from "../lib/crud-factory";
+import { getBailLoyer, isResilie } from "@shared/utils/bail";
 
 const syncLimiter = rateLimit(3, 30 * 60 * 1000, "sync-marche"); // 3 per 30 min
 const analyseIALimiter = rateLimit(5, 10 * 60 * 1000, "analyse-ia"); // 5 per 10 min
@@ -17,8 +19,6 @@ import { syncDVF } from "../lib/sync-dvf";
 import { syncANIL } from "../lib/sync-anil";
 import { computeTauxCapiFromRefs } from "../lib/compute-taux-capi";
 import { mapActifTypeToSearch } from "../lib/scrapers/base";
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function registerMarketCrud(
   app: Express,
@@ -48,8 +48,8 @@ function registerMarketCrud(
 
   app.patch(`/api/am/marche/${path}/:id`, requireWriteAdmin, validate(schema.partial()), async (req: any, res: any) => {
     try {
-      const id = req.params.id;
-      if (!UUID_RE.test(id)) return res.status(400).json({ error: "ID invalide" });
+      const id = paramId(req, res);
+      if (!id) return;
       const rows = await db.update(table).set(req.body).where(eq(table.id, id)).returning() as any[];
       if (rows.length === 0) return res.status(404).json({ error: "Non trouvé" });
       res.json(rows[0]);
@@ -61,8 +61,8 @@ function registerMarketCrud(
 
   app.delete(`/api/am/marche/${path}/:id`, requireWriteAdmin, async (req: any, res: any) => {
     try {
-      const id = req.params.id;
-      if (!UUID_RE.test(id)) return res.status(400).json({ error: "ID invalide" });
+      const id = paramId(req, res);
+      if (!id) return;
       await db.delete(table).where(eq(table.id, id));
       res.json({ ok: true });
     } catch (error: any) {
@@ -203,7 +203,7 @@ export function registerMarcheRoutes(app: Express) {
     const phase1 = getPhase1(actifRow, allVenales, allLocatives, allTauxCapi);
 
     const loyerAnnuel = actifBaux.reduce(
-      (s: number, b: any) => s + Number(b.loyerHTActu || b.loyerBaseHT || 0),
+      (s: number, b: any) => s + getBailLoyer(b),
       0,
     );
     const surface = Number(actifRow.surfaceCarrez || actifRow.surface || 0);
@@ -212,14 +212,14 @@ export function registerMarcheRoutes(app: Express) {
     const lotsOccupes = actifLots.filter((l: any) => l.statut === "loué").length;
 
     // Bail details with locataire names
-    const bauxDetail = actifBaux.filter((b: any) => b.statut !== "résilié").map((b: any) => {
+    const bauxDetail = actifBaux.filter((b: any) => !isResilie(b.statut)).map((b: any) => {
       const loc = b.locataireId ? allLocataires.find((l: any) => l.id === b.locataireId) : null;
       return {
         locataire: loc?.nom || null,
         typeBail: b.typeBail,
         dateDebut: b.dateDebut,
         dateFin: b.dateFin,
-        loyerAnnuel: Number(b.loyerHTActu || b.loyerBaseHT || 0),
+        loyerAnnuel: getBailLoyer(b),
         depotGarantie: Number(b.depotGarantie || 0),
         indiceReference: b.indiceReference,
       };
@@ -376,8 +376,8 @@ Règles :
   // ─── Analyse IA : un seul actif ─────────────────────────────
   app.post("/api/am/marche/analyse-ia/:actifId", requireWriteAdmin, analyseIALimiter, async (req: any, res: any) => {
     try {
-      const actifId = req.params.actifId;
-      if (!UUID_RE.test(actifId)) return res.status(400).json({ error: "ID invalide" });
+      const actifId = paramId(req, res, "actifId");
+      if (!actifId) return;
 
       const [actifRow] = await db.select().from(actifs).where(eq(actifs.id, actifId));
       if (!actifRow) return res.status(404).json({ error: "Actif non trouvé" });
@@ -455,7 +455,7 @@ Règles :
     const prixAcq = Number(actifRow.prixAcquisition || 0) + Number(actifRow.fraisNotaire || 0)
       + Number(actifRow.fraisAgence || 0) + Number(actifRow.montantTravaux || 0);
     const loyerAnnuel = actifBaux.reduce(
-      (s: number, b: any) => s + Number(b.loyerHTActu || b.loyerBaseHT || 0),
+      (s: number, b: any) => s + getBailLoyer(b),
       0,
     );
     const lotsOccupes = actifLots.filter((l: any) => l.statut === "loué").length;
@@ -495,10 +495,10 @@ Règles :
   /** Build bail summaries for an asset */
   function buildBauxSummary(actifBaux: any[], allLocataires: any[]) {
     return actifBaux
-      .filter((b: any) => b.statut !== "résilié")
+      .filter((b: any) => !isResilie(b.statut))
       .map((b: any) => {
         const loc = b.locataireId ? allLocataires.find((l: any) => l.id === b.locataireId) : null;
-        const loyerAnn = Number(b.loyerHTActu || b.loyerBaseHT || 0);
+        const loyerAnn = getBailLoyer(b);
         return {
           locataire: loc ? loc.nom : null,
           typeBail: b.typeBail,
@@ -623,8 +623,8 @@ Règles :
 
   app.get("/api/am/marche/etude/:actifId", requireAuth, async (req: any, res: any) => {
     try {
-      const actifId = req.params.actifId;
-      if (!UUID_RE.test(actifId)) return res.status(400).json({ error: "ID invalide" });
+      const actifId = paramId(req, res, "actifId");
+      if (!actifId) return;
 
       const [actifRow] = await db.select().from(actifs).where(eq(actifs.id, actifId));
       if (!actifRow) return res.status(404).json({ error: "Actif non trouvé" });

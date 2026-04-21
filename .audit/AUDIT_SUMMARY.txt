@@ -1,0 +1,100 @@
+================================================================================
+AUDIT MÉTIER — CANAILLOU V2 — RÉSUMÉ EXÉCUTIF
+================================================================================
+Date : 20 avril 2026
+Document référence : REGLES_METIER.md
+Auditeur : Audit métier approfondi
+
+================================================================================
+FINDINGS PAR SÉVÉRITÉ
+================================================================================
+
+P0 (Critique — perte données) : 0 findings
+P1 (Élevée — visible utilisateur) : 6 findings
+P2 (Moyen — incohérence métier) : 3 findings
+
+TOTAL : 9 findings, dont 6 de sévérité P1.
+
+================================================================================
+FINDINGS P1 — URGENT À CORRIGER
+================================================================================
+
+1. LOYER FORCÉ MANUEL NON AFFICHÉ CORRECTEMENT (15+ pages)
+   └─ Impact : Utilisateur coche forceManual=true, loyer ne s'affiche pas
+   └─ Fichiers : Baux.tsx, Dashboard.tsx, KPI.tsx, Projections.tsx, ActifDetail.tsx, VuePatrimoine.tsx
+   └─ Fix : Importer getBailLoyerAnnuel() partout
+
+2. FRANCHISES NON IMPLÉMENTÉES (table existe, fonctionnalité absente)
+   └─ Impact : Réductions commerciales, prorata jamais déductibles
+   └─ Fichiers : Aucun code GL pour appliquer franchises
+   └─ Fix : Créer endpoint + UI + helper getLoyerNetFranchises()
+
+3. SPLIT LOYER BASE / ACTU AVEC FALLBACK (import-excel.ts)
+   └─ Impact : Loyer budgété peut remplacer loyer signature
+   └─ Code : import-excel.ts ligne 1146-1147
+   └─ Fix : Refuser les baux sans loyerAnnuelDepart
+
+4. FORMAT TRIMESTRE NON NORMALISÉ EN IMPORT (T1 2024 vs T1-2024)
+   └─ Impact : Indexation automatique rate des baux
+   └─ Fichiers : import-excel.ts (aucune normalisation)
+   └─ Fix : Ajouter normalizeQuarter() + validation regex
+
+5. TVA NON AUDITABLE (changement de taux = TTC invalide)
+   └─ Impact : Impossible réconciler factures si TVA change
+   └─ Fichiers : Baux.tsx (calcul à la volée, pas d'historique)
+   └─ Fix : Ajouter cache loyerTTCSnapshot
+
+6. STATUS "RÉSILIÉ" PAS DE NORMALIZATION UNICODE
+   └─ Impact : Baux "resilie" (sans accent) pas filtrés
+   └─ Fichiers : Partout on compare statut !== "résilié" (avec accent)
+   └─ Fix : Ajouter normResilie() ou auditer base
+
+================================================================================
+FINDINGS P2 — AMÉLIORER
+================================================================================
+
+7. Charges locatives vs copropriété (modèle mélangé niveau actif/bail)
+8. Allocation emprunts SCI (pas documentée, supposée égale)
+9. Lots ne sont pas filtrés par statut (OK mais ambigu)
+
+================================================================================
+CHIFFRES CLÉS
+================================================================================
+
+— Nombre de pages affectées par "forceManual ignoré" : 15
+— Nombre de tables franchises définies : 1 (non utilisée en code)
+— Nombre de formats trimestres attendus : 1 (T1-2025)
+— Nombre de lignes d'audit métier : 321 (rapport détaillé .audit/01-metier.md)
+
+================================================================================
+CLASSEMENT IMPACT
+================================================================================
+
+TRÈS ÉLEVÉ : P1 Loyer forceManual (15 pages), P1 Franchises (KPI rendement)
+ÉLEVÉ     : P1 Split loyer base (data loss), P1 Statut résilié (loyers gonflés)
+MOYEN     : P1 Trimestre format, P1 TVA historique
+
+================================================================================
+PROCHAINES ÉTAPES
+================================================================================
+
+IMMÉDIAT (semaine 1) :
+  1. Importer getBailLoyerAnnuel() dans 15 pages
+  2. Ajouter normResilie() (ou auditer base pour statut exact)
+  3. Refuser baux sans loyerAnnuelDepart en import
+
+COURT TERME (semaine 2-3) :
+  4. Implémenter franchises (endpoint + UI + calcul)
+  5. Normaliser format trimestre + migration base
+  6. Clarifier allocation emprunts SCI en REGLES_METIER
+
+MOYEN TERME (semaine 4+) :
+  7. TVA : ajouter historique + snapshot TTC
+  8. Charges : clarifier modèle GL bail vs AM actif
+
+================================================================================
+RAPPORT COMPLET
+================================================================================
+
+Voir : /home/user/CanaillouV2/.audit/01-metier.md
+

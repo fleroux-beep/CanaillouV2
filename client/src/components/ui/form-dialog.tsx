@@ -1,4 +1,4 @@
-import { type ReactNode, useId, useEffect, useCallback } from "react";
+import { type ReactNode, useId, useEffect, useCallback, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { cn } from "../../lib/utils";
@@ -35,6 +35,32 @@ export function FormDialog({
 }: FormDialogProps) {
   const titleId = useId();
   const descId = useId();
+
+  // Local submitting flag: blocks a second submit before the parent's async
+  // `loading` flag has time to propagate (guards against fast double-click).
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+
+  // Reset local lock when dialog closes or parent signals loading finished.
+  useEffect(() => {
+    if (!open || !loading) {
+      setSubmitting(false);
+      submittingRef.current = false;
+    }
+  }, [open, loading]);
+
+  const handleSubmit = useCallback(
+    (e: React.FormEvent) => {
+      if (submittingRef.current || loading) {
+        e.preventDefault();
+        return;
+      }
+      submittingRef.current = true;
+      setSubmitting(true);
+      onSubmit?.(e);
+    },
+    [onSubmit, loading]
+  );
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -103,7 +129,7 @@ export function FormDialog({
             {/* Content */}
             <div className="flex-1 overflow-y-auto scrollbar-thin px-6 pb-6">
               {onSubmit ? (
-                <form onSubmit={onSubmit} className="space-y-5" aria-busy={loading}>
+                <form onSubmit={handleSubmit} className="space-y-5" aria-busy={loading || submitting}>
                   {children}
                   <div className="flex justify-end gap-3 pt-4 border-t border-border/40">
                     <button
@@ -115,13 +141,13 @@ export function FormDialog({
                     </button>
                     <motion.button
                       type="submit"
-                      disabled={loading}
-                      aria-disabled={loading}
+                      disabled={loading || submitting}
+                      aria-disabled={loading || submitting}
                       whileHover={{ scale: 1.01 }}
                       whileTap={{ scale: 0.99 }}
                       className="rounded-xl gradient-primary px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 disabled:opacity-50 transition-shadow hover:shadow-xl hover:shadow-orange-500/25"
                     >
-                      {loading ? "Enregistrement..." : submitLabel}
+                      {(loading || submitting) ? "Enregistrement..." : submitLabel}
                     </motion.button>
                   </div>
                 </form>

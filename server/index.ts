@@ -77,14 +77,21 @@ app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.set("trust proxy", 1);
 
 // Session
-if (!process.env.SESSION_SECRET && process.env.NODE_ENV === "production") {
-  throw new Error("SESSION_SECRET est requis en production");
+if (!process.env.SESSION_SECRET) {
+  if (process.env.NODE_ENV === "production") {
+    logger.error("SESSION_SECRET manquant en production — arrêt immédiat");
+    throw new Error("SESSION_SECRET est requis en production");
+  }
+  logger.warn("SESSION_SECRET manquant en dev — secret aléatoire généré (sessions invalidées au redémarrage)");
 }
+const SESSION_SECRET =
+  process.env.SESSION_SECRET ||
+  `dev-secret-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
 const PgStore = ConnectPgSimple(session);
 app.use(
   session({
     store: new PgStore({ pool, createTableIfMissing: true }),
-    secret: process.env.SESSION_SECRET || "dev-secret-local-only",
+    secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     cookie: {
@@ -170,7 +177,11 @@ if (process.env.NODE_ENV === "production") {
 
 // Global error handler
 app.use((err: any, _req: any, res: any, _next: any) => {
-  logger.error("unhandled error", { error: err.message, stack: err.stack, url: _req.originalUrl });
+  logger.error("unhandled error", {
+    error: err.message,
+    url: _req.originalUrl,
+    ...(process.env.NODE_ENV !== "production" ? { stack: err.stack } : {}),
+  });
   if (!res.headersSent) {
     res.status(500).json({
       error: "Erreur interne du serveur",

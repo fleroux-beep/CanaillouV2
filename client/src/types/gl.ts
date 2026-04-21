@@ -73,6 +73,7 @@ export interface BailGL {
   loyerBaseHT?: string;
   loyerHTActu?: string;
   forceManual?: boolean;
+  loyerManuelOverride?: string;
   // Indexation
   indiceReference?: string;
   trimestreRef?: string;

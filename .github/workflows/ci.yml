@@ -18,4 +18,8 @@ jobs:
       - run: npm ci
       - name: Verify schema sync
         run: npx tsx scripts/verify-schema.ts
+      - name: Type check
+        run: npm run check
+      - name: Lint
+        run: npm run lint
       - run: npx vitest run

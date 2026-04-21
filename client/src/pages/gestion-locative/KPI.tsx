@@ -7,6 +7,7 @@ import {
 } from "recharts";
 import { apiRequest } from "../../lib/queryClient";
 import { formatCurrency, formatNumber } from "../../lib/utils";
+import { getBailLoyer } from "@shared/utils/bail";
 import { KpiCard } from "../../components/ui/kpi-card";
 import { GlassCard } from "../../components/ui/glass-card";
 import { PageHeader } from "../../components/ui/page-header";
@@ -31,7 +32,7 @@ export default function GLKPIPage() {
   const { data: paiements = [] } = useQuery({ queryKey: ["/api/gl/paiements"], queryFn: () => apiRequest("/api/gl/paiements") });
 
   const bauxActifs = baux.filter((b: any) => !b.archived);
-  const totalLoyerHT = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.loyerHTActu || b.loyerBaseHT || 0), 0);
+  const totalLoyerHT = bauxActifs.reduce((sum: number, b: any) => sum + getBailLoyer(b), 0);
   const totalCharges = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.charges || 0), 0);
   const totalCapacite = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.capacite || 0), 0);
   const totalSurface = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.surface || 0), 0);
@@ -50,7 +51,7 @@ export default function GLKPIPage() {
   const loyerParType: Record<string, number> = {};
   bauxActifs.forEach((b: any) => {
     const t = b.typeBail || "Non renseigné";
-    loyerParType[t] = (loyerParType[t] || 0) + Number(b.loyerHTActu || b.loyerBaseHT || 0);
+    loyerParType[t] = (loyerParType[t] || 0) + getBailLoyer(b);
   });
   const pieData = Object.entries(loyerParType)
     .map(([name, value]) => ({ name, value }))
@@ -58,10 +59,10 @@ export default function GLKPIPage() {
 
   // Bar chart: loyer vs charges per bail (top 10)
   const barData = bauxActifs
-    .filter((b: any) => b.loyerHTActu || b.loyerBaseHT)
+    .filter((b: any) => getBailLoyer(b) > 0)
     .map((b: any) => ({
       name: b.nom?.length > 18 ? b.nom.substring(0, 18) + "..." : b.nom,
-      loyer: Number(b.loyerHTActu || b.loyerBaseHT || 0),
+      loyer: getBailLoyer(b),
       charges: Number(b.charges || 0),
     }))
     .sort((a: any, b: any) => b.loyer - a.loyer)
@@ -88,7 +89,7 @@ export default function GLKPIPage() {
     let weightedSum = 0;
     let totalWeight = 0;
     for (const b of bauxActifs) {
-      const loyer = Number((b as any).loyerHTActu || (b as any).loyerBaseHT || 0);
+      const loyer = getBailLoyer(b);
       const dateFin = (b as any).dateFin;
       if (loyer > 0 && dateFin) {
         const fin = new Date(dateFin);
@@ -114,7 +115,7 @@ export default function GLKPIPage() {
           const key = String(year);
           if (!profile[key]) profile[key] = { count: 0, loyer: 0 };
           profile[key].count++;
-          profile[key].loyer += Number((b as any).loyerHTActu || (b as any).loyerBaseHT || 0);
+          profile[key].loyer += getBailLoyer(b);
         }
       }
     }
@@ -381,7 +382,7 @@ export default function GLKPIPage() {
                 </thead>
                 <tbody>
                   {bauxActifs.map((b: any, i: number) => {
-                    const loyer = Number(b.loyerHTActu || b.loyerBaseHT || 0);
+                    const loyer = getBailLoyer(b);
                     const surface = Number(b.surface || 0);
                     const capacite = Number(b.capacite || 0);
                     const charges = Number(b.charges || 0);
