@@ -208,8 +208,11 @@ export function getValeurEstimee(actif: AMActif, baux: AMBail[], lots?: AMLot[],
 // Emprunts
 // ============================================================
 
-/** Capital restant dû */
+/** Capital restant dû — recalculé dynamiquement si dateDebut disponible */
 export function getCapitalRestantDu(emprunt: AMEmprunt): number {
+  if (emprunt?.dateDebut && emprunt?.dureeAns) {
+    return getCRDDynamic(emprunt);
+  }
   return Number(emprunt?.capitalRestantDu ?? emprunt?.montantEmprunte ?? 0);
 }
 
@@ -576,6 +579,23 @@ export function computeAmortSchedule(emprunt: AMEmprunt): AmortRow[] {
     });
   }
   return rows;
+}
+
+/**
+ * Capital restant dû dynamique — recalculé à date du jour via le tableau
+ * d'amortissement au lieu de lire la valeur statique importée du Excel.
+ * Fallback: capitalRestantDu stocké (import) ou montantEmprunte.
+ */
+export function getCRDDynamic(emprunt: AMEmprunt): number {
+  const schedule = computeAmortSchedule(emprunt);
+  if (schedule.length === 0) {
+    return Number(emprunt?.capitalRestantDu || emprunt?.montantEmprunte || 0);
+  }
+  const currentRow = schedule.find((r) => r.isCurrent);
+  if (currentRow) return currentRow.capitalFin;
+  const lastRow = schedule[schedule.length - 1];
+  if (lastRow.anneeReelle && lastRow.anneeReelle < new Date().getFullYear()) return 0;
+  return lastRow.capitalFin;
 }
 
 // ============================================================

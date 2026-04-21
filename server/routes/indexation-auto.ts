@@ -7,7 +7,7 @@ import { logger } from "../lib/logger";
 import { rateLimit } from "../lib/rate-limit";
 import { syncIndicesINSEE, assignDefaultIndices, autoIndexBaux } from "../lib/sync-insee";
 import { db } from "../db";
-import { indices, bauxGL, indexationsGL } from "@shared/schema";
+import { indices, bauxGL, indexationsGL, syncLogs } from "@shared/schema";
 import { eq, and, isNull, desc } from "drizzle-orm";
 
 const indexationLimiter = rateLimit(5, 10 * 60 * 1000, "indexation");
@@ -65,6 +65,21 @@ export function registerIndexationAutoRoutes(app: Express) {
       res.json({ message: "Indexation automatique terminée", ...result });
     } catch (error: any) {
       logger.error("auto-index route error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
+    }
+  });
+
+  // Sync status for admin dashboard
+  app.get("/api/indexation/sync-status", requireAuth, async (_req: any, res: any) => {
+    try {
+      const logs = await db.select().from(syncLogs)
+        .where(eq(syncLogs.type, "insee"))
+        .orderBy(desc(syncLogs.startedAt))
+        .limit(10);
+      const last = logs[0] || null;
+      res.json({ last, history: logs });
+    } catch (error: any) {
+      logger.error("sync-status error", { error: error.message });
       res.status(500).json({ error: "Erreur interne" });
     }
   });

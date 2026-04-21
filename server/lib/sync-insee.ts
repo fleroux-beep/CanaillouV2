@@ -6,8 +6,9 @@
  * Déclenche l'indexation automatique des baux GL après mise à jour.
  */
 import { db } from "../db";
-import { indices, bauxGL, indexationsGL } from "@shared/schema";
-import { eq, and, isNull } from "drizzle-orm";
+import { pool } from "../db";
+import { indices, bauxGL, indexationsGL, syncLogs } from "@shared/schema";
+import { eq, and, isNull, desc, sql } from "drizzle-orm";
 import { logger } from "./logger";
 
 // ─── INSEE SDMX API ────────────────────────────────────────
@@ -39,31 +40,39 @@ interface InseeValue {
  * The API always returns XML (SDMX StructureSpecificData), regardless of Accept header.
  */
 async function fetchInseeSeriesValues(seriesId: string): Promise<InseeValue[]> {
-  // Primary URL: BDM V1 SDMX endpoint
   const urls = [
     `https://api.insee.fr/series/BDM/V1/data/SERIES_BDM/${seriesId}?lastNObservations=12`,
     `https://api.insee.fr/series/BDM/V1/data/SERIES_BDM/${seriesId}`,
   ];
 
   for (const url of urls) {
-    try {
-      const response = await fetch(url, {
-        signal: AbortSignal.timeout(15000),
-      });
+    // Retry with exponential backoff (3 attempts: 0s, 2s, 4s)
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        if (attempt > 0) {
+          await new Promise((r) => setTimeout(r, Math.pow(2, attempt) * 1000));
+        }
+        const response = await fetch(url, {
+          signal: AbortSignal.timeout(15000),
+        });
 
-      if (!response.ok) {
-        logger.warn(`INSEE API returned ${response.status} for ${url}`);
-        continue;
-      }
+        if (!response.ok) {
+          logger.warn(`INSEE API returned ${response.status} for ${url} (attempt ${attempt + 1})`);
+          if (response.status >= 500) continue; // retry on server error
+          break; // 4xx = don't retry this URL
+        }
 
-      const text = await response.text();
-      const values = parseInseeXmlResponse(text);
-      if (values.length > 0) {
-        return values;
+        const text = await response.text();
+        const values = parseInseeXmlResponse(text);
+        if (values.length > 0) {
+          return values;
+        }
+        logger.warn(`INSEE API returned XML but no parseable observations for series ${seriesId}, response length: ${text.length}`);
+        break; // parsing issue, try next URL
+      } catch (err: any) {
+        logger.warn(`INSEE API fetch failed for series ${seriesId} (${url}, attempt ${attempt + 1}): ${err.message}`);
+        if (attempt === 2) break; // exhausted retries for this URL
       }
-      logger.warn(`INSEE API returned XML but no parseable observations for series ${seriesId}, response length: ${text.length}`);
-    } catch (err: any) {
-      logger.warn(`INSEE API fetch failed for series ${seriesId} (${url}): ${err.message}`);
     }
   }
 
@@ -120,6 +129,15 @@ function convertPeriod(period: string): string | null {
  * Retourne le nombre d'indices mis à jour.
  */
 export async function syncIndicesINSEE(): Promise<{ synced: number; errors: string[] }> {
+  // Advisory lock to prevent concurrent syncs (lock ID = hashCode("insee-sync"))
+  const LOCK_ID = 738291;
+  const lockResult = await db.execute(sql`SELECT pg_try_advisory_lock(${LOCK_ID})`);
+  const gotLock = (lockResult as any).rows?.[0]?.pg_try_advisory_lock;
+  if (!gotLock) {
+    logger.warn("sync-insee: another sync is already running, skipping");
+    return { synced: 0, errors: ["Synchronisation déjà en cours"] };
+  }
+
   let synced = 0;
   const errors: string[] = [];
 
@@ -156,6 +174,23 @@ export async function syncIndicesINSEE(): Promise<{ synced: number; errors: stri
       errors.push(`${type}: ${err.message}`);
       logger.error(`sync-insee: erreur pour ${type}`, { error: err.message });
     }
+  }
+
+  // Release advisory lock
+  await db.execute(sql`SELECT pg_advisory_unlock(${LOCK_ID})`);
+
+  // Record sync log
+  try {
+    await db.insert(syncLogs).values({
+      type: "insee",
+      status: errors.length > 0 ? (synced > 0 ? "partial" : "error") : "success",
+      syncedCount: synced,
+      errorCount: errors.length,
+      errors: errors.length > 0 ? JSON.stringify(errors) : null,
+      endedAt: new Date(),
+    });
+  } catch (logErr: any) {
+    logger.warn("sync-insee: failed to record sync log", { error: logErr.message });
   }
 
   return { synced, errors };

@@ -6,6 +6,7 @@ import multer from "multer";
 import XLSX from "xlsx";
 import { randomUUID } from "crypto";
 import fs from "fs";
+import path from "path";
 import { db } from "../db";
 import {
   scis, actifs, lots, bauxGL, emprunts, locatairesGL, associes, travaux,
@@ -62,7 +63,7 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 // ─── Multer configs ──────────────────────────────────────────────
-const uploadDir = "/tmp/canaillou-uploads";
+const uploadDir = process.env.UPLOAD_DIR || path.resolve(process.cwd(), "uploads");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 const excelUpload = multer({

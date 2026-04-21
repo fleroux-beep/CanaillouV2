@@ -133,6 +133,17 @@ registerBailPDFRoutes(app);
 registerProjectionsPredictivesRoutes(app);
 registerImportWizardRoutes(app);
 
+// Backup endpoints (admin only)
+import { runBackup, listBackups, scheduleDaily as scheduleDailyBackup } from "./lib/backup";
+app.post("/api/admin/backup", requireAdmin, (_req, res) => {
+  const result = runBackup();
+  res.json(result);
+});
+app.get("/api/admin/backups", requireAdmin, (_req, res) => {
+  res.json(listBackups());
+});
+scheduleDailyBackup();
+
 // Admin: import Excel SCI data (one-time migration)
 app.post("/api/admin/import-excel", requireAdmin, async (_req, res) => {
   try {

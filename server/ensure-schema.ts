@@ -1303,6 +1303,29 @@ export async function ensureSchema() {
       END $$;
     `);
 
+    // Composite indexes for common query patterns (FK + deleted_at)
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS "idx_baux_scope_deleted" ON "gl_baux" ("scope", "deleted_at");
+      CREATE INDEX IF NOT EXISTS "idx_actifs_deleted" ON "am_actifs" ("deleted_at");
+      CREATE INDEX IF NOT EXISTS "idx_lots_actif_deleted" ON "am_lots" ("actif_id", "deleted_at");
+      CREATE INDEX IF NOT EXISTS "idx_emprunts_sci_deleted" ON "am_emprunts" ("sci_id", "deleted_at");
+      CREATE INDEX IF NOT EXISTS "idx_baux_actif_deleted" ON "gl_baux" ("actif_id", "deleted_at");
+    `);
+
+    // sync_logs table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "sync_logs" (
+        "id" VARCHAR PRIMARY KEY,
+        "type" VARCHAR NOT NULL,
+        "status" VARCHAR NOT NULL,
+        "synced_count" INTEGER DEFAULT 0,
+        "error_count" INTEGER DEFAULT 0,
+        "errors" TEXT,
+        "started_at" TIMESTAMP DEFAULT NOW(),
+        "ended_at" TIMESTAMP
+      );
+    `);
+
     // Backfill loyerBaseHT/loyerHTActu from existing data where missing
     await client.query(`
       UPDATE "am_baux" SET

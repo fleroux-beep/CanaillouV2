@@ -786,3 +786,17 @@ export const paiementsGLRelations = relations(paiementsGL, ({ one }) => ({
 export const indexationsGLRelations = relations(indexationsGL, ({ one }) => ({
   bail: one(bauxGL, { fields: [indexationsGL.bailId], references: [bauxGL.id] }),
 }));
+
+// ============================================================
+// Sync logs — audit trail for INSEE / market syncs
+// ============================================================
+export const syncLogs = pgTable("sync_logs", {
+  id: varchar("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  type: varchar("type").notNull(), // "insee" | "dvf" | "anil" | "backup"
+  status: varchar("status").notNull(), // "success" | "error" | "partial"
+  syncedCount: integer("synced_count").default(0),
+  errorCount: integer("error_count").default(0),
+  errors: text("errors"),
+  startedAt: timestamp("started_at").defaultNow(),
+  endedAt: timestamp("ended_at"),
+});
