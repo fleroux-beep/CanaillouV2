@@ -111,7 +111,28 @@ const SOCIETE_TO_SCI: Record<string, string> = {
   "9-CHENNEVIERES": "CHENNEVIERES",
   "9-TAVERNY": "TAVERNY",
   "9-GJB": "GENERAL JULES BRIMONT",
+  // Direct SCI name variants
+  "34 RUE HAUTE": "34 RUE HAUTE",
+  "LEGRAND": "LEGRAND",
+  "ARMEE ORIENT": "ARMEE ORIENT",
+  "ARMÉE D'ORIENT": "ARMEE ORIENT",
+  "CHENNEVIERES": "CHENNEVIERES",
+  "CHENNEVIÈRES": "CHENNEVIERES",
+  "TAVERNY": "TAVERNY",
+  "GENERAL JULES BRIMONT": "GENERAL JULES BRIMONT",
+  "GÉNÉRAL JULES BRIMONT": "GENERAL JULES BRIMONT",
+  "GJB": "GENERAL JULES BRIMONT",
 };
+
+function resolveSocieteToSci(raw: string): string | undefined {
+  const upper = raw.trim().toUpperCase();
+  if (SOCIETE_TO_SCI[upper]) return SOCIETE_TO_SCI[upper];
+  if (SOCIETE_TO_SCI[raw]) return SOCIETE_TO_SCI[raw];
+  for (const [key, val] of Object.entries(SCI_FULL_NAMES)) {
+    if (upper.includes(key) || key.includes(upper)) return key;
+  }
+  return undefined;
+}
 
 // Sold SCIs to skip
 const SOLD_SCIS = new Set(["HOCHE ERMONT", "MADELI", "22 RUE ARAGO"]);
@@ -1584,7 +1605,7 @@ export async function importExcelData(): Promise<{
 
     for (const e of empruntRows) {
       // Determine SCI from société code
-      const sciName = SOCIETE_TO_SCI[e.societe];
+      let sciName = resolveSocieteToSci(e.societe);
 
       // AXORIEL/HIO holding level emprunts - skip for now
       if (!sciName) {
@@ -1592,7 +1613,7 @@ export async function importExcelData(): Promise<{
           logger.info(`import: skipping holding emprunt ${e.nomPret} (${e.societe})`);
           continue;
         }
-        logger.info(`import: skipping emprunt ${e.nomPret} (unknown société ${e.societe})`);
+        logger.info(`import: skipping emprunt ${e.nomPret} (unknown société "${e.societe}")`);
         continue;
       }
 
@@ -1732,7 +1753,84 @@ export async function importExcelData(): Promise<{
       );
       counts.emprunts++;
     }
-    logger.info(`import: created ${counts.emprunts} emprunts`);
+    logger.info(`import: created ${counts.emprunts} emprunts from Emprunts sheet`);
+
+    // Fallback: if no emprunts found from dedicated sheet, create from Synthèse_Lots financement data
+    if (counts.emprunts === 0 && financementRows.length > 0) {
+      logger.info("import: no emprunts from sheet — creating from financement data");
+      const seenSciBank = new Set<string>();
+      for (const f of financementRows) {
+        if (!f.totalEmprunts || f.totalEmprunts <= 0) continue;
+        const sciId = sciIds[f.sciName];
+        if (!sciId) continue;
+
+        const bankNames = f.banques?.split(/[,&+]/).map((b) => b.trim()).filter(Boolean) || ["Banque"];
+        for (const bank of bankNames) {
+          const dedup = `${f.sciName}|${bank}`;
+          if (seenSciBank.has(dedup)) continue;
+          seenSciBank.add(dedup);
+
+          const montant = bankNames.length > 1
+            ? Math.round(f.totalEmprunts / bankNames.length)
+            : f.totalEmprunts;
+          const crd = f.empruntRestantFin2025
+            ? (bankNames.length > 1 ? Math.round(f.empruntRestantFin2025 / bankNames.length) : f.empruntRestantFin2025)
+            : montant;
+
+          let dureeAns = 15;
+          if (f.duree) {
+            const dMatch = String(f.duree).match(/(\d+)/);
+            if (dMatch) dureeAns = parseInt(dMatch[1]);
+          }
+
+          let tauxAnnuel: number | null = null;
+          if (f.tauxInteret) {
+            const tVal = num(f.tauxInteret);
+            if (tVal != null) tauxAnnuel = tVal < 1 ? tVal * 100 : tVal;
+          }
+
+          let tauxAssurance: number | null = null;
+          if (f.tauxAssurance) {
+            const aVal = num(f.tauxAssurance);
+            if (aVal != null) tauxAssurance = aVal < 1 ? aVal * 100 : aVal;
+          }
+
+          let mensualite: number | null = null;
+          if (montant > 0 && tauxAnnuel && tauxAnnuel > 0 && dureeAns > 0) {
+            const rm = (tauxAnnuel / 100) / 12;
+            const n = dureeAns * 12;
+            const factor = Math.pow(1 + rm, n);
+            mensualite = factor > 1 ? montant * (rm * factor) / (factor - 1) : montant / n;
+            if (tauxAssurance && tauxAssurance > 0) {
+              mensualite += (montant * (tauxAssurance / 100)) / 12;
+            }
+          }
+
+          await client.query(
+            `INSERT INTO am_emprunts (id, sci_id, banque, montant_emprunte, capital_restant_du,
+             taux_annuel, duree_ans, date_fin, type_amortissement,
+             mensualite, taux_assurance, notes, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now(), now())`,
+            [
+              id(),
+              sciId,
+              bank,
+              montant,
+              crd,
+              tauxAnnuel,
+              dureeAns,
+              f.dateFinEmprunt,
+              "constant",
+              mensualite,
+              tauxAssurance,
+              `Créé depuis Synthèse_Lots (fallback) — ${f.sciName}`,
+            ]
+          );
+          counts.emprunts++;
+        }
+      }
+      logger.info(`import: created ${counts.emprunts} emprunts from financement fallback`);
+    }
 
     await client.query("COMMIT");
     logger.info("import: transaction committed successfully", counts);
