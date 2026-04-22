@@ -16,7 +16,7 @@ export function registerGLRoutes(app: Express) {
   registerCrudFactory(app, "bailleurs", bailleurs, opts);
   registerCrudFactory(app, "gestionnaires", gestionnaires, opts);
   registerCrudFactory(app, "locataires", locatairesGL, opts);
-  registerCrudFactory(app, "baux", bauxGL, opts);
+  registerCrudFactory(app, "baux", bauxGL, opts, { scope: "gl" });
   registerCrudFactory(app, "paiements", paiementsGL, opts);
   registerCrudFactory(app, "factures", facturesGL, opts);
   registerCrudFactory(app, "quittances", quittancesGL, opts);

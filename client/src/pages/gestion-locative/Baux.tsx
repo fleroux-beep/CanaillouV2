@@ -74,6 +74,9 @@ export default function BauxGLPage() {
 
   const onChange = (name: string, value: string) => setForm((f) => {
     const next = { ...f, [name]: value };
+    if (name === "loyerBaseHT") {
+      next.loyerHTActu = undefined;
+    }
     // Auto-assign default index when typeBail changes and indiceReference is not yet set by user.
     // Doit rester aligné avec defaultIndiceForType() côté serveur (server/lib/sync-insee.ts)
     // et conforme au droit français :
@@ -93,7 +96,20 @@ export default function BauxGLPage() {
     }
     return next;
   });
-  const handleSubmit = async (e: React.FormEvent) => { e.preventDefault(); if (editing) { await update({ ...form, id: editing.id } as Bail); } else { await create(form); } setDialogOpen(false); };
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const { nom, bailleurId, typeBail, dateSignature, adresse, ville, codePostal,
+      surface, capacite, loyerBaseHT, loyerHTActu, charges, depotGarantie, taxeFonciere,
+      taxe, tvaTaux, forceManual, loyerManuelOverride, indiceReference, trimestreRef,
+      valeurIndiceBase, dateEffet, notes } = form;
+    const payload: Record<string, any> = { nom, bailleurId, typeBail, dateSignature,
+      adresse, ville, codePostal, surface, capacite, loyerBaseHT,
+      loyerHTActu: loyerHTActu ?? null, charges, depotGarantie, taxeFonciere,
+      taxe, tvaTaux, forceManual, loyerManuelOverride, indiceReference, trimestreRef,
+      valeurIndiceBase, dateEffet, notes };
+    if (editing) { await update({ ...payload, id: editing.id } as Bail); } else { await create(payload); }
+    setDialogOpen(false);
+  };
 
   return (
     <div className="space-y-6">
