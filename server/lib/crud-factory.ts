@@ -71,6 +71,7 @@ function buildWhereClause(table: any, req: any, scope?: string): SQL | undefined
  */
 interface RegisterCrudResourceOptions {
   scope?: string;
+  afterWrite?: (row: any) => Promise<void>;
 }
 
 export function registerCrud(
@@ -158,6 +159,7 @@ export function registerCrud(
       // Force scope on creation so a caller can't smuggle rows into the other UI's view
       if (hasScope) body.scope = scope;
       const rows = await db.insert(table).values(body).returning() as any[];
+      if (resourceOpts.afterWrite) await resourceOpts.afterWrite(rows[0]);
       res.status(201).json(rows[0]);
     } catch (error: any) {
       logger.error("route error", { error: error.message });
@@ -180,11 +182,17 @@ export function registerCrud(
 
       // Strip scope from body so it can't be reassigned by clients
       const { scope: _ignored, ...safeBody } = req.body ?? {};
+      // Drizzle timestamp columns require Date objects; convert ISO strings from JSON bodies
+      const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
+      const cleanBody = Object.fromEntries(
+        Object.entries(safeBody).map(([k, v]) => [k, typeof v === "string" && ISO_RE.test(v) ? new Date(v) : v])
+      );
       const updateData = "updatedAt" in table
-        ? { ...safeBody, updatedAt: new Date() }
-        : safeBody;
+        ? { ...cleanBody, updatedAt: new Date() }
+        : cleanBody;
       const rows = await db.update(table).set(updateData).where(where).returning() as any[];
       if (rows.length === 0) return res.status(404).json({ error: "Non trouvé" });
+      if (resourceOpts.afterWrite) await resourceOpts.afterWrite(rows[0]);
       res.json(rows[0]);
     } catch (error: any) {
       logger.error("route error", { error: error.message });

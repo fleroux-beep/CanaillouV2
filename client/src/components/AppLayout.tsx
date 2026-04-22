@@ -49,6 +49,12 @@ const amNavGroups: NavGroup[] = [
     ],
   },
   {
+    label: "Emprunts & Crédit",
+    items: [
+      { label: "Emprunts", href: "/asset-management/emprunts", icon: TrendingUp },
+    ],
+  },
+  {
     label: "Analyse",
     items: [
       { label: "Valorisation", href: "/asset-management/valorisation", icon: BarChart3 },

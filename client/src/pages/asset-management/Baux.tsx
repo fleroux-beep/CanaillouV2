@@ -125,7 +125,15 @@ export default function BauxAMPage() {
   ];
 
   const openCreate = () => { setEditing(null); setForm(emptyBail); setDialogOpen(true); };
-  const openEdit = (bail: BailAM) => { setEditing(bail); setForm(bail); setDialogOpen(true); };
+  const openEdit = (bail: BailAM) => {
+    const f = { ...bail } as any;
+    if (f.dateDebut) f.dateDebut = String(f.dateDebut).substring(0, 10);
+    if (f.dateFin) f.dateFin = String(f.dateFin).substring(0, 10);
+    if (f.dateSignature) f.dateSignature = String(f.dateSignature).substring(0, 10);
+    setEditing(bail);
+    setForm(f);
+    setDialogOpen(true);
+  };
   const onChange = (name: string, value: string) => {
     setForm((f) => {
       const updated = { ...f, [name]: value };
