@@ -29,9 +29,14 @@ export function validate(schema: z.ZodSchema) {
 // ============================================================
 
 const optStr = z.string().optional().nullable();
-const optNum = z.union([z.string(), z.number()]).optional().nullable();
+const optNum = z.union([z.string(), z.number()])
+  .transform((v) => (typeof v === "string" && v.trim() === "" ? null : v))
+  .optional().nullable();
 const optBool = z.boolean().optional().nullable();
-const optInt = z.union([z.string(), z.number()]).pipe(z.coerce.number().int()).optional().nullable();
+const optInt = z.union([z.string(), z.number()])
+  .transform((v) => (typeof v === "string" && v.trim() === "" ? null : v))
+  .pipe(z.coerce.number().int().nullable())
+  .optional().nullable();
 
 // ============================================================
 // AUTH
@@ -273,7 +278,10 @@ export const locataireGLSchema = z.object({
   notes: optStr,
 });
 
-const optDate = z.string().regex(/^\d{4}-\d{2}-\d{2}/, "Format de date attendu : YYYY-MM-DD").optional().nullable().or(z.literal(""));
+const optDate = z.string()
+  .transform((v) => (v.trim() === "" ? null : v))
+  .pipe(z.string().regex(/^\d{4}-\d{2}-\d{2}/, "Format de date attendu : YYYY-MM-DD").nullable())
+  .optional().nullable();
 
 export const bailGLSchema = z.object({
   nom: z.string().min(1, "Le nom est requis"),

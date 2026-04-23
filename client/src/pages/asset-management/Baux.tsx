@@ -151,9 +151,9 @@ export default function BauxAMPage() {
           if (actif?.sciId) updated.sciId = actif.sciId;
         }
       }
-      // Confort de saisie : quand l'utilisateur tape un loyer mensuel via
-      // le champ virtuel "_loyerBaseMensuel", on stocke en base le loyer
-      // annuel HT dans `loyerBaseHT` (le seul champ persisté).
+      if (name === "loyerBaseHT" || name === "_loyerBaseMensuel") {
+        updated.loyerHTActu = undefined;
+      }
       if (name === "_loyerBaseMensuel" && value) {
         const mensuel = parseFloat(value);
         if (!isNaN(mensuel)) updated.loyerBaseHT = String(Math.round(mensuel * 12 * 100) / 100);
@@ -164,9 +164,10 @@ export default function BauxAMPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Retire les champs virtuels (préfixe _) avant l'appel API.
     const payload: any = Object.fromEntries(
-      Object.entries(form).filter(([k]) => !k.startsWith("_")),
+      Object.entries(form)
+        .filter(([k]) => !k.startsWith("_"))
+        .map(([k, v]) => [k, v === undefined ? null : v]),
     );
     if (editing) {
       await update({ ...payload, id: editing.id } as BailAM);

@@ -195,8 +195,9 @@ export function registerCrud(
       if (resourceOpts.afterWrite) await resourceOpts.afterWrite(rows[0]);
       res.json(rows[0]);
     } catch (error: any) {
-      logger.error("route error", { error: error.message });
-      res.status(500).json({ error: "Erreur interne" });
+      logger.error("route error", { path: `PATCH ${apiPath}/:id`, error: error.message, detail: error.detail || error.code });
+      const detail = process.env.NODE_ENV !== "production" ? ` (${error.message})` : "";
+      res.status(500).json({ error: `Erreur interne${detail}` });
     }
   });
 
