@@ -12,6 +12,25 @@ import { logger } from "./logger";
 import type { z } from "zod";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Sanitize a request body before passing to Drizzle:
+ * - Convert ISO datetime strings to Date objects (avoids Drizzle type errors).
+ * - Convert YYYY-MM-DD strings to Date objects for date/timestamp columns.
+ * - Convert empty strings to null (PostgreSQL rejects "" for date/numeric columns).
+ */
+function sanitizeBody(body: Record<string, any>): Record<string, any> {
+  return Object.fromEntries(
+    Object.entries(body).map(([k, v]) => {
+      if (v === "" || v === undefined) return [k, null];
+      if (typeof v === "string" && ISO_RE.test(v)) return [k, new Date(v)];
+      if (typeof v === "string" && DATE_RE.test(v)) return [k, new Date(v)];
+      return [k, v];
+    })
+  );
+}
 
 /**
  * Extract and validate a UUID :id param. Returns the id string.
@@ -151,7 +170,7 @@ export function registerCrud(
 
   app.post(apiPath, requireWriteAdmin, ...(schema ? [validate(schema)] : []), async (req: any, res: any) => {
     try {
-      const body = { ...req.body };
+      const body = sanitizeBody({ ...req.body });
       // Auto-assign ownerId on creation for tenant-isolated tables
       if (hasOwnerId && req.session?.userId) {
         body.ownerId = req.session.userId;
@@ -182,11 +201,7 @@ export function registerCrud(
 
       // Strip scope from body so it can't be reassigned by clients
       const { scope: _ignored, ...safeBody } = req.body ?? {};
-      // Drizzle timestamp columns require Date objects; convert ISO strings from JSON bodies
-      const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
-      const cleanBody = Object.fromEntries(
-        Object.entries(safeBody).map(([k, v]) => [k, typeof v === "string" && ISO_RE.test(v) ? new Date(v) : v])
-      );
+      const cleanBody = sanitizeBody(safeBody);
       const updateData = "updatedAt" in table
         ? { ...cleanBody, updatedAt: new Date() }
         : cleanBody;
