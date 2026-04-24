@@ -119,13 +119,13 @@ export default function ScoreSantePage() {
   const barData = useMemo(() => {
     if (viewMode === "sci") {
       return sciScores.map((s) => ({
-        nom: s.sciNom.length > 15 ? s.sciNom.slice(0, 15) + "…" : s.sciNom,
+        nom: s.sciNom.length > 22 ? s.sciNom.slice(0, 22) + "…" : s.sciNom,
         score: s.scoreGlobal,
         couleur: s.couleur,
       }));
     }
     return sortedScores.map((s: any) => ({
-      nom: s.actifNom.length > 15 ? s.actifNom.slice(0, 15) + "…" : s.actifNom,
+      nom: s.actifNom.length > 22 ? s.actifNom.slice(0, 22) + "…" : s.actifNom,
       score: s.scoreGlobal,
       couleur: s.couleur,
     }));
@@ -210,7 +210,7 @@ export default function ScoreSantePage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={barData} margin={{ top: 10, right: 10, left: 10, bottom: 30 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-                    <XAxis dataKey="nom" tick={{ fontSize: 11 }} angle={-35} textAnchor="end" height={60} />
+                    <XAxis dataKey="nom" tick={{ fontSize: 10 }} angle={-40} textAnchor="end" height={80} interval={0} />
                     <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
                     <Tooltip {...chartTooltipStyle} formatter={(v: number) => [`${v}/100`, "Score"]} />
                     <Bar dataKey="score" radius={[6, 6, 0, 0]}>
