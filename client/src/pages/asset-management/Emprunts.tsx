@@ -17,8 +17,8 @@ export default function EmpruntsPage() {
         <TabsList>
           <TabsTrigger value="emprunts">Emprunts</TabsTrigger>
           <TabsTrigger value="amortissement">Amortissement</TabsTrigger>
-          <TabsTrigger value="cout-credit">Cout du credit</TabsTrigger>
-          <TabsTrigger value="rachat-credit">Rachat de credit</TabsTrigger>
+          <TabsTrigger value="cout-credit">Coût du crédit</TabsTrigger>
+          <TabsTrigger value="rachat-credit">Rachat de crédit</TabsTrigger>
         </TabsList>
         <TabsContent value="emprunts">
           <EmpruntsTab />

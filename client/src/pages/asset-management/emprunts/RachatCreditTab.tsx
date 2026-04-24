@@ -124,19 +124,19 @@ export function RachatCreditTab() {
   return (
     <AnimatePresence>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
-        <Section title="Simulateur de rachat de credit" delay={0}>
+        <Section title="Simulateur de rachat de crédit" delay={0}>
           <GlassCard>
             <div className="space-y-6">
               {/* Selection de l'emprunt */}
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">Emprunt a racheter</label>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">Emprunt à racheter</label>
                   <select
                     value={selectedEmprunt}
                     onChange={(e) => setSelectedEmprunt(e.target.value)}
                     className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
                   >
-                    <option value="">Selectionnez un emprunt</option>
+                    <option value="">Sélectionnez un emprunt</option>
                     {(() => {
                       const groups: { sciName: string; items: Emprunt[] }[] = [];
                       for (const emp of activeEmprunts) {
@@ -243,7 +243,7 @@ export function RachatCreditTab() {
 
             {/* Amortissement chart */}
             {simulation.amortissement.length > 0 && (
-              <Section title="Amortissement du nouveau pret" delay={3}>
+              <Section title="Amortissement du nouveau prêt" delay={3}>
                 <GlassCard>
                   <div className="h-[300px]">
                     <ResponsiveContainer width="100%" height="100%">
@@ -268,7 +268,7 @@ export function RachatCreditTab() {
           <GlassCard>
             <div className="py-12 text-center text-muted-foreground">
               <RefreshCw className="mx-auto h-12 w-12 mb-4 opacity-30" />
-              <p>Selectionnez un emprunt ci-dessus pour simuler un rachat de credit</p>
+              <p>Sélectionnez un emprunt ci-dessus pour simuler un rachat de crédit</p>
             </div>
           </GlassCard>
         )}

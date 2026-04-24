@@ -1,14 +1,14 @@
-import { useState } from "react";
-// wouter useLocation unused after removing detail page navigation
+import { useState, useMemo } from "react";
 import { useCrud } from "../../hooks/useCrud";
 import { DataTable, type Column } from "../../components/ui/data-table";
 import { FormDialog } from "../../components/ui/form-dialog";
 import { ConfirmDialog } from "../../components/ui/confirm-dialog";
 import { FormField, FormGrid } from "../../components/ui/form-field";
 import { PageHeader } from "../../components/ui/page-header";
+import { KpiCard } from "../../components/ui/kpi-card";
 import { Badge } from "../../components/ui/badge";
 import { formatCurrency } from "../../lib/utils";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Landmark, Wallet, Building2, Scale } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface SCI {
@@ -74,22 +74,34 @@ export default function SCIsPage() {
     setDialogOpen(false);
   };
 
+  const kpis = useMemo(() => {
+    const totalCapital = data.reduce((s, sci) => s + (sci.capital ? parseFloat(sci.capital) : 0), 0);
+    const nbIS = data.filter((s) => s.regimeFiscal === "IS").length;
+    const nbIR = data.filter((s) => s.regimeFiscal === "IR").length;
+    return { totalCapital, nbIS, nbIR };
+  }, [data]);
+
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="SCIs"
-        description="Sociétés civiles immobilières"
-        actions={
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={openCreate}
-            className="flex items-center gap-2 rounded-lg gradient-primary px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-orange-500/25"
-          >
-            <Plus className="h-4 w-4" /> Nouvelle SCI
-          </motion.button>
-        }
-      />
+      <div className="flex items-center justify-between">
+        <div className="grid flex-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard label="Nombre de SCIs" value={data.length} icon={Building2} variant="primary" gradient delay={0} />
+          <KpiCard label="Capital total" value={kpis.totalCapital} formatFn={formatCurrency} icon={Wallet} variant="warning" gradient delay={1} />
+          <KpiCard label="Régime IS" value={kpis.nbIS} icon={Landmark} variant="success" gradient delay={2} />
+          <KpiCard label="Régime IR" value={kpis.nbIR} icon={Scale} variant="danger" gradient delay={3} />
+        </div>
+      </div>
+
+      <div className="flex justify-end">
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={openCreate}
+          className="flex items-center gap-2 rounded-lg gradient-primary px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-orange-500/25"
+        >
+          <Plus className="h-4 w-4" /> Nouvelle SCI
+        </motion.button>
+      </div>
 
       <DataTable
         data={data}
