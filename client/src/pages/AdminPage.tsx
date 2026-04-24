@@ -200,9 +200,10 @@ export default function AdminPage() {
                 <motion.button
                   whileTap={{ scale: 0.95 }}
                   onClick={() => approveMutation.mutate(u.id)}
-                  className="shrink-0 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors"
+                  disabled={approveMutation.isPending}
+                  className="shrink-0 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors disabled:opacity-50"
                 >
-                  Approuver
+                  {approveMutation.isPending ? "Approbation..." : "Approuver"}
                 </motion.button>
               </motion.div>
             ))}
@@ -266,7 +267,8 @@ export default function AdminPage() {
                           {!u.isApproved && (
                             <button
                               onClick={() => approveMutation.mutate(u.id)}
-                              className="rounded-lg p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
+                              disabled={approveMutation.isPending}
+                              className="rounded-lg p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors disabled:opacity-50"
                               title="Approuver"
                             >
                               <CheckCircle2 className="h-4 w-4" />
@@ -275,7 +277,8 @@ export default function AdminPage() {
                           {u.id !== currentUser?.id && (
                             <button
                               onClick={() => setDeleteTarget(u)}
-                              className="rounded-lg p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                              disabled={deleteMutation.isPending}
+                              className="rounded-lg p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
                               title="Supprimer"
                             >
                               <Trash2 className="h-4 w-4" />

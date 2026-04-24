@@ -8,6 +8,7 @@ import { eq } from "drizzle-orm";
 import { pool, db } from "./db";
 import { ensureSchema } from "./ensure-schema";
 import { users, scis, actifs } from "@shared/schema";
+import * as schema from "@shared/schema";
 import { registerAuthRoutes } from "./routes/auth";
 import { registerAMRoutes } from "./routes/am";
 import { registerMarcheRoutes } from "./routes/am-marche";
@@ -152,6 +153,33 @@ app.post("/api/admin/import-excel", requireAdmin, async (_req, res) => {
     res.json({ ok: true, counts });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// RGPD: export all data (admin only)
+app.get("/api/admin/rgpd-export", requireAdmin, async (_req, res) => {
+  try {
+    const [sciRows, actifRows, lotRows, empruntRows, bailRows, locRows, assocRows] = await Promise.all([
+      db.select().from(schema.scis),
+      db.select().from(schema.actifs),
+      db.select().from(schema.lots),
+      db.select().from(schema.emprunts),
+      db.select().from(schema.bauxGL),
+      db.select().from(schema.locatairesGL),
+      db.select().from(schema.associes),
+    ]);
+    res.json({
+      exportDate: new Date().toISOString(),
+      scis: sciRows,
+      actifs: actifRows,
+      lots: lotRows,
+      emprunts: empruntRows,
+      baux: bailRows,
+      locataires: locRows,
+      associes: assocRows,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: "Erreur export RGPD" });
   }
 });
 

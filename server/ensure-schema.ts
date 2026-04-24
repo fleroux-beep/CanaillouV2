@@ -563,7 +563,7 @@ export async function ensureSchema() {
         "syndic" varchar,
         "regime_juridique" varchar,
         "notes" text,
-        "archived" boolean DEFAULT false,
+        "archived" boolean NOT NULL DEFAULT false,
         "deleted_at" timestamp,
         "created_at" timestamp DEFAULT now(),
         "updated_at" timestamp DEFAULT now()
@@ -588,7 +588,7 @@ export async function ensureSchema() {
         "statut" varchar DEFAULT 'vacant',
         "locataire_id" varchar,
         "notes" text,
-        "archived" boolean DEFAULT false,
+        "archived" boolean NOT NULL DEFAULT false,
         "deleted_at" timestamp,
         "created_at" timestamp DEFAULT now(),
         "updated_at" timestamp DEFAULT now()
@@ -621,7 +621,7 @@ export async function ensureSchema() {
         "type_garantie" varchar,
         "ira" numeric,
         "notes" text,
-        "archived" boolean DEFAULT false,
+        "archived" boolean NOT NULL DEFAULT false,
         "deleted_at" timestamp,
         "created_at" timestamp DEFAULT now(),
         "updated_at" timestamp DEFAULT now()
@@ -768,8 +768,8 @@ export async function ensureSchema() {
         "ech_trien1" date,
         "ech_trien2" date,
         "ech_trien3" date,
-        "loyer_base_ht" numeric,
-        "loyer_ht_actu" numeric,
+        "loyer_base_ht" numeric NOT NULL DEFAULT '0',
+        "loyer_ht_actu" numeric NOT NULL DEFAULT '0',
         "force_manual" boolean NOT NULL DEFAULT false,
         "loyer_manuel_override" numeric,
         "indice_reference" varchar,
@@ -787,7 +787,7 @@ export async function ensureSchema() {
         "surface_exterieure" numeric,
         "capacite" integer,
         "statut" varchar,
-        "archived" boolean DEFAULT false,
+        "archived" boolean NOT NULL DEFAULT false,
         "deleted_at" timestamp,
         "notes" text,
         "created_at" timestamp DEFAULT now(),
@@ -1334,6 +1334,31 @@ export async function ensureSchema() {
       WHERE "loyer_annuel" IS NOT NULL AND "loyer_annuel" != '0'
         AND ("loyer_base_ht" IS NULL OR "loyer_ht_actu" IS NULL)
     `);
+
+    // ─── NOT NULL + DEFAULT on critical business columns (idempotent) ───
+    // Each ALTER is wrapped in a DO block so it's safe to replay on an
+    // existing database that may already have the constraint.
+    const notNullDefaults: [string, string, string][] = [
+      ["gl_baux",      "loyer_base_ht", "'0'"],
+      ["gl_baux",      "loyer_ht_actu", "'0'"],
+      ["gl_baux",      "archived",      "false"],
+      ["am_actifs",    "archived",      "false"],
+      ["am_lots",      "archived",      "false"],
+      ["am_emprunts",  "archived",      "false"],
+    ];
+    for (const [tbl, col, def] of notNullDefaults) {
+      await client.query(`
+        DO $$ BEGIN
+          -- 1. Backfill existing NULLs so SET NOT NULL doesn't fail
+          UPDATE "${tbl}" SET "${col}" = ${def} WHERE "${col}" IS NULL;
+          -- 2. SET DEFAULT (idempotent — Postgres replaces any existing default)
+          ALTER TABLE "${tbl}" ALTER COLUMN "${col}" SET DEFAULT ${def};
+          -- 3. SET NOT NULL (idempotent — no-op if already NOT NULL)
+          ALTER TABLE "${tbl}" ALTER COLUMN "${col}" SET NOT NULL;
+        EXCEPTION WHEN undefined_table OR undefined_column THEN NULL;
+        END $$;
+      `);
+    }
 
     await client.query("COMMIT");
     logger.info("database schema ensured");

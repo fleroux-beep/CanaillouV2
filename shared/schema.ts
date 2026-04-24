@@ -139,7 +139,7 @@ export const actifs = pgTable("am_actifs", {
   syndic: varchar("syndic"),
   regimeJuridique: varchar("regime_juridique"),
   notes: text("notes"),
-  archived: boolean("archived").default(false),
+  archived: boolean("archived").notNull().default(false),
   deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -165,7 +165,7 @@ export const lots = pgTable("am_lots", {
   statut: varchar("statut").default("vacant"), // loué, vacant
   locataireId: varchar("locataire_id").references(() => locatairesGL.id, { onDelete: "set null" }),
   notes: text("notes"),
-  archived: boolean("archived").default(false),
+  archived: boolean("archived").notNull().default(false),
   deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -199,7 +199,7 @@ export const emprunts = pgTable("am_emprunts", {
   typeGarantie: varchar("type_garantie"), // hypothèque, caution, privilège
   ira: numeric("ira"), // indemnité remboursement anticipé
   notes: text("notes"),
-  archived: boolean("archived").default(false),
+  archived: boolean("archived").notNull().default(false),
   deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -359,8 +359,8 @@ export const bauxGL = pgTable("gl_baux", {
   //
   // Les franchises (rent-free) et prorata temporels NE modifient PAS ces
   // champs : ils sont modélisés séparément via `gl_baux_franchises`.
-  loyerBaseHT: numeric("loyer_base_ht"),
-  loyerHTActu: numeric("loyer_ht_actu"),
+  loyerBaseHT: numeric("loyer_base_ht").notNull().default('0'),
+  loyerHTActu: numeric("loyer_ht_actu").notNull().default('0'),
   forceManual: boolean("force_manual").notNull().default(false),
   loyerManuelOverride: numeric("loyer_manuel_override"),
   // Indexation
@@ -383,7 +383,7 @@ export const bauxGL = pgTable("gl_baux", {
   capacite: integer("capacite"),
   // Statut
   statut: varchar("statut"),
-  archived: boolean("archived").default(false),
+  archived: boolean("archived").notNull().default(false),
   deletedAt: timestamp("deleted_at"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
