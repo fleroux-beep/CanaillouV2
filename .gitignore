@@ -5,3 +5,5 @@ dist/
 .DS_Store
 backups/
 uploads/
+screenshot-tabs.mjs
+verify-v2.mjs
