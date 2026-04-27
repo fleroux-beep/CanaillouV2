@@ -7,3 +7,4 @@ backups/
 uploads/
 screenshot-tabs.mjs
 verify-v2.mjs
+audit-cross-data.mjs
