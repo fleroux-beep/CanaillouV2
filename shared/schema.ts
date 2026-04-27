@@ -369,6 +369,9 @@ export const bauxGL = pgTable("gl_baux", {
   dateIndiceBase: timestamp("date_indice_base"),
   valeurIndiceBase: numeric("valeur_indice_base"),
   // Charges & Taxes
+  // ⚠ MENSUEL : `charges` est un montant mensuel (refacturé au locataire chaque mois).
+  // L'UI et les calculs annualisent par × 12 partout. Le glossaire des métriques décrit
+  // le total annuel (charges × 12 + taxe foncière + assurance PNO) — ne pas confondre.
   charges: numeric("charges"),
   depotGarantie: numeric("depot_garantie"),
   taxeFonciere: numeric("taxe_fonciere"),

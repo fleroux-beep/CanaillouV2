@@ -17,6 +17,7 @@ import { InfoTooltip } from "../../components/ui/info-tooltip";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
+import { getBailLoyer, isResilie } from "@shared/utils/bail";
 
 interface BailGL {
   id: string;
@@ -28,8 +29,10 @@ interface BailGL {
   typeBail?: string;
   dateDebut?: string;
   dateFin?: string;
-  loyerBaseHT?: string;
-  loyerHTActu?: string;
+  loyerBaseHT?: string | null;
+  loyerHTActu?: string | null;
+  loyerManuelOverride?: string | null;
+  forceManual?: boolean | null;
   charges?: string;
   indiceReference?: string;
   trimestreRef?: string;
@@ -61,10 +64,11 @@ function LoyersIndexesTab() {
 
   const loyerData = useMemo(() => {
     return baux
-      .filter((b) => !b.archived && (b.statut === "actif" || !b.statut))
+      .filter((b) => !b.archived && !isResilie(b))
       .map((bail) => {
         const loyerBase = bail.loyerBaseHT ? parseFloat(bail.loyerBaseHT) : 0;
-        const loyerActuel = bail.loyerHTActu ? parseFloat(bail.loyerHTActu) : loyerBase;
+        // Utilise getBailLoyer pour respecter la priorité override > actu > base
+        const loyerActuel = getBailLoyer(bail);
         const ecart = loyerActuel - loyerBase;
         const ecartPct = loyerBase > 0 ? ((ecart / loyerBase) * 100) : 0;
 
@@ -159,13 +163,21 @@ function RevisionsTriennalesTab() {
 
   const revisionData: RevisionRow[] = useMemo(() => {
     return baux
-      .filter((b) => !b.archived && (b.typeBail === "commercial" || b.typeBail === "professionnel"))
+      .filter((b) => !b.archived && !isResilie(b)
+        && (b.typeBail?.toLowerCase() === "commercial" || b.typeBail?.toLowerCase() === "professionnel"))
       .map((bail): RevisionRow | null => {
         const debut = bail.dateDebut ? new Date(bail.dateDebut) : null;
         if (!debut || isNaN(debut.getTime())) return null;
 
-        const anneesDepuis = Math.floor((now.getTime() - debut.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-        const nextReviewNumber = Math.max(1, Math.ceil(anneesDepuis / 3));
+        // Calcul calendaire (anniversaire du bail), pas en millisecondes,
+        // pour éviter les imprécisions au niveau du jour exact.
+        let anneesDepuis = now.getFullYear() - debut.getFullYear();
+        const monthDiff = now.getMonth() - debut.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < debut.getDate())) {
+          anneesDepuis--;
+        }
+        anneesDepuis = Math.max(0, anneesDepuis);
+        const nextReviewNumber = Math.max(1, Math.ceil((anneesDepuis + 1) / 3));
         const nextReviewYears = nextReviewNumber * 3;
         const dateRevision = new Date(debut);
         dateRevision.setFullYear(debut.getFullYear() + nextReviewYears);
@@ -180,7 +192,7 @@ function RevisionsTriennalesTab() {
         const passe = joursRestants < 0;
 
         const loyerBase = bail.loyerBaseHT ? parseFloat(bail.loyerBaseHT) : 0;
-        const loyerActuel = bail.loyerHTActu ? parseFloat(bail.loyerHTActu) : loyerBase;
+        const loyerActuel = getBailLoyer(bail);
 
         return {
           id: bail.id,
@@ -280,8 +292,7 @@ function ChargesTFTab() {
       .map((bail) => {
         const chargesMens = bail.charges ? parseFloat(bail.charges) : 0;
         const taxeFonciere = bail.taxeFonciere ? parseFloat(bail.taxeFonciere) : 0;
-        const loyerBase = bail.loyerBaseHT ? parseFloat(bail.loyerBaseHT) : 0;
-        const loyerActuel = bail.loyerHTActu ? parseFloat(bail.loyerHTActu) : loyerBase;
+        const loyerActuel = getBailLoyer(bail);
 
         return {
           id: bail.id,
@@ -399,13 +410,10 @@ function SyntheseTab() {
   });
 
   const bailleurMap = Object.fromEntries(bailleurs.map((b) => [b.id, b.nom]));
-  const activeBaux = baux.filter((b) => !b.archived && (b.statut === "actif" || !b.statut));
+  const activeBaux = baux.filter((b) => !b.archived && !isResilie(b));
 
-  // KPIs — loyerBaseHT est annuel
-  const totalLoyerAnnuel = activeBaux.reduce((s, b) => {
-    const base = b.loyerBaseHT ? parseFloat(b.loyerBaseHT) : 0;
-    return s + (b.loyerHTActu ? parseFloat(b.loyerHTActu) : base);
-  }, 0);
+  // KPIs — getBailLoyer respecte la priorité override > actu > base
+  const totalLoyerAnnuel = activeBaux.reduce((s, b) => s + getBailLoyer(b), 0);
   const totalChargesMens = activeBaux.reduce((s, b) => s + (b.charges ? parseFloat(b.charges) : 0), 0);
   const totalLoyerCC = totalLoyerAnnuel + totalChargesMens * 12;
   const totalTF = activeBaux.reduce((s, b) => s + (b.taxeFonciere ? parseFloat(b.taxeFonciere) : 0), 0);
@@ -432,8 +440,7 @@ function SyntheseTab() {
       const bid = b.bailleurId || "none";
       if (!map[bid]) map[bid] = { bailleur: b.bailleurId ? bailleurMap[b.bailleurId] || "—" : "Sans bailleur", nbBaux: 0, loyerAn: 0, charges: 0, tf: 0 };
       map[bid].nbBaux++;
-      const base = b.loyerBaseHT ? parseFloat(b.loyerBaseHT) : 0;
-      map[bid].loyerAn += b.loyerHTActu ? parseFloat(b.loyerHTActu) : base;
+      map[bid].loyerAn += getBailLoyer(b);
       map[bid].charges += b.charges ? parseFloat(b.charges) : 0;
       map[bid].tf += b.taxeFonciere ? parseFloat(b.taxeFonciere) : 0;
     });

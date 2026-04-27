@@ -116,7 +116,45 @@ export default function IndicesPage() {
   ];
 
   const onChange = (name: string, value: string) => setForm((f) => ({ ...f, [name]: value }));
-  const handleSubmit = async (e: React.FormEvent) => { e.preventDefault(); if (editing) { await update({ ...form, id: editing.id } as Indice); } else { await create(form); } setDialogOpen(false); };
+
+  /** Normalise le format trimestre vers "Tn YYYY" (espace, pas tiret) pour cohérence
+   *  avec les autres entrées et avec le tri textuel (les indices INSEE arrivent en
+   *  format "Tn-YYYY" qui ne se compare pas bien avec "Tn YYYY"). */
+  const normalizeTrimestre = (t: string): string => {
+    if (!t) return t;
+    const m = t.match(/T?\s*(\d)\s*[-\s]?\s*(\d{4})/i);
+    if (m) return `T${m[1]} ${m[2]}`;
+    return t.trim();
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const normalizedForm = { ...form, trimestre: normalizeTrimestre(form.trimestre || "") };
+    try {
+      if (editing) {
+        await update({ ...normalizedForm, id: editing.id } as Indice);
+      } else {
+        // Pré-vérification d'unicité côté client pour message convivial
+        // (le DB unique index reste l'autorité finale)
+        const duplicate = data.find(
+          (i) => i.type === normalizedForm.type && i.trimestre === normalizedForm.trimestre,
+        );
+        if (duplicate && !editing) {
+          alert(`Cet indice existe déjà (${normalizedForm.type} ${normalizedForm.trimestre}). Utilisez "Modifier" pour le mettre à jour.`);
+          return;
+        }
+        await create(normalizedForm);
+      }
+      setDialogOpen(false);
+    } catch (err: any) {
+      // Le serveur peut retourner une erreur d'unicité même après pré-check (race condition)
+      if (err?.message?.includes("duplicate") || err?.message?.includes("unique")) {
+        alert("Cet indice existe déjà pour ce type et ce trimestre.");
+      } else {
+        throw err;
+      }
+    }
+  };
 
   return (
     <div className="space-y-6">

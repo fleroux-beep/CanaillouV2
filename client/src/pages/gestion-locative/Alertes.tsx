@@ -120,16 +120,34 @@ export default function AlertesPage() {
         }
       }
 
-      // Indexation non effectuée : bail avec indice mais loyerHTActu = loyerBaseHT ou absent
+      // Indexation non effectuée : bail avec indice mais loyerHTActu = loyerBaseHT ou absent.
+      // On ne signale qu'à partir d'1 an d'ancienneté du bail (sinon faux positif systématique
+      // pour les baux récemment signés où aucune indexation ne devrait avoir eu lieu) ET
+      // qu'un indice plus récent que valeurIndiceBase est disponible en base.
       if (b.indiceReference && b.loyerBaseHT) {
         const base = Number(b.loyerBaseHT);
         const actu = Number(b.loyerHTActu || 0);
-        if (actu === 0 || actu === base) {
+        const dateRef = b.dateDebut || b.dateSignature;
+        let bailAgeMonths = Infinity;
+        if (dateRef) {
+          const debut = new Date(dateRef);
+          if (Number.isFinite(debut.getTime())) {
+            bailAgeMonths = (now.getTime() - debut.getTime()) / (30.4375 * 86400000);
+          }
+        }
+        // Vérifier qu'un indice plus récent existe
+        const latestIdx = (allIndices as any[])
+          .filter((i) => i.type === b.indiceReference)
+          .sort((a, b2) => String(b2.trimestre).localeCompare(String(a.trimestre)))[0];
+        const newerIndexAvailable = latestIdx
+          ? Number(latestIdx.valeur) > Number(b.valeurIndiceBase || 0)
+          : false;
+        if ((actu === 0 || actu === base) && bailAgeMonths >= 12 && newerIndexAvailable) {
           result.push({
             id: `indexation-pending-${b.id}`,
             level: "warning",
             title: "Indexation non effectuée",
-            description: `Le loyer n'a jamais été indexé (indice ${b.indiceReference}). Lancer l'indexation automatique.`,
+            description: `Le loyer n'a jamais été indexé (indice ${b.indiceReference} ${latestIdx.trimestre} = ${latestIdx.valeur}). Lancer l'indexation automatique.`,
             bailNom: b.nom,
           });
         }
