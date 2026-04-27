@@ -9,6 +9,7 @@ import { Badge } from "../../../components/ui/badge";
 import { formatCurrency, formatPercent } from "../../../lib/utils";
 import { TrendingDown, Calculator, Landmark, Percent } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { computeIRR } from "../../../lib/am-calculations";
 import type { Emprunt, SCI, Actif } from "../../../types";
 
 export function CoutCreditTab() {
@@ -70,10 +71,20 @@ export function CoutCreditTab() {
       const coutAssurance = assurance * duree;
       const coutInterets = Math.max(0, (mens * duree) - montant);
       const coutTotal = coutInterets + coutAssurance;
-      // TAEG approximation using annualized rate: (totalRembourse/montant)^(12/duree) - 1
-      const taeg = montant > 0 && duree > 0
-        ? (Math.pow(totalRembourse / montant, 12 / duree) - 1) * 100
-        : 0;
+      // TAEG : taux annualisé qui actualise les flux mensuels (mensualité totale, assurance incluse)
+      // pour égaliser le montant emprunté. Calcul par IRR mensuel × 12 (taux nominal annuel).
+      let taeg = 0;
+      if (montant > 0 && duree > 0) {
+        const mensuTotale = mens + assurance;
+        if (mensuTotale > 0) {
+          const flows: number[] = [-montant];
+          for (let m = 0; m < duree; m++) flows.push(mensuTotale);
+          const irrMensuel = computeIRR(flows); // % par période (mois)
+          if (irrMensuel != null && Number.isFinite(irrMensuel)) {
+            taeg = irrMensuel * 12; // annualisation linéaire (taux nominal)
+          }
+        }
+      }
 
       const label = emp.sciId && sciMap[emp.sciId]
         ? `${sciMap[emp.sciId]}${emp.actifId && actifMap[emp.actifId] ? " / " + actifMap[emp.actifId] : ""}`
@@ -95,7 +106,7 @@ export function CoutCreditTab() {
         taeg: Math.max(0, taeg),
       };
     });
-  }, [activeEmprunts, sciMap]);
+  }, [activeEmprunts, sciMap, actifMap]);
 
   const totalInterets = coutData.reduce((s, c) => s + c.coutInterets, 0);
   const totalAssurance = coutData.reduce((s, c) => s + c.coutAssurance, 0);
