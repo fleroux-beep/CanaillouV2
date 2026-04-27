@@ -4,6 +4,27 @@ import { requireAuth } from "../middleware/auth";
 import { rateLimit } from "../lib/rate-limit";
 import { logger } from "../lib/logger";
 import { getBailLoyer } from "@shared/utils/bail";
+import {
+  actifSchema, lotSchema, empruntSchema, sciSchema,
+  bailAMSchema, bailGLSchema,
+} from "../lib/validation";
+import type { z } from "zod";
+
+/** Escape LIKE wildcards (% and _) in user input before wrapping in %...% */
+function escapeLikeWildcards(s: string): string {
+  return s.replace(/[\\%_]/g, (c) => "\\" + c);
+}
+
+/** Run a Zod schema on partial chat-tool data; return null if valid, error message if not */
+function validatePartial(schema: z.ZodTypeAny, data: Record<string, unknown>): string | null {
+  // Use partial() so chat tools can provide subsets of fields for updates
+  const partialSchema = (schema as any).partial?.() ?? schema;
+  const result = partialSchema.safeParse(data);
+  if (!result.success) {
+    return result.error.issues.map((i: any) => `${i.path.join(".")}: ${i.message}`).join(", ");
+  }
+  return null;
+}
 
 const chatLimiter = rateLimit(30, 5 * 60 * 1000, "chat"); // 30 messages per 5 minutes
 
@@ -72,7 +93,7 @@ async function fetchActifsDetails(): Promise<unknown> {
     sciId: a.sciId,
     surface: a.surface,
     prixAcquisition: a.prixAcquisition,
-    chargesAnnuelles: Number(a.chargesCopropriete || a.chargesAnnuelles || 0) + Number(a.taxeFonciere || 0) + Number(a.assurancePno || 0),
+    chargesAnnuelles: Number(a.chargesCopropriete ?? a.chargesAnnuelles ?? 0) + Number(a.taxeFonciere || 0) + Number(a.assurancePno || 0),
     taxeFonciere: a.taxeFonciere,
     tauxCapitalisation: a.tauxCapitalisation,
     ville: a.ville,
@@ -192,7 +213,7 @@ function filterFields(data: Record<string, unknown>, allowed: Set<string>): Reco
 }
 
 async function searchEntities(query: string): Promise<unknown> {
-  const q = `%${query.toLowerCase()}%`;
+  const q = `%${escapeLikeWildcards(query.toLowerCase())}%`;
   const actifResults = await db.select().from(actifs).where(
     and(isNull(actifs.deletedAt), sql`lower(${actifs.nom}) like ${q} or lower(${actifs.ville}) like ${q} or lower(${actifs.adresse}) like ${q}`)
   );
@@ -216,6 +237,8 @@ async function searchEntities(query: string): Promise<unknown> {
 async function updateActif(id: string, data: Record<string, unknown>): Promise<unknown> {
   const fields = filterFields(data, ACTIF_FIELDS);
   if (Object.keys(fields).length === 0) return { error: "Aucun champ valide à modifier" };
+  const validationError = validatePartial(actifSchema, fields);
+  if (validationError) return { error: `Données invalides: ${validationError}` };
   const updated = await db.update(actifs).set({ ...fields, updatedAt: new Date() }).where(eq(actifs.id, id)).returning();
   if (updated.length === 0) return { error: "Actif non trouvé" };
   return { success: true, updated: { id: updated[0].id, nom: (updated[0] as any).nom, ...fields } };
@@ -224,6 +247,8 @@ async function updateActif(id: string, data: Record<string, unknown>): Promise<u
 async function updateLot(id: string, data: Record<string, unknown>): Promise<unknown> {
   const fields = filterFields(data, LOT_FIELDS);
   if (Object.keys(fields).length === 0) return { error: "Aucun champ valide à modifier" };
+  const validationError = validatePartial(lotSchema, fields);
+  if (validationError) return { error: `Données invalides: ${validationError}` };
   const updated = await db.update(lots).set({ ...fields, updatedAt: new Date() }).where(eq(lots.id, id)).returning();
   if (updated.length === 0) return { error: "Lot non trouvé" };
   return { success: true, updated: { id: updated[0].id, designation: (updated[0] as any).designation, ...fields } };
@@ -232,6 +257,8 @@ async function updateLot(id: string, data: Record<string, unknown>): Promise<unk
 async function updateEmprunt(id: string, data: Record<string, unknown>): Promise<unknown> {
   const fields = filterFields(data, EMPRUNT_FIELDS);
   if (Object.keys(fields).length === 0) return { error: "Aucun champ valide à modifier" };
+  const validationError = validatePartial(empruntSchema, fields);
+  if (validationError) return { error: `Données invalides: ${validationError}` };
   const updated = await db.update(emprunts).set({ ...fields, updatedAt: new Date() }).where(eq(emprunts.id, id)).returning();
   if (updated.length === 0) return { error: "Emprunt non trouvé" };
   return { success: true, updated: { id: updated[0].id, ...fields } };
@@ -240,6 +267,8 @@ async function updateEmprunt(id: string, data: Record<string, unknown>): Promise
 async function updateSCI(id: string, data: Record<string, unknown>): Promise<unknown> {
   const fields = filterFields(data, SCI_FIELDS);
   if (Object.keys(fields).length === 0) return { error: "Aucun champ valide à modifier" };
+  const validationError = validatePartial(sciSchema, fields);
+  if (validationError) return { error: `Données invalides: ${validationError}` };
   const updated = await db.update(scis).set({ ...fields, updatedAt: new Date() }).where(eq(scis.id, id)).returning();
   if (updated.length === 0) return { error: "SCI non trouvée" };
   return { success: true, updated: { id: updated[0].id, nom: (updated[0] as any).nom, ...fields } };
@@ -248,6 +277,8 @@ async function updateSCI(id: string, data: Record<string, unknown>): Promise<unk
 async function updateBailAM(id: string, data: Record<string, unknown>): Promise<unknown> {
   const fields = filterFields(data, BAIL_AM_FIELDS);
   if (Object.keys(fields).length === 0) return { error: "Aucun champ valide à modifier" };
+  const validationError = validatePartial(bailAMSchema, fields);
+  if (validationError) return { error: `Données invalides: ${validationError}` };
   const updated = await db.update(bauxGL).set({ ...fields, updatedAt: new Date() }).where(and(eq(bauxGL.id, id), eq(bauxGL.scope, "am"))).returning();
   if (updated.length === 0) return { error: "Bail non trouvé" };
   return { success: true, updated: { id: updated[0].id, ...fields } };
@@ -256,6 +287,8 @@ async function updateBailAM(id: string, data: Record<string, unknown>): Promise<
 async function updateBailGL(id: string, data: Record<string, unknown>): Promise<unknown> {
   const fields = filterFields(data, BAIL_GL_FIELDS);
   if (Object.keys(fields).length === 0) return { error: "Aucun champ valide à modifier" };
+  const validationError = validatePartial(bailGLSchema, fields);
+  if (validationError) return { error: `Données invalides: ${validationError}` };
   const updated = await db.update(bauxGL).set({ ...fields, updatedAt: new Date() }).where(eq(bauxGL.id, id)).returning();
   if (updated.length === 0) return { error: "Bail GL non trouvé" };
   return { success: true, updated: { id: updated[0].id, nom: (updated[0] as any).nom, ...fields } };
@@ -263,37 +296,45 @@ async function updateBailGL(id: string, data: Record<string, unknown>): Promise<
 
 // ─── Axe 3: Extended write/create tools ─────────────────────
 
-async function createActif(data: Record<string, unknown>): Promise<unknown> {
+async function createActif(data: Record<string, unknown>, userId?: string): Promise<unknown> {
   const fields = filterFields(data, ACTIF_FIELDS);
   const nom = data.nom as string;
   if (!nom) return { error: "Le champ 'nom' est requis" };
-  const result = await db.insert(actifs).values({ nom, ...fields }).returning();
+  const validationError = validatePartial(actifSchema, { nom, ...fields });
+  if (validationError) return { error: `Données invalides: ${validationError}` };
+  const result = await db.insert(actifs).values({ nom, ...fields, ...(userId ? { ownerId: userId } : {}) }).returning();
   return { success: true, created: { id: result[0].id, nom: (result[0] as any).nom } };
 }
 
-async function createLot(data: Record<string, unknown>): Promise<unknown> {
+async function createLot(data: Record<string, unknown>, userId?: string): Promise<unknown> {
   const actifId = data.actifId as string;
   const designation = data.designation as string;
   if (!actifId || !designation) return { error: "Les champs 'actifId' et 'designation' sont requis" };
   const fields = filterFields(data, LOT_FIELDS);
-  const result = await db.insert(lots).values({ actifId, designation, ...fields }).returning();
+  const validationError = validatePartial(lotSchema, { actifId, designation, ...fields });
+  if (validationError) return { error: `Données invalides: ${validationError}` };
+  const result = await db.insert(lots).values({ actifId, designation, ...fields, ...(userId ? { ownerId: userId } : {}) }).returning();
   return { success: true, created: { id: result[0].id, designation: (result[0] as any).designation } };
 }
 
-async function createEmprunt(data: Record<string, unknown>): Promise<unknown> {
+async function createEmprunt(data: Record<string, unknown>, userId?: string): Promise<unknown> {
   const fields = filterFields(data, EMPRUNT_FIELDS);
   const sciId = data.sciId as string;
   const actifId = data.actifId as string;
-  const result = await db.insert(emprunts).values({ sciId, actifId, ...fields }).returning();
+  const validationError = validatePartial(empruntSchema, { sciId, actifId, ...fields });
+  if (validationError) return { error: `Données invalides: ${validationError}` };
+  const result = await db.insert(emprunts).values({ sciId, actifId, ...fields, ...(userId ? { ownerId: userId } : {}) }).returning();
   return { success: true, created: { id: result[0].id } };
 }
 
-async function createBailAM(data: Record<string, unknown>): Promise<unknown> {
+async function createBailAM(data: Record<string, unknown>, userId?: string): Promise<unknown> {
   const fields = filterFields(data, BAIL_AM_FIELDS);
   const actifId = data.actifId as string;
   const lotId = data.lotId as string;
   const nom = typeof fields.nom === "string" && fields.nom.trim() ? fields.nom : `Bail ${new Date().toISOString().slice(0, 10)}`;
-  const result = await db.insert(bauxGL).values({ scope: "am", actifId, lotId, ...fields, nom }).returning();
+  const validationError = validatePartial(bailAMSchema, { actifId, lotId, ...fields, nom });
+  if (validationError) return { error: `Données invalides: ${validationError}` };
+  const result = await db.insert(bauxGL).values({ scope: "am", actifId, lotId, ...fields, nom, ...(userId ? { ownerId: userId } : {}) }).returning();
   return { success: true, created: { id: result[0].id } };
 }
 
@@ -530,7 +571,7 @@ const toolDefinitions = [
 ];
 
 // ─── Tool executor ──────────────────────────────────────────
-async function executeTool(name: string, input: Record<string, unknown>, userRole?: string): Promise<unknown> {
+async function executeTool(name: string, input: Record<string, unknown>, userRole?: string, userId?: string): Promise<unknown> {
   // Enforce admin role for write operations (C2.1 fix)
   if (WRITE_TOOLS.has(name) && userRole !== "admin") {
     return { error: "Modification réservée aux administrateurs" };
@@ -551,10 +592,10 @@ async function executeTool(name: string, input: Record<string, unknown>, userRol
       case "update_sci": return await updateSCI(input.id as string, (input.fields || {}) as Record<string, unknown>);
       case "update_bail_am": return await updateBailAM(input.id as string, (input.fields || {}) as Record<string, unknown>);
       case "update_bail_gl": return await updateBailGL(input.id as string, (input.fields || {}) as Record<string, unknown>);
-      case "create_actif": return await createActif((input.fields || {}) as Record<string, unknown>);
-      case "create_lot": return await createLot((input.fields || {}) as Record<string, unknown>);
-      case "create_emprunt": return await createEmprunt((input.fields || {}) as Record<string, unknown>);
-      case "create_bail_am": return await createBailAM((input.fields || {}) as Record<string, unknown>);
+      case "create_actif": return await createActif((input.fields || {}) as Record<string, unknown>, userId);
+      case "create_lot": return await createLot((input.fields || {}) as Record<string, unknown>, userId);
+      case "create_emprunt": return await createEmprunt((input.fields || {}) as Record<string, unknown>, userId);
+      case "create_bail_am": return await createBailAM((input.fields || {}) as Record<string, unknown>, userId);
       case "delete_entity": return await deleteEntity(input.entity_type as string, input.id as string);
       case "get_alertes": return await fetchAlertes();
       case "get_travaux": return await fetchTravaux();
@@ -702,7 +743,7 @@ export function registerChatRoutes(app: Express) {
             // Notify client about tool usage
             res.write(`data: ${JSON.stringify({ type: "tool_use", tool: toolCall.name })}\n\n`);
 
-            const toolResult = await executeTool(toolCall.name, toolCall.input || {}, req.session?.role);
+            const toolResult = await executeTool(toolCall.name, toolCall.input || {}, req.session?.role, req.session?.userId);
             toolResults.push({
               type: "tool_result",
               tool_use_id: toolCall.id,

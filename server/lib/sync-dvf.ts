@@ -203,27 +203,28 @@ export async function syncDVF(
       const prixBas = Math.round(quartile(aggData.prixM2, 0.25));
       const prixHaut = Math.round(quartile(aggData.prixM2, 0.75));
 
-      // Delete existing DVF entry for this cp+type, then insert fresh
-      await db.delete(refValeursVenales).where(
-        and(
-          eq(refValeursVenales.source, "dvf"),
-          eq(refValeursVenales.codePostal, cp),
-          eq(refValeursVenales.typeBien, typeBien),
-        ),
-      );
-
-      await db.insert(refValeursVenales).values({
-        source: "dvf",
-        codePostal: cp,
-        ville: aggData.ville,
-        codeInsee,
-        typeBien,
-        prixM2Median: String(prixMedian),
-        prixM2Bas: String(prixBas),
-        prixM2Haut: String(prixHaut),
-        nbTransactions: aggData.prixM2.length,
-        periode,
-        dateReleve: now,
+      // Atomic delete + insert: avoids data loss if process crashes between operations.
+      await db.transaction(async (tx) => {
+        await tx.delete(refValeursVenales).where(
+          and(
+            eq(refValeursVenales.source, "dvf"),
+            eq(refValeursVenales.codePostal, cp),
+            eq(refValeursVenales.typeBien, typeBien),
+          ),
+        );
+        await tx.insert(refValeursVenales).values({
+          source: "dvf",
+          codePostal: cp,
+          ville: aggData.ville,
+          codeInsee,
+          typeBien,
+          prixM2Median: String(prixMedian),
+          prixM2Bas: String(prixBas),
+          prixM2Haut: String(prixHaut),
+          nbTransactions: aggData.prixM2.length,
+          periode,
+          dateReleve: now,
+        });
       });
       synced++;
     }

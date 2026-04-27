@@ -226,7 +226,17 @@ function defaultIndiceForType(typeBail: string | null): string | null {
 /**
  * Assigne automatiquement l'indice de référence et la valeur de base
  * aux baux qui n'en ont pas encore.
- * Règle métier : habitation → ICC, commercial/crèche/professionnel → ILC.
+ *
+ * Règle métier (cf. defaultIndiceForType) :
+ *   - habitation               → IRL
+ *   - tertiaire/professionnel  → ILAT
+ *   - commercial/crèche        → ILC
+ *   - construction/industriel  → ICC
+ *
+ * Pour la valeur de base : on cherche l'indice publié le plus proche de la
+ * date de signature/début du bail. Cela permet aux indexations futures de
+ * refléter l'historique réel depuis la signature, plutôt que de remettre
+ * tous les baux à 0% de variation à la date de l'opération.
  */
 export async function assignDefaultIndices(): Promise<{ assigned: number; errors: string[] }> {
   let assigned = 0;
@@ -236,37 +246,68 @@ export async function assignDefaultIndices(): Promise<{ assigned: number; errors
     .where(and(eq(bauxGL.archived, false), isNull(bauxGL.deletedAt)));
   const allIndices = await db.select().from(indices);
 
-  // Build map: type → latest index
+  // Build map: type → latest index (used as fallback when no dateDebut)
   const latestByType = new Map<string, { trimestre: string; valeur: number }>();
+  // Build map: type → sorted indices (descending by trimestre) for date lookup
+  const sortedByType = new Map<string, Array<{ trimestre: string; valeur: number; year: number }>>();
   for (const idx of allIndices) {
+    const valeur = Number(idx.valeur);
+    const trimestre = idx.trimestre;
+    // Extract year (handles "T1 2024" and "T1-2024" formats)
+    const yearMatch = trimestre.match(/(\d{4})/);
+    const year = yearMatch ? parseInt(yearMatch[1], 10) : 0;
+
     const existing = latestByType.get(idx.type);
-    if (!existing || idx.trimestre.localeCompare(existing.trimestre) > 0) {
-      latestByType.set(idx.type, { trimestre: idx.trimestre, valeur: Number(idx.valeur) });
+    if (!existing || trimestre.localeCompare(existing.trimestre) > 0) {
+      latestByType.set(idx.type, { trimestre, valeur });
     }
+
+    if (!sortedByType.has(idx.type)) sortedByType.set(idx.type, []);
+    sortedByType.get(idx.type)!.push({ trimestre, valeur, year });
+  }
+  for (const arr of sortedByType.values()) {
+    arr.sort((a, b) => b.trimestre.localeCompare(a.trimestre));
+  }
+
+  function indexAtDate(type: string, dateStr: string): { trimestre: string; valeur: number } | null {
+    const arr = sortedByType.get(type);
+    if (!arr || arr.length === 0) return null;
+    const targetYear = new Date(dateStr).getFullYear();
+    if (!Number.isFinite(targetYear)) return null;
+    // Find the most recent index whose year is <= targetYear
+    for (const idx of arr) {
+      if (idx.year <= targetYear) return { trimestre: idx.trimestre, valeur: idx.valeur };
+    }
+    // No index that old — use the earliest one available
+    return { trimestre: arr[arr.length - 1].trimestre, valeur: arr[arr.length - 1].valeur };
   }
 
   for (const bail of allBaux) {
     try {
       if (bail.forceManual) continue;
-      // Skip baux that already have an indiceReference set
       if (bail.indiceReference) continue;
 
       const indiceType = defaultIndiceForType(bail.typeBail);
-      if (!indiceType) continue; // typeBail inconnu — laisser à la saisie manuelle
-      const latest = latestByType.get(indiceType);
-      if (!latest) continue; // No index data available yet
+      if (!indiceType) continue;
+
+      // Prefer index at the bail's start date so historical indexation can be applied
+      const startDateRaw = bail.dateDebut || bail.dateSignature;
+      const startDate = startDateRaw instanceof Date ? startDateRaw.toISOString() : startDateRaw;
+      const baseIdx = startDate ? indexAtDate(indiceType, startDate) : null;
+      const chosen = baseIdx || latestByType.get(indiceType);
+      if (!chosen) continue;
 
       await db.update(bauxGL)
         .set({
           indiceReference: indiceType,
-          trimestreRef: latest.trimestre,
-          valeurIndiceBase: String(latest.valeur),
+          trimestreRef: chosen.trimestre,
+          valeurIndiceBase: String(chosen.valeur),
           updatedAt: new Date(),
         })
         .where(eq(bauxGL.id, bail.id));
 
       assigned++;
-      logger.info(`assign-default-indices: bail "${bail.nom || bail.id}" → ${indiceType} (${latest.trimestre} = ${latest.valeur})`);
+      logger.info(`assign-default-indices: bail "${bail.nom || bail.id}" → ${indiceType} (${chosen.trimestre} = ${chosen.valeur})`);
     } catch (err: any) {
       errors.push(`Bail ${bail.nom || bail.id}: ${err.message}`);
     }
@@ -293,8 +334,9 @@ export async function autoIndexBaux(): Promise<{
   const errors: string[] = [];
   const skipped: { bail: string; reason: string }[] = [];
 
+  // Restrict to GL-scope baux only (AM baux are not indexed by this routine).
   const allBaux = await db.select().from(bauxGL)
-    .where(and(eq(bauxGL.archived, false), isNull(bauxGL.deletedAt)));
+    .where(and(eq(bauxGL.scope, "gl"), eq(bauxGL.archived, false), isNull(bauxGL.deletedAt)));
   const allIndices = await db.select().from(indices);
 
   for (const bail of allBaux) {

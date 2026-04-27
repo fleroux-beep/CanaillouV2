@@ -97,7 +97,7 @@ Important:
 
 export function registerBailPDFRoutes(app: Express) {
   // Ensure upload directory exists
-  const uploadDir = "/tmp/canaillou-uploads";
+  const uploadDir = process.env.UPLOAD_DIR || "/tmp/canaillou-uploads";
   if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
   }
@@ -206,7 +206,7 @@ export function registerBailPDFRoutes(app: Express) {
       });
     } catch (error: any) {
       logger.error("bail-pdf extraction error", { error: error.message });
-      res.status(500).json({ error: `Erreur extraction: ${error.message}` });
+      res.status(500).json({ error: "Erreur lors de l'extraction du PDF" });
     } finally {
       // Clean up temp file
       try { fs.unlinkSync(filePath); } catch {}

@@ -136,8 +136,8 @@ registerImportWizardRoutes(app);
 
 // Backup endpoints (admin only)
 import { runBackup, listBackups, scheduleDaily as scheduleDailyBackup } from "./lib/backup";
-app.post("/api/admin/backup", requireAdmin, (_req, res) => {
-  const result = runBackup();
+app.post("/api/admin/backup", requireAdmin, async (_req, res) => {
+  const result = await runBackup();
   res.json(result);
 });
 app.get("/api/admin/backups", requireAdmin, (_req, res) => {

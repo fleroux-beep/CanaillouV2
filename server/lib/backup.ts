@@ -3,7 +3,7 @@
  * Runs on-demand or on a daily cron (5:30 AM Paris).
  * Retains the last 7 daily backups.
  */
-import { execSync } from "child_process";
+import { spawn } from "child_process";
 import fs from "fs";
 import path from "path";
 import { logger } from "./logger";
@@ -17,7 +17,46 @@ function ensureBackupDir() {
   }
 }
 
-export function runBackup(): { file: string; sizeKB: number } | { error: string } {
+/** Run pg_dump | gzip with no shell — safe against DATABASE_URL injection. */
+function runPgDumpToGzip(dbUrl: string, filePath: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const out = fs.createWriteStream(filePath);
+    const dump = spawn("pg_dump", [dbUrl], { stdio: ["ignore", "pipe", "pipe"] });
+    const gzip = spawn("gzip", [], { stdio: ["pipe", "pipe", "pipe"] });
+
+    let stderr = "";
+    dump.stderr.on("data", (d) => { stderr += d.toString(); });
+    gzip.stderr.on("data", (d) => { stderr += d.toString(); });
+
+    dump.stdout.pipe(gzip.stdin);
+    gzip.stdout.pipe(out);
+
+    const timeout = setTimeout(() => {
+      dump.kill("SIGKILL");
+      gzip.kill("SIGKILL");
+      reject(new Error("backup timeout (120s)"));
+    }, 120_000);
+
+    let pending = 2;
+    const done = (code: number, who: string) => {
+      if (code !== 0) {
+        clearTimeout(timeout);
+        return reject(new Error(`${who} exited with code ${code}: ${stderr}`));
+      }
+      pending--;
+      if (pending === 0) {
+        clearTimeout(timeout);
+        out.end(() => resolve());
+      }
+    };
+    dump.on("close", (code) => done(code ?? 0, "pg_dump"));
+    gzip.on("close", (code) => done(code ?? 0, "gzip"));
+    dump.on("error", (e) => { clearTimeout(timeout); reject(e); });
+    gzip.on("error", (e) => { clearTimeout(timeout); reject(e); });
+  });
+}
+
+export async function runBackup(): Promise<{ file: string; sizeKB: number } | { error: string }> {
   const dbUrl = process.env.DATABASE_URL;
   if (!dbUrl) return { error: "DATABASE_URL not set" };
 
@@ -29,10 +68,7 @@ export function runBackup(): { file: string; sizeKB: number } | { error: string 
   const filePath = path.join(BACKUP_DIR, fileName);
 
   try {
-    execSync(`pg_dump "${dbUrl}" | gzip > "${filePath}"`, {
-      timeout: 120_000,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    await runPgDumpToGzip(dbUrl, filePath);
 
     const stats = fs.statSync(filePath);
     const sizeKB = Math.round(stats.size / 1024);
@@ -42,6 +78,7 @@ export function runBackup(): { file: string; sizeKB: number } | { error: string 
     return { file: fileName, sizeKB };
   } catch (err: any) {
     logger.error("backup failed", { error: err.message });
+    try { fs.unlinkSync(filePath); } catch { /* file may not exist */ }
     return { error: err.message };
   }
 }
@@ -78,20 +115,33 @@ export function listBackups(): Array<{ file: string; sizeKB: number; date: strin
   }
 }
 
-export function scheduleDaily() {
-  function msUntilNext530() {
-    const now = new Date();
-    const target = new Date(now);
-    target.setHours(5, 30, 0, 0);
-    if (target <= now) target.setDate(target.getDate() + 1);
-    return target.getTime() - now.getTime();
-  }
+/** Compute ms until the next 5:30 AM Europe/Paris, regardless of server timezone. */
+function msUntilNext530Paris(): number {
+  const now = new Date();
+  const fmt = new Intl.DateTimeFormat("fr-FR", {
+    timeZone: "Europe/Paris",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+  });
+  const parts = Object.fromEntries(fmt.formatToParts(now).map((p) => [p.type, p.value]));
+  const parisHour = parseInt(parts.hour, 10);
+  const parisMinute = parseInt(parts.minute, 10);
+  const parisSecond = parseInt(parts.second, 10);
 
+  // Minutes since Paris midnight
+  const parisMinutesNow = parisHour * 60 + parisMinute + parisSecond / 60;
+  const target = 5 * 60 + 30; // 5:30 AM
+  let deltaMin = target - parisMinutesNow;
+  if (deltaMin <= 0) deltaMin += 24 * 60;
+  return Math.round(deltaMin * 60_000);
+}
+
+export function scheduleDaily() {
   function tick() {
     runBackup();
-    setTimeout(tick, msUntilNext530());
+    setTimeout(tick, msUntilNext530Paris());
   }
 
-  setTimeout(tick, msUntilNext530());
-  logger.info("backup: daily schedule activated (5:30 AM)");
+  setTimeout(tick, msUntilNext530Paris());
+  logger.info("backup: daily schedule activated (5:30 AM Europe/Paris)");
 }

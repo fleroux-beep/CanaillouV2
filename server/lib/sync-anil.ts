@@ -190,26 +190,27 @@ async function fetchAndSync(
     if (!cp) continue;
 
     try {
-      // Delete existing ANIL entry for this cp+type, then insert fresh
-      await db.delete(refValeursLocatives).where(
-        and(
-          eq(refValeursLocatives.source, "anil"),
-          eq(refValeursLocatives.codePostal, cp),
-          eq(refValeursLocatives.typeBien, typeBien),
-        ),
-      );
-
-      await db.insert(refValeursLocatives).values({
-        source: "anil",
-        codePostal: cp,
-        ville: rec.commune,
-        codeInsee: rec.codeInsee,
-        typeBien,
-        loyerM2MensuelMedian: String(rec.loyerMedian.toFixed(2)),
-        loyerM2MensuelBas: rec.loyerBas > 0 ? String(rec.loyerBas.toFixed(2)) : null,
-        loyerM2MensuelHaut: rec.loyerHaut > 0 ? String(rec.loyerHaut.toFixed(2)) : null,
-        periode: "2025",
-        dateReleve: now,
+      // Atomic delete + insert: avoids data loss if process crashes between operations.
+      await db.transaction(async (tx) => {
+        await tx.delete(refValeursLocatives).where(
+          and(
+            eq(refValeursLocatives.source, "anil"),
+            eq(refValeursLocatives.codePostal, cp),
+            eq(refValeursLocatives.typeBien, typeBien),
+          ),
+        );
+        await tx.insert(refValeursLocatives).values({
+          source: "anil",
+          codePostal: cp,
+          ville: rec.commune,
+          codeInsee: rec.codeInsee,
+          typeBien,
+          loyerM2MensuelMedian: String(rec.loyerMedian.toFixed(2)),
+          loyerM2MensuelBas: rec.loyerBas > 0 ? String(rec.loyerBas.toFixed(2)) : null,
+          loyerM2MensuelHaut: rec.loyerHaut > 0 ? String(rec.loyerHaut.toFixed(2)) : null,
+          periode: "2025",
+          dateReleve: now,
+        });
       });
       synced++;
     } catch (err: any) {
