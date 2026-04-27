@@ -139,7 +139,7 @@ export const actifs = pgTable("am_actifs", {
   syndic: varchar("syndic"),
   regimeJuridique: varchar("regime_juridique"),
   notes: text("notes"),
-  archived: boolean("archived").default(false),
+  archived: boolean("archived").notNull().default(false),
   deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -165,7 +165,7 @@ export const lots = pgTable("am_lots", {
   statut: varchar("statut").default("vacant"), // loué, vacant
   locataireId: varchar("locataire_id").references(() => locatairesGL.id, { onDelete: "set null" }),
   notes: text("notes"),
-  archived: boolean("archived").default(false),
+  archived: boolean("archived").notNull().default(false),
   deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -199,7 +199,7 @@ export const emprunts = pgTable("am_emprunts", {
   typeGarantie: varchar("type_garantie"), // hypothèque, caution, privilège
   ira: numeric("ira"), // indemnité remboursement anticipé
   notes: text("notes"),
-  archived: boolean("archived").default(false),
+  archived: boolean("archived").notNull().default(false),
   deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -359,8 +359,8 @@ export const bauxGL = pgTable("gl_baux", {
   //
   // Les franchises (rent-free) et prorata temporels NE modifient PAS ces
   // champs : ils sont modélisés séparément via `gl_baux_franchises`.
-  loyerBaseHT: numeric("loyer_base_ht"),
-  loyerHTActu: numeric("loyer_ht_actu"),
+  loyerBaseHT: numeric("loyer_base_ht").notNull().default('0'),
+  loyerHTActu: numeric("loyer_ht_actu").notNull().default('0'),
   forceManual: boolean("force_manual").notNull().default(false),
   loyerManuelOverride: numeric("loyer_manuel_override"),
   // Indexation
@@ -369,6 +369,9 @@ export const bauxGL = pgTable("gl_baux", {
   dateIndiceBase: timestamp("date_indice_base"),
   valeurIndiceBase: numeric("valeur_indice_base"),
   // Charges & Taxes
+  // ⚠ MENSUEL : `charges` est un montant mensuel (refacturé au locataire chaque mois).
+  // L'UI et les calculs annualisent par × 12 partout. Le glossaire des métriques décrit
+  // le total annuel (charges × 12 + taxe foncière + assurance PNO) — ne pas confondre.
   charges: numeric("charges"),
   depotGarantie: numeric("depot_garantie"),
   taxeFonciere: numeric("taxe_fonciere"),
@@ -383,7 +386,7 @@ export const bauxGL = pgTable("gl_baux", {
   capacite: integer("capacite"),
   // Statut
   statut: varchar("statut"),
-  archived: boolean("archived").default(false),
+  archived: boolean("archived").notNull().default(false),
   deletedAt: timestamp("deleted_at"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -499,6 +502,7 @@ export const indexationsGL = pgTable("gl_indexations", {
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   index("idx_indexations_gl_bail_id").on(table.bailId),
+  uniqueIndex("idx_indexations_gl_bail_date").on(table.bailId, table.dateApplication),
 ]);
 
 export const indices = pgTable("indices", {
@@ -507,7 +511,9 @@ export const indices = pgTable("indices", {
   trimestre: varchar("trimestre").notNull(),
   valeur: numeric("valeur").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => [
+  uniqueIndex("idx_indices_type_trimestre").on(table.type, table.trimestre),
+]);
 
 // ============================================================
 // GESTION LOCATIVE — Avenants & Renouvellements
@@ -783,3 +789,17 @@ export const paiementsGLRelations = relations(paiementsGL, ({ one }) => ({
 export const indexationsGLRelations = relations(indexationsGL, ({ one }) => ({
   bail: one(bauxGL, { fields: [indexationsGL.bailId], references: [bauxGL.id] }),
 }));
+
+// ============================================================
+// Sync logs — audit trail for INSEE / market syncs
+// ============================================================
+export const syncLogs = pgTable("sync_logs", {
+  id: varchar("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  type: varchar("type").notNull(), // "insee" | "dvf" | "anil" | "backup"
+  status: varchar("status").notNull(), // "success" | "error" | "partial"
+  syncedCount: integer("synced_count").default(0),
+  errorCount: integer("error_count").default(0),
+  errors: text("errors"),
+  startedAt: timestamp("started_at").defaultNow(),
+  endedAt: timestamp("ended_at"),
+});

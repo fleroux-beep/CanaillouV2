@@ -74,18 +74,31 @@ export default function ArbitragesPage() {
     const charges = getChargesAnnuelles(a);
     const noi = loyerAnnuel - charges;
 
-    // Use actif-level emprunts if available, otherwise prorate SCI emprunts by actif count
+    // Endettement actif : on utilise les emprunts portés directement par l'actif
+    // si disponibles ; sinon on prorate les emprunts SCI par valeur de l'actif
+    // (et non par nombre d'actifs comme avant — la répartition par tête fausse
+    // les ratios pour les SCIs avec actifs hétérogènes).
     const actifEmprunts = empruntsActifs.filter((e: any) => e.actifId === a.id);
     const sciEmprunts = empruntsActifs.filter((e: any) => e.sciId === a.sciId && !e.actifId);
-    const nbActifsInSci = actifsActifs.filter((x: any) => x.sciId === a.sciId).length || 1;
-    const crd = getTotalCRD(actifEmprunts) + getTotalCRD(sciEmprunts) / nbActifsInSci;
-    const serviceDette = getServiceDette(actifEmprunts) + getServiceDette(sciEmprunts) / nbActifsInSci;
+    const sciActifs = actifsActifs.filter((x: any) => x.sciId === a.sciId);
+    const sciValorisationTotale = sciActifs.reduce(
+      (sum: number, x: any) => sum + getValeurEstimee(x, baux, lots),
+      0,
+    );
+    const partValeur = sciValorisationTotale > 0
+      ? valeurEstimee / sciValorisationTotale
+      : (sciActifs.length > 0 ? 1 / sciActifs.length : 1);
+    const crd = getTotalCRD(actifEmprunts) + getTotalCRD(sciEmprunts) * partValeur;
+    const serviceDette = getServiceDette(actifEmprunts) + getServiceDette(sciEmprunts) * partValeur;
 
     const rendementBrut = getRendementBrut(loyerAnnuel, prixAcquisition);
     const rendementNet = getRendementNet(loyerAnnuel, charges, prixAcquisition);
     const ltv = getLTV(crd, valeurEstimee);
     const dscr = getDSCR(noi, serviceDette);
-    const score = computeScore(rendementBrut, ltv, dscr);
+    // Score : on utilise le rendement NET (revenu après charges) plutôt que brut.
+    // Un actif avec gros loyer mais charges énormes ne devrait pas obtenir un score
+    // élevé sur le seul rendement brut.
+    const score = computeScore(rendementNet, ltv, dscr);
     const cashFlowNet = noi - serviceDette;
     const fondsPropresPct = 100 - ltv;
 

@@ -60,6 +60,39 @@ function scoreNiveau(score: number): { niveau: HealthScore["niveau"]; couleur: H
   return { niveau: "Critique", couleur: "red" };
 }
 
+function computeCRD(e: any): number {
+  const montant = Number(e.montantEmprunte || 0);
+  const taux = Number(e.tauxAnnuel || 0) / 100;
+  const dureeAns = Number(e.dureeAns || 0);
+  const dateDebut = e.dateDebut ? new Date(e.dateDebut) : null;
+
+  if (montant <= 0 || dureeAns <= 0 || !dateDebut || isNaN(dateDebut.getTime())) {
+    return Number(e.capitalRestantDu || montant);
+  }
+
+  const now = new Date();
+  const monthsElapsed = (now.getFullYear() - dateDebut.getFullYear()) * 12
+    + (now.getMonth() - dateDebut.getMonth());
+  const totalMonths = dureeAns * 12;
+
+  if (monthsElapsed <= 0) return montant;
+  if (monthsElapsed >= totalMonths) return 0;
+
+  if (taux <= 0) {
+    return Math.max(0, montant - (montant / totalMonths) * monthsElapsed);
+  }
+
+  const rm = taux / 12;
+  const factor = Math.pow(1 + rm, totalMonths);
+  const mens = montant * (rm * factor) / (factor - 1);
+  let capital = montant;
+  for (let m = 0; m < monthsElapsed && capital > 0.01; m++) {
+    const interets = capital * rm;
+    capital = Math.max(0, capital - (mens - interets));
+  }
+  return capital;
+}
+
 export function registerScoreSanteRoutes(app: Express) {
   app.get("/api/am/score-sante", requireAuth, async (_req: any, res: any) => {
     try {
@@ -128,8 +161,8 @@ export function registerScoreSanteRoutes(app: Express) {
           return mens;
         }
 
-        const crd = actifEmprunts.reduce((s, e: any) => s + Number(e.capitalRestantDu || e.montantEmprunte || 0), 0)
-          + sciEmprunts.reduce((s, e: any) => s + Number(e.capitalRestantDu || e.montantEmprunte || 0), 0) / nbActifsInSci;
+        const crd = actifEmprunts.reduce((s, e: any) => s + computeCRD(e), 0)
+          + sciEmprunts.reduce((s, e: any) => s + computeCRD(e), 0) / nbActifsInSci;
 
         const serviceDette = actifEmprunts.reduce((s, e: any) => s + computeMensualite(e) * 12, 0)
           + sciEmprunts.reduce((s, e: any) => s + computeMensualite(e) * 12, 0) / nbActifsInSci;

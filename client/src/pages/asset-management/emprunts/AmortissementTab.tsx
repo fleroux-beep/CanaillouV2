@@ -48,9 +48,17 @@ export function AmortissementTab() {
   const totalAssurance = schedule.reduce((s, r) => s + r.assurance, 0);
   const totalCout = totalInterets + totalAssurance;
   const capitalEmprunte = parseFloat(selectedEmprunt?.montantEmprunte || "0");
-  const crdActuel = parseFloat(selectedEmprunt?.capitalRestantDu || "0") || capitalEmprunte;
-  const progressPct = capitalEmprunte > 0 ? Math.round(((capitalEmprunte - crdActuel) / capitalEmprunte) * 100) : 0;
   const currentYearIdx = schedule.findIndex((r) => r.isCurrent);
+  // CRD courant = solde de fin de l'année en cours selon l'échéancier calculé.
+  // Si l'année en cours n'est pas trouvée, on retombe sur la valeur stockée puis sur le capital initial.
+  const crdFromSchedule = currentYearIdx >= 0 ? schedule[currentYearIdx].capitalFin : null;
+  const crdStored = selectedEmprunt?.capitalRestantDu;
+  const crdActuel = crdFromSchedule !== null
+    ? crdFromSchedule
+    : (crdStored !== null && crdStored !== undefined && crdStored !== "")
+      ? parseFloat(crdStored)
+      : capitalEmprunte;
+  const progressPct = capitalEmprunte > 0 ? Math.round(((capitalEmprunte - crdActuel) / capitalEmprunte) * 100) : 0;
   const yearsElapsed = currentYearIdx >= 0 ? currentYearIdx + 1 : 0;
   const totalYears = schedule.length;
 

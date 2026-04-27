@@ -150,14 +150,15 @@ export function getChargesAnnuelles(actif: AMActif): number {
 // Valorisation
 // ============================================================
 
-/** Prix d'acquisition total (prix + frais + travaux) */
+/** Prix d'acquisition total (prix + frais + travaux). Utilise `??` pour distinguer
+ *  un montant explicitement zéro d'une valeur absente (cohérent avec getChargesAnnuelles). */
 export function getPrixAcquisition(actif: AMActif): number {
   if (!actif) return 0;
   return (
-    Number(actif.prixAcquisition || 0) +
-    Number(actif.fraisNotaire || 0) +
-    Number(actif.fraisAgence || 0) +
-    Number(actif.montantTravaux || 0)
+    Number(actif.prixAcquisition ?? 0) +
+    Number(actif.fraisNotaire ?? 0) +
+    Number(actif.fraisAgence ?? 0) +
+    Number(actif.montantTravaux ?? 0)
   );
 }
 
@@ -208,8 +209,11 @@ export function getValeurEstimee(actif: AMActif, baux: AMBail[], lots?: AMLot[],
 // Emprunts
 // ============================================================
 
-/** Capital restant dû */
+/** Capital restant dû — recalculé dynamiquement si dateDebut disponible */
 export function getCapitalRestantDu(emprunt: AMEmprunt): number {
+  if (emprunt?.dateDebut && emprunt?.dureeAns) {
+    return getCRDDynamic(emprunt);
+  }
   return Number(emprunt?.capitalRestantDu ?? emprunt?.montantEmprunte ?? 0);
 }
 
@@ -243,10 +247,16 @@ export function getAnnuiteEmprunt(emprunt: AMEmprunt): number {
     mensualiteCalc = factor > 1 ? montant * (tauxMensuel * factor) / (factor - 1) : montant / nbMois;
   }
 
-  // Ajouter l'assurance emprunteur (calculée sur le capital initial)
+  // Assurance emprunteur sur capital restant dû (ou initial si CRD indisponible).
+  // Utilise `??` pour traiter "0" comme une vraie valeur (prêt soldé) au lieu de
+  // retomber sur le capital initial.
   const tauxAssurance = Number(emprunt?.tauxAssurance || 0) / 100;
   if (tauxAssurance > 0) {
-    mensualiteCalc += (montant * tauxAssurance) / 12;
+    const crdRaw = emprunt?.capitalRestantDu;
+    const capitalAssurance = (crdRaw !== null && crdRaw !== undefined && crdRaw !== "")
+      ? Number(crdRaw)
+      : montant;
+    mensualiteCalc += (capitalAssurance * tauxAssurance) / 12;
   }
 
   return mensualiteCalc * 12;
@@ -278,7 +288,13 @@ export function reconcileEmprunt(emprunt: AMEmprunt): {
   let mensuCalc = factor > 1 ? montant * (tauxMensuel * factor) / (factor - 1) : montant / nbMois;
 
   const tauxAssurance = Number(emprunt?.tauxAssurance || 0) / 100;
-  if (tauxAssurance > 0) mensuCalc += (montant * tauxAssurance) / 12;
+  if (tauxAssurance > 0) {
+    const crdRaw = emprunt?.capitalRestantDu;
+    const capitalAssurance = (crdRaw !== null && crdRaw !== undefined && crdRaw !== "")
+      ? Number(crdRaw)
+      : montant;
+    mensuCalc += (capitalAssurance * tauxAssurance) / 12;
+  }
 
   const formulaAnnual = mensuCalc * 12;
   const ecartPct = storedAnnual !== 0 ? ((formulaAnnual - storedAnnual) / storedAnnual) * 100 : 0;
@@ -443,9 +459,13 @@ export function computeDCF(
   }
 
   // Gordon Growth Model: TV = NOI_(n+1) / (cap_rate - growth_rate)
+  // Le modèle de Gordon exige strictement cap_rate > growth_rate. On utilise une marge
+  // minimale de 10 bp (0.001) pour éviter les divisions par quasi-zéro instables, mais
+  // pas 100 bp comme avant (qui annulait silencieusement la valeur terminale dans des
+  // configurations parfaitement valides : ex. cap 5% / croissance 4%).
   const terminalNOI = currentNOI * Math.pow(1 + g, years + 1);
   const exitCap = exitCapRate / 100;
-  const terminalValue = exitCap > g + 0.01 ? terminalNOI / (exitCap - g) : 0;
+  const terminalValue = exitCap > g + 0.001 ? terminalNOI / (exitCap - g) : 0;
   const pvTerminal = terminalValue / Math.pow(1 + r, years);
   const totalPV = pvCashFlows + pvTerminal;
 
@@ -523,11 +543,15 @@ export function computeAmortSchedule(emprunt: AMEmprunt): AmortRow[] {
     if (assuranceMensuelle === 0) {
       const tauxAssurance = Number(emprunt?.tauxAssurance || 0) / 100;
       if (montant > 0 && tauxAssurance > 0) {
-        assuranceMensuelle = (montant * tauxAssurance) / 12;
+        // Will be recomputed per-year on remaining capital (CRD-based)
+        assuranceMensuelle = -1; // sentinel: dynamic per-year
       }
     }
   }
 
+  const tauxAssurancePct = Number(emprunt?.tauxAssurance || 0) / 100;
+  const dynamicAssurance = assuranceMensuelle === -1;
+  if (dynamicAssurance) assuranceMensuelle = 0;
   const assuranceAnnuelle = assuranceMensuelle * 12;
   const rows: AmortRow[] = [];
   let capital = montant;
@@ -552,20 +576,39 @@ export function computeAmortSchedule(emprunt: AMEmprunt): AmortRow[] {
     }
     const annuiteCapInt = interetsAn + capitalAmortiAn;
     const anneeReelle = startYear != null ? startYear + y - 1 : undefined;
+    const capitalDebut = capital + capitalAmortiAn;
+    const assuranceAn = dynamicAssurance ? capitalDebut * tauxAssurancePct : assuranceAnnuelle;
     rows.push({
       year: y,
       anneeReelle,
       isCurrent: anneeReelle === currentYear,
-      capitalDebut: capital + capitalAmortiAn,
+      capitalDebut,
       annuite: annuiteCapInt,
       interets: interetsAn,
       capitalAmorti: capitalAmortiAn,
       capitalFin: capital,
-      assurance: assuranceAnnuelle,
-      totalAnnuel: annuiteCapInt + assuranceAnnuelle,
+      assurance: assuranceAn,
+      totalAnnuel: annuiteCapInt + assuranceAn,
     });
   }
   return rows;
+}
+
+/**
+ * Capital restant dû dynamique — recalculé à date du jour via le tableau
+ * d'amortissement au lieu de lire la valeur statique importée du Excel.
+ * Fallback: capitalRestantDu stocké (import) ou montantEmprunte.
+ */
+export function getCRDDynamic(emprunt: AMEmprunt): number {
+  const schedule = computeAmortSchedule(emprunt);
+  if (schedule.length === 0) {
+    return Number(emprunt?.capitalRestantDu || emprunt?.montantEmprunte || 0);
+  }
+  const currentRow = schedule.find((r) => r.isCurrent);
+  if (currentRow) return currentRow.capitalFin;
+  const lastRow = schedule[schedule.length - 1];
+  if (lastRow.anneeReelle && lastRow.anneeReelle < new Date().getFullYear()) return 0;
+  return lastRow.capitalFin;
 }
 
 // ============================================================
@@ -617,10 +660,18 @@ export function computeAssocieNAV(
         }
       }
     } else {
-      // Fallback si pas de sciKpis : ancien comportement (somme brute des %)
-      const totalPct = parts.reduce((s, p) => s + Number(p.pourcentage || 0), 0);
-      navPart = totalNAV * (totalPct / 100);
-      loyersPart = totalLoyers * (totalPct / 100);
+      // Fallback si pas de sciKpis : on suppose que toutes les SCIs ont un poids
+      // équivalent (approximation grossière). Sommer brutalement les pourcentages
+      // sur-attribuait la NAV pour les associés multi-SCIs (ex: 50% SCI-A + 50%
+      // SCI-B → 100% du total au lieu de la moyenne pondérée).
+      // On moyennise par participation : moyenne arithmétique des % pour les SCIs
+      // dont l'associé fait partie, ce qui est plus fidèle quand on n'a pas de
+      // pondération NAV par SCI.
+      if (parts.length > 0) {
+        const avgPct = parts.reduce((s, p) => s + Number(p.pourcentage || 0), 0) / parts.length;
+        navPart = totalNAV * (avgPct / 100);
+        loyersPart = totalLoyers * (avgPct / 100);
+      }
     }
 
     const plusValue = navPart - totalApport;
@@ -681,28 +732,43 @@ export function computeStressTests(
   return scenarios.map((s) => {
     const loyerAjuste = loyerBase * (1 - s.vacanceRate / 100);
     const chargesAjustees = chargesBase * (1 + s.chargesVariation / 100);
-    // Recalcul du service de dette emprunt par emprunt avec le taux stressé
+    // Recalcul du service de dette emprunt par emprunt avec le taux stressé.
+    // Le stress simule un refinancement aux conditions actuelles : on utilise donc le
+    // CRD restant et la durée résiduelle (ou la durée totale si dateDebut indisponible),
+    // pas le capital initial. Cela évite de gonfler artificiellement le service de dette
+    // pour les prêts déjà partiellement amortis.
     let debtServiceAjuste = serviceDette;
     if (s.tauxVariation !== 0 && emprunts && emprunts.length > 0) {
       debtServiceAjuste = 0;
       for (const e of emprunts) {
-        const montant = Number(e.montantEmprunte || 0);
-        const tauxBase = Number(e.tauxAnnuel || 0) / 100; // pourcentage → décimal
-        const duree = Number(e.dureeAns || 0);
-        const tauxStresse = tauxBase + s.tauxVariation / 100; // +200bp = +0.02
+        const montantInit = Number(e.montantEmprunte || 0);
+        const crdRaw = (e as any).capitalRestantDu;
+        const crd = (crdRaw !== null && crdRaw !== undefined && crdRaw !== "") ? Number(crdRaw) : montantInit;
+        const tauxBase = Number(e.tauxAnnuel || 0) / 100;
+        const dureeTotale = Number(e.dureeAns || 0);
+        // Durée résiduelle estimée à partir de dateDebut (si disponible)
+        let dureeRest = dureeTotale;
+        const dateDebut = (e as any).dateDebut as string | undefined;
+        if (dateDebut && dureeTotale > 0) {
+          const debut = new Date(dateDebut);
+          if (Number.isFinite(debut.getTime())) {
+            const annsEcoulees = Math.max(0, (Date.now() - debut.getTime()) / (365.25 * 86400000));
+            dureeRest = Math.max(0.5, dureeTotale - annsEcoulees);
+          }
+        }
+        const tauxStresse = tauxBase + s.tauxVariation / 100;
 
-        if (montant <= 0 || duree <= 0) continue;
+        if (crd <= 0 || dureeRest <= 0) continue;
         if (tauxStresse <= 0) {
-          debtServiceAjuste += montant / duree;
+          debtServiceAjuste += crd / dureeRest;
         } else {
-          // Formule mensuelle cohérente avec getAnnuiteEmprunt
           const tauxMensuelStresse = tauxStresse / 12;
-          const nbMois = duree * 12;
+          const nbMois = dureeRest * 12;
           const factor = Math.pow(1 + tauxMensuelStresse, nbMois);
-          let mensuStresse = factor > 1 ? montant * (tauxMensuelStresse * factor) / (factor - 1) : montant / nbMois;
-          // Ajouter l'assurance (cohérent avec getAnnuiteEmprunt)
+          let mensuStresse = factor > 1 ? crd * (tauxMensuelStresse * factor) / (factor - 1) : crd / nbMois;
+          // Assurance : sur CRD pour cohérence avec le refinancement simulé
           const tauxAssurance = Number(e.tauxAssurance ?? 0) / 100;
-          if (tauxAssurance > 0) mensuStresse += (montant * tauxAssurance) / 12;
+          if (tauxAssurance > 0) mensuStresse += (crd * tauxAssurance) / 12;
           debtServiceAjuste += mensuStresse * 12;
         }
       }
@@ -756,6 +822,7 @@ export function computeMultiYearProjection(
   appreciationActif: number,
   amortissementAnnuel: number,
   years: number,
+  tauxAnnuelPondere?: number,
   emprunts?: AMEmprunt[],
 ): ProjectionYear[] {
   const result: ProjectionYear[] = [];
@@ -763,11 +830,11 @@ export function computeMultiYearProjection(
   let loyers = loyerBase;
   let charges = chargesBase;
   let valo = valorisationBase;
-  let dette = detteBase; // used only in fallback path
+  let dette = detteBase;
+  let amort = amortissementAnnuel;
+  const useExactAmort = typeof tauxAnnuelPondere === "number" && tauxAnnuelPondere > 0;
+  const tauxDecimal = useExactAmort ? tauxAnnuelPondere! / 100 : 0;
 
-  // Pre-compute per-loan data so each loan can expire individually.
-  // When emprunts are provided, service de la dette drops as loans finish
-  // rather than staying flat until the combined CRD hits zero.
   const loanData = emprunts && emprunts.length > 0
     ? emprunts.map(e => {
         const annuite = getAnnuiteEmprunt(e);
@@ -775,7 +842,6 @@ export function computeMultiYearProjection(
         const duree = Number(e.dureeAns || 0);
         const crd = getCapitalRestantDu(e);
         const amortPerYear = duree > 0 ? montant / duree : 0;
-        // Derive end year from dateDebut + dureeAns when available.
         let endYear: number | null = null;
         if (e.dateDebut && duree > 0) {
           endYear = new Date(e.dateDebut).getFullYear() + duree;
@@ -789,7 +855,12 @@ export function computeMultiYearProjection(
       loyers *= 1 + growthLoyer / 100;
       charges *= 1 + inflationCharges / 100;
       valo *= 1 + appreciationActif / 100;
-      dette = Math.max(0, dette - amortissementAnnuel);
+      if (useExactAmort && dette > 0 && serviceDetteBase > 0) {
+        // Calcul exact : capital remboursé = service - intérêts(CRD courant)
+        const interets = dette * tauxDecimal;
+        amort = Math.max(0, serviceDetteBase - interets);
+      }
+      dette = Math.max(0, dette - amort);
     }
 
     let serviceDette: number;
@@ -801,7 +872,6 @@ export function computeMultiYearProjection(
       remboursementCapital = 0;
       detteY = 0;
       for (const loan of loanData) {
-        // Loan is active if end year not yet reached; fall back to CRD estimate.
         const active = loan.endYear !== null
           ? currentYear + y < loan.endYear
           : loan.amortPerYear > 0
@@ -814,10 +884,9 @@ export function computeMultiYearProjection(
         detteY += Math.max(0, loan.crd - y * loan.amortPerYear);
       }
     } else {
-      // Fallback: original flat-service model (used by Simulateur and tests).
       detteY = dette;
       serviceDette = dette > 0 ? serviceDetteBase : 0;
-      remboursementCapital = dette > 0 ? Math.min(amortissementAnnuel, dette) : 0;
+      remboursementCapital = dette > 0 ? Math.min(amort, dette) : 0;
     }
 
     const noi = loyers - charges;

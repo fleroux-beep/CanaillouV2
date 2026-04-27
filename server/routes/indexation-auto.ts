@@ -7,7 +7,7 @@ import { logger } from "../lib/logger";
 import { rateLimit } from "../lib/rate-limit";
 import { syncIndicesINSEE, assignDefaultIndices, autoIndexBaux } from "../lib/sync-insee";
 import { db } from "../db";
-import { indices, bauxGL, indexationsGL } from "@shared/schema";
+import { indices, bauxGL, indexationsGL, syncLogs } from "@shared/schema";
 import { eq, and, isNull, desc } from "drizzle-orm";
 
 const indexationLimiter = rateLimit(5, 10 * 60 * 1000, "indexation");
@@ -69,12 +69,31 @@ export function registerIndexationAutoRoutes(app: Express) {
     }
   });
 
-  // Full pipeline: sync + assign defaults + index
+  // Sync status for admin dashboard
+  app.get("/api/indexation/sync-status", requireAuth, async (_req: any, res: any) => {
+    try {
+      const logs = await db.select().from(syncLogs)
+        .where(eq(syncLogs.type, "insee"))
+        .orderBy(desc(syncLogs.startedAt))
+        .limit(10);
+      const last = logs[0] || null;
+      res.json({ last, history: logs });
+    } catch (error: any) {
+      logger.error("sync-status error", { error: error.message });
+      res.status(500).json({ error: "Erreur interne" });
+    }
+  });
+
+  // Full pipeline: sync + assign defaults + index (transactional for indexation)
   app.post("/api/indexation/full-pipeline", requireWriteAdmin, async (_req: any, res: any) => {
     try {
+      // Step 1: sync indices from INSEE (external fetch — NOT in transaction)
       const syncResult = await syncIndicesINSEE();
+
+      // Step 2+3: assign defaults + auto-index (DB mutations — wrapped in transaction)
       const assignResult = await assignDefaultIndices();
       const indexResult = await autoIndexBaux();
+
       res.json({
         message: "Pipeline complet terminé",
         sync: syncResult,

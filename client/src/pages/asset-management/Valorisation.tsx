@@ -119,8 +119,12 @@ export default function ValorisationPage() {
     const totalLoyers = actifData.reduce((sum: number, a: any) => sum + a.loyerAnnuel, 0);
     const totalCharges = actifData.reduce((sum: number, a: any) => sum + a.charges, 0);
     const totalNOI = totalLoyers - totalCharges;
-    const avgRendementBrut = totalValorisation > 0 ? (totalLoyers / totalValorisation) * 100 : 0;
-    const avgRendementNet = totalValorisation > 0 ? (totalNOI / totalValorisation) * 100 : 0;
+    // Convention : rendement = revenu / prix d'acquisition (cohérent avec
+    // getRendementBrut/Net dans am-calculations et avec les autres pages).
+    // Le rendement sur valorisation actuelle (= taux de capitalisation) est un
+    // indicateur différent qui n'est pas affiché ici pour éviter la confusion.
+    const avgRendementBrut = totalAcquisition > 0 ? (totalLoyers / totalAcquisition) * 100 : 0;
+    const avgRendementNet = totalAcquisition > 0 ? (totalNOI / totalAcquisition) * 100 : 0;
     const avgPrixM2 = totalSurface > 0 ? totalAcquisition / totalSurface : 0;
     const avgValeurM2 = totalSurface > 0 ? totalValorisation / totalSurface : 0;
     return {

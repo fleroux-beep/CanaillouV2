@@ -43,7 +43,8 @@ const categoryConfig: Record<string, { label: string; variant: "primary" | "succ
 };
 
 function formatFileSize(bytes?: number): string {
-  if (!bytes) return "—";
+  if (bytes == null) return "—";
+  if (bytes === 0) return "0 Mo";
   if (bytes < 1024) return `${bytes} o`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} Ko`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;

@@ -7,7 +7,7 @@ import {
 } from "recharts";
 import { apiRequest } from "../../lib/queryClient";
 import { formatCurrency, formatNumber } from "../../lib/utils";
-import { getBailLoyer } from "@shared/utils/bail";
+import { getBailLoyer, isResilie } from "@shared/utils/bail";
 import { KpiCard } from "../../components/ui/kpi-card";
 import { GlassCard } from "../../components/ui/glass-card";
 import { PageHeader } from "../../components/ui/page-header";
@@ -31,7 +31,7 @@ export default function GLKPIPage() {
   const { data: baux = [] } = useQuery({ queryKey: ["/api/gl/baux"], queryFn: () => apiRequest("/api/gl/baux") });
   const { data: paiements = [] } = useQuery({ queryKey: ["/api/gl/paiements"], queryFn: () => apiRequest("/api/gl/paiements") });
 
-  const bauxActifs = baux.filter((b: any) => !b.archived);
+  const bauxActifs = baux.filter((b: any) => !b.archived && !isResilie(b));
   const totalLoyerHT = bauxActifs.reduce((sum: number, b: any) => sum + getBailLoyer(b), 0);
   const totalCharges = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.charges || 0), 0);
   const totalCapacite = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.capacite || 0), 0);

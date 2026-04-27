@@ -190,18 +190,25 @@ export function ChatPanel() {
       {/* Floating button */}
       <AnimatePresence>
         {!open && (
-          <motion.button
+          <motion.div
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setOpen(true)}
-            className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-rose-600 text-white shadow-lg shadow-orange-500/30 hover:shadow-xl hover:shadow-orange-500/40 transition-shadow"
-            aria-label="Ouvrir l'assistant IA"
+            className="fixed bottom-6 right-6 z-50 group"
           >
-            <MessageSquare className="h-6 w-6" />
-          </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setOpen(true)}
+              className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-rose-600 text-white shadow-lg shadow-orange-500/30 hover:shadow-xl hover:shadow-orange-500/40 transition-shadow"
+              aria-label="Ouvrir l'assistant IA"
+            >
+              <MessageSquare className="h-6 w-6" />
+            </motion.button>
+            <div className="absolute bottom-full right-0 mb-2 whitespace-nowrap rounded-lg bg-zinc-800 px-3 py-2 text-xs font-medium text-white shadow-xl border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+              Assistant IA
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
 

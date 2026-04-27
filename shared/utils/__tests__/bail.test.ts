@@ -44,13 +44,34 @@ describe("getBailLoyer", () => {
     ).toBe(12000);
   });
 
-  it("falls through when forceManual is true but override is 0", () => {
+  it("respects explicit zero override as grace period when forceManual=true", () => {
+    // Un override explicite de 0 avec forceManual=true indique une période de gratuité.
+    // L'ancien comportement (qui retombait sur loyerHTActu) cachait cette intention métier.
     expect(
       getBailLoyer({
         loyerBaseHT: "10000",
         loyerHTActu: "12000",
         forceManual: true,
         loyerManuelOverride: "0",
+      }),
+    ).toBe(0);
+  });
+
+  it("falls through when forceManual is true but override is empty/null", () => {
+    expect(
+      getBailLoyer({
+        loyerBaseHT: "10000",
+        loyerHTActu: "12000",
+        forceManual: true,
+        loyerManuelOverride: null,
+      }),
+    ).toBe(12000);
+    expect(
+      getBailLoyer({
+        loyerBaseHT: "10000",
+        loyerHTActu: "12000",
+        forceManual: true,
+        loyerManuelOverride: "",
       }),
     ).toBe(12000);
   });

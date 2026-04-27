@@ -75,6 +75,10 @@ export default function BailGLDetailPage() {
     queryKey: ["/api/gl/bailleurs"],
     queryFn: () => apiRequest("/api/gl/bailleurs"),
   });
+  const { data: allIndices = [] } = useQuery<Array<{ type: string; trimestre: string; valeur: string }>>({
+    queryKey: ["/api/gl/indices"],
+    queryFn: () => apiRequest("/api/gl/indices"),
+  });
 
   // Avenants & Renouvellements
   const { data: avenants = [] } = useQuery<Avenant[]>({
@@ -142,9 +146,30 @@ export default function BailGLDetailPage() {
     } else {
       await createAvenant.mutateAsync({ ...avenantData, bailId: params.id });
     }
-    // If a new rent was specified, propagate it to the bail
+    // Un avenant renégocie le loyer DE BASE (loyerBaseHT). C'est ce loyer qui
+    // sert de référence pour l'indexation future. Mettre à jour seulement
+    // loyerHTActu serait silencieusement écrasé à la prochaine indexation
+    // automatique car celle-ci recalcule loyerHTActu = loyerBaseHT * ratio.
+    //
+    // En complément, on remet à jour valeurIndiceBase et trimestreRef avec
+    // l'indice publié à la date de l'avenant : la chaîne d'indexation repart
+    // de zéro à partir du nouveau loyer négocié.
     if (nouveauLoyerHT && Number(nouveauLoyerHT) > 0) {
-      await updateBail.mutateAsync({ loyerHTActu: nouveauLoyerHT });
+      const update: Record<string, unknown> = {
+        loyerBaseHT: nouveauLoyerHT,
+        loyerHTActu: nouveauLoyerHT,
+      };
+      if (bail?.indiceReference && allIndices.length > 0) {
+        // Choisir l'indice publié le plus récent (à défaut, celui à la date d'effet)
+        const sorted = allIndices
+          .filter((i) => i.type === bail.indiceReference)
+          .sort((a, b) => b.trimestre.localeCompare(a.trimestre));
+        if (sorted.length > 0) {
+          update.valeurIndiceBase = sorted[0].valeur;
+          update.trimestreRef = sorted[0].trimestre;
+        }
+      }
+      await updateBail.mutateAsync(update);
     }
     setAvenantDialogOpen(false);
   };

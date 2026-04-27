@@ -50,7 +50,9 @@ function registerMarketCrud(
     try {
       const id = paramId(req, res);
       if (!id) return;
-      const rows = await db.update(table).set(req.body).where(eq(table.id, id)).returning() as any[];
+      const updatePayload: Record<string, unknown> = { ...req.body };
+      if ("updatedAt" in table) updatePayload.updatedAt = new Date();
+      const rows = await db.update(table).set(updatePayload).where(eq(table.id, id)).returning() as any[];
       if (rows.length === 0) return res.status(404).json({ error: "Non trouvé" });
       res.json(rows[0]);
     } catch (error: any) {
@@ -208,7 +210,7 @@ export function registerMarcheRoutes(app: Express) {
     );
     const surface = Number(actifRow.surfaceCarrez || actifRow.surface || 0);
     const prixAcq = Number(actifRow.prixAcquisition || 0) + Number(actifRow.fraisNotaire || 0) + Number(actifRow.fraisAgence || 0) + Number(actifRow.montantTravaux || 0);
-    const chargesTotal = Number(actifRow.chargesCopropriete || actifRow.chargesAnnuelles || 0) + Number(actifRow.taxeFonciere || 0) + Number(actifRow.assurancePno || 0);
+    const chargesTotal = Number(actifRow.chargesCopropriete ?? actifRow.chargesAnnuelles ?? 0) + Number(actifRow.taxeFonciere || 0) + Number(actifRow.assurancePno || 0);
     const lotsOccupes = actifLots.filter((l: any) => l.statut === "loué").length;
 
     // Bail details with locataire names
@@ -356,6 +358,7 @@ Règles :
         max_tokens: 2048,
         messages: [{ role: "user", content: prompt }],
       }),
+      signal: AbortSignal.timeout(60_000),
     });
 
     if (!response.ok) {
@@ -477,7 +480,7 @@ Règles :
     }
 
     // Charges annuelles
-    const chargesAnnuelles = Number(actifRow.chargesAnnuelles || actifRow.chargesCopropriete || 0);
+    const chargesAnnuelles = Number(actifRow.chargesCopropriete ?? actifRow.chargesAnnuelles ?? 0);
     const taxeFonciere = Number(actifRow.taxeFonciere || 0);
     const assurancePno = Number(actifRow.assurancePno || 0);
     const totalCharges = chargesAnnuelles + taxeFonciere + assurancePno;

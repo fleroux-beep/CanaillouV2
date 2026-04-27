@@ -111,7 +111,9 @@ function registerActifsCrud(app: Express) {
         // Only cascade to AM-scoped baux; GL baux never reference am_actifs
         await db.update(bauxGL).set({ deletedAt: now }).where(and(eq(bauxGL.actifId, id), eq(bauxGL.scope, "am")));
       }
-      await db.delete(travaux).where(eq(travaux.actifId, id));
+      // Soft-delete travaux for consistency with the rest of the cascade.
+      // Hard-delete would lose history; soft-delete keeps the audit trail.
+      await db.update(travaux).set({ deletedAt: now }).where(eq(travaux.actifId, id));
       logger.info("cascade soft-delete actif", { actifId: id });
 
       res.json({ ok: true });
@@ -268,7 +270,7 @@ export function registerAMRoutes(app: Express) {
           db.select({ value: count() }).from(lots).where(and(eq(lots.archived, false), isNull(lots.deletedAt))),
           db.select({ value: count() }).from(bauxGL).where(and(eq(bauxGL.archived, false), eq(bauxGL.scope, "am"), isNull(bauxGL.deletedAt))),
           db.select({ value: count() }).from(emprunts).where(and(eq(emprunts.archived, false), isNull(emprunts.deletedAt))),
-          db.select({ value: count() }).from(locatairesGL),
+          db.select({ value: count() }).from(locatairesGL).where(isNull(locatairesGL.deletedAt)),
           db.select({ value: count() }).from(associes),
         ]);
 

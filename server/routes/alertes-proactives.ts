@@ -13,7 +13,8 @@ import {
   refValeursLocatives, refMarcheScraping,
 } from "@shared/schema";
 import { eq, and, isNull, desc } from "drizzle-orm";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, requireWriteAdmin } from "../middleware/auth";
+import { paramId } from "../lib/crud-factory";
 import { logger } from "../lib/logger";
 import { getBailLoyer, isResilie } from "@shared/utils/bail";
 
@@ -349,7 +350,7 @@ export function registerAlertesProactivesRoutes(app: Express) {
   });
 
   // Refresh alerts (recalculate)
-  app.post("/api/alertes/refresh", requireAuth, async (_req: any, res: any) => {
+  app.post("/api/alertes/refresh", requireWriteAdmin, async (_req: any, res: any) => {
     try {
       const result = await computeAndStoreAlerts();
       res.json({ message: "Alertes recalculées", ...result });
@@ -362,7 +363,8 @@ export function registerAlertesProactivesRoutes(app: Express) {
   // Dismiss an alert
   app.patch("/api/alertes/:id/dismiss", requireAuth, async (req: any, res: any) => {
     try {
-      const id = req.params.id;
+      const id = paramId(req, res);
+      if (!id) return;
       await db.update(alertes).set({ dismissed: true, dismissedAt: new Date() }).where(eq(alertes.id, id));
       res.json({ ok: true });
     } catch (error: any) {

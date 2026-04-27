@@ -11,10 +11,11 @@ import {
   AlertTriangle, DollarSign, FolderOpen, ShieldCheck,
   TreePine, Hammer, ArrowLeftRight, FlaskConical, ClipboardList,
   ArrowUpDown, FileBarChart, Menu, X, Settings, Search,
-  Bell, Heart, FileUp, Zap, Brain, DatabaseBackup,
+  Bell, Heart, FileUp, Zap, Brain, DatabaseBackup, Layers,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { ChatPanel } from "./ui/chat-panel";
+import { Breadcrumb } from "./ui/breadcrumb";
 
 interface NavItem {
   label: string;
@@ -45,7 +46,21 @@ const amNavGroups: NavGroup[] = [
     items: [
       { label: "Tableau de bord", href: "/asset-management/dashboard", icon: LayoutDashboard },
       { label: "Patrimoine", href: "/asset-management/patrimoine", icon: TreePine },
-      { label: "SCI & Associes", href: "/asset-management/scis-associes", icon: Landmark },
+      { label: "Carte", href: "/asset-management/carte", icon: Map },
+      { label: "Score de Santé", href: "/asset-management/score-sante", icon: Heart },
+    ],
+  },
+  {
+    label: "Données",
+    items: [
+      { label: "SCIs", href: "/asset-management/scis", icon: Landmark },
+      { label: "Actifs", href: "/asset-management/actifs", icon: Building2 },
+      { label: "Lots", href: "/asset-management/lots", icon: Layers },
+      { label: "Baux", href: "/asset-management/baux", icon: FileText },
+      { label: "Emprunts", href: "/asset-management/emprunts", icon: PiggyBank },
+      { label: "Locataires", href: "/asset-management/locataires", icon: Users },
+      { label: "Associés", href: "/asset-management/associes", icon: Users },
+      { label: "Travaux", href: "/asset-management/travaux", icon: Hammer },
     ],
   },
   {
@@ -59,6 +74,15 @@ const amNavGroups: NavGroup[] = [
     items: [
       { label: "Valorisation", href: "/asset-management/valorisation", icon: BarChart3 },
       { label: "Contrôle de gestion", href: "/asset-management/controle-gestion", icon: ClipboardList },
+      { label: "Arbitrages", href: "/asset-management/arbitrages", icon: ArrowLeftRight },
+      { label: "Analyse patrimoniale", href: "/asset-management/etude-marche", icon: Search },
+      { label: "Simulateur", href: "/asset-management/simulateur", icon: FlaskConical },
+      { label: "SCI & Associés", href: "/asset-management/scis-associes", icon: Landmark },
+    ],
+  },
+  {
+    label: "Projection",
+    items: [
       { label: "Projections", href: "/asset-management/projections-predictives", icon: Brain },
       { label: "Reporting", href: "/asset-management/reporting", icon: FileBarChart },
     ],
@@ -67,8 +91,10 @@ const amNavGroups: NavGroup[] = [
     label: "Outils",
     items: [
       { label: "Alertes", href: "/asset-management/alertes", icon: Bell },
-      { label: "Import de données", href: "/asset-management/import", icon: DatabaseBackup },
+      { label: "Calendrier", href: "/asset-management/calendrier", icon: Calendar },
       { label: "Indexation auto", href: "/asset-management/indexation-auto", icon: Zap },
+      { label: "Import", href: "/asset-management/import", icon: DatabaseBackup },
+      { label: "Extraction bail", href: "/asset-management/extraction-bail", icon: FileUp },
     ],
   },
 ];
@@ -84,6 +110,7 @@ const glNavGroups: NavGroup[] = [
     label: "Tableau de bord",
     items: [
       { label: "Vue d'ensemble", href: "/gestion-locative/dashboard", icon: LayoutDashboard },
+      { label: "KPIs", href: "/gestion-locative/kpi", icon: BarChart3 },
     ],
   },
   {
@@ -100,6 +127,8 @@ const glNavGroups: NavGroup[] = [
       { label: "Trésorerie", href: "/gestion-locative/tresorerie", icon: DollarSign },
       { label: "Paiements", href: "/gestion-locative/paiements", icon: PiggyBank },
       { label: "Indices", href: "/gestion-locative/indices", icon: Calculator },
+      { label: "Projections", href: "/gestion-locative/projections", icon: TrendingUp },
+      { label: "Contrôle bailleur", href: "/gestion-locative/controle-bailleur", icon: ShieldCheck },
     ],
   },
   {
@@ -107,6 +136,7 @@ const glNavGroups: NavGroup[] = [
     items: [
       { label: "Documents", href: "/gestion-locative/documents", icon: FolderOpen },
       { label: "Alertes", href: "/gestion-locative/alertes", icon: AlertTriangle },
+      { label: "Calendrier", href: "/gestion-locative/calendrier", icon: Calendar },
     ],
   },
 ];
@@ -476,6 +506,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         </div>
 
         <div className="p-6 lg:p-8">
+          {(isAM || isGL || location === "/admin") && <Breadcrumb />}
           <AnimatePresence mode="wait">
             <motion.div
               key={location}

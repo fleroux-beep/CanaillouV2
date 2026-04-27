@@ -157,7 +157,7 @@ describe("getBailLoyerAnnuel — modèle loyer durable", () => {
     expect(getBailLoyerAnnuel(b)).toBe(8000);
   });
 
-  it("falls back to actu when forceManual=true but override is 0/null", () => {
+  it("falls back to actu when forceManual=true but override is null/empty", () => {
     const b = makeBail({
       loyerBaseHT: "10000",
       loyerHTActu: "10500",
@@ -167,14 +167,16 @@ describe("getBailLoyerAnnuel — modèle loyer durable", () => {
     expect(getBailLoyerAnnuel(b)).toBe(10500);
   });
 
-  it("falls back to actu when forceManual=true but override is literally 0", () => {
+  it("respects explicit 0 override as grace period (not a fallback trigger)", () => {
+    // Un override explicite de 0 indique une période de gratuité à l'utilisateur.
+    // L'ancien comportement (fallback vers loyerHTActu) cachait cette intention.
     const b = makeBail({
       loyerBaseHT: "10000",
       loyerHTActu: "10500",
       forceManual: true,
       loyerManuelOverride: "0",
     });
-    expect(getBailLoyerAnnuel(b)).toBe(10500);
+    expect(getBailLoyerAnnuel(b)).toBe(0);
   });
 });
 

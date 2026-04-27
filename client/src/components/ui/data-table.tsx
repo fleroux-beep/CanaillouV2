@@ -113,7 +113,9 @@ export function DataTable<T extends Record<string, any>>({
     const rows = filtered.map((row) =>
       exportCols.map((col) => {
         const val = col.exportValue ? col.exportValue(row) : row[col.key];
-        const str = val == null ? "" : String(val);
+        let str = val == null ? "" : String(val);
+        // Prevent CSV formula injection (=, +, -, @, \t, \r)
+        if (/^[=+\-@\t\r]/.test(str)) str = `'${str}`;
         if (str.includes(",") || str.includes('"') || str.includes("\n")) {
           return `"${str.replace(/"/g, '""')}"`;
         }

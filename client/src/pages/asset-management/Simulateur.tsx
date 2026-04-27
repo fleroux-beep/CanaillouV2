@@ -83,26 +83,51 @@ export default function SimulateurPage() {
   const [projAppreciationActif, setProjAppreciationActif] = useState(1.5);
   const [projYears, setProjYears] = useState(10);
 
-  // Portfolio totals
-  const actifsActifs = actifs.filter((a: any) => !a.archived);
-  const empruntsActifs = emprunts.filter((e: any) => !e.archived);
+  // Portfolio totals — memoized to avoid full recalculation on every slider change.
+  const actifsActifs = useMemo(() => actifs.filter((a: any) => !a.archived), [actifs]);
+  const empruntsActifs = useMemo(() => emprunts.filter((e: any) => !e.archived), [emprunts]);
 
-  let valorisation = 0, loyerAnnuel = 0, charges = 0, totalAcquisition = 0;
-  for (const a of actifsActifs) {
-    valorisation += getValeurEstimee(a, baux, lots);
-    loyerAnnuel += getLoyerAnnuelActif(a, baux, lots);
-    charges += getChargesAnnuelles(a);
-    totalAcquisition += getPrixAcquisition(a);
-  }
+  const portfolio = useMemo(() => {
+    let valorisation = 0, loyerAnnuel = 0, charges = 0, totalAcquisition = 0;
+    for (const a of actifsActifs) {
+      valorisation += getValeurEstimee(a, baux, lots);
+      loyerAnnuel += getLoyerAnnuelActif(a, baux, lots);
+      charges += getChargesAnnuelles(a);
+      totalAcquisition += getPrixAcquisition(a);
+    }
+    const noi = loyerAnnuel - charges;
+    const crd = getTotalCRD(empruntsActifs);
+    const serviceDette = getServiceDette(empruntsActifs);
 
-  const noi = loyerAnnuel - charges;
-  const crd = getTotalCRD(empruntsActifs);
-  const serviceDette = getServiceDette(empruntsActifs);
+    // Taux annuel pondéré par CRD pour l'amortissement exact en projection
+    let sumTauxPondere = 0, sumPoids = 0;
+    for (const e of empruntsActifs as any[]) {
+      const taux = parseFloat(e.tauxAnnuel || "0");
+      const poids = parseFloat(e.capitalRestantDu || e.montantEmprunte || "0");
+      if (taux > 0 && poids > 0) {
+        sumTauxPondere += taux * poids;
+        sumPoids += poids;
+      }
+    }
+    const tauxAnnuelPondere = sumPoids > 0 ? sumTauxPondere / sumPoids : 0;
+
+    // Amortissement année 1 estimé : capital remboursé première année = service - intérêts(CRD)
+    const amortAnnuel = (empruntsActifs.length > 0 && tauxAnnuelPondere > 0 && serviceDette > 0)
+      ? Math.max(0, serviceDette - crd * (tauxAnnuelPondere / 100))
+      : (empruntsActifs.length > 0 ? crd / 20 : 0);
+
+    return { valorisation, loyerAnnuel, charges, totalAcquisition, noi, crd, serviceDette, tauxAnnuelPondere, amortAnnuel };
+  }, [actifsActifs, baux, lots, empruntsActifs]);
+
+  const { valorisation, loyerAnnuel, charges, totalAcquisition, noi, crd, serviceDette, tauxAnnuelPondere, amortAnnuel } = portfolio;
   const cashFlowNet = noi - serviceDette;
 
-  // DCF
+  // DCF — calculé seulement si NOI positif (sinon le modèle perd son sens : Gordon
+  // suppose des flux croissants positifs, et les flux négatifs dégradent l'IRR)
   const dcfResult = useMemo(
-    () => computeDCF(noi, growthRate, discountRate, exitCapRate, dcfYears, totalAcquisition),
+    () => noi > 0 && totalAcquisition > 0
+      ? computeDCF(noi, growthRate, discountRate, exitCapRate, dcfYears, totalAcquisition)
+      : { projectedCashFlows: [], terminalValue: 0, totalPV: 0, pvCashFlows: 0, pvTerminal: 0, irr: null },
     [noi, growthRate, discountRate, exitCapRate, dcfYears, totalAcquisition]
   );
 
@@ -132,14 +157,14 @@ export default function SimulateurPage() {
     [loyerAnnuel, charges, serviceDette, valorisation, crd, empruntsActifs]
   );
 
-  // Multi-year projection
-  const amortAnnuel = empruntsActifs.length > 0 ? crd / 20 : 0;
+  // Multi-year projection avec amortissement exact basé sur le taux pondéré du portefeuille
   const projection = useMemo(
     () => computeMultiYearProjection(
       loyerAnnuel, charges, serviceDette, valorisation, crd,
-      projGrowthLoyer, projInflationCharges, projAppreciationActif, amortAnnuel, projYears
+      projGrowthLoyer, projInflationCharges, projAppreciationActif, amortAnnuel, projYears,
+      tauxAnnuelPondere,
     ),
-    [loyerAnnuel, charges, serviceDette, valorisation, crd, projGrowthLoyer, projInflationCharges, projAppreciationActif, amortAnnuel, projYears]
+    [loyerAnnuel, charges, serviceDette, valorisation, crd, projGrowthLoyer, projInflationCharges, projAppreciationActif, amortAnnuel, projYears, tauxAnnuelPondere]
   );
 
   const projChartData = projection.map((p) => ({
@@ -521,7 +546,7 @@ export default function SimulateurPage() {
                   <LineChart data={[0, 1, 2, 3, 4, 5].map((g) => {
                     const proj = computeMultiYearProjection(
                       loyerAnnuel, charges, serviceDette, valorisation, crd,
-                      g, 2, 1.5, amortAnnuel, 10
+                      g, 2, 1.5, amortAnnuel, 10, tauxAnnuelPondere,
                     );
                     return {
                       croissance: `${g}%`,

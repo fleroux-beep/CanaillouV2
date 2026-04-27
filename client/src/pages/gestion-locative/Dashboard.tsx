@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { InfoTooltip } from "../../components/ui/info-tooltip";
-import { getBailLoyer } from "@shared/utils/bail";
+import { getBailLoyer, isResilie } from "@shared/utils/bail";
 
 const COLORS = ["#3b82f6", "#8b5cf6", "#06b6d4", "#10b981", "#f59e0b", "#ef4444", "#ec4899"];
 
@@ -48,7 +48,9 @@ export default function GLDashboard() {
   const hasError = e1 || e2 || e3;
   const errorDetail = [err1, err2, err3].filter(Boolean).map((e: any) => e?.message).join(" | ");
 
-  const bauxActifs = baux.filter((b: any) => !b.archived);
+  // Exclure les baux archivés ET résiliés des totaux : un bail résilié ne génère
+  // plus de loyers même s'il existe encore en base.
+  const bauxActifs = baux.filter((b: any) => !b.archived && !isResilie(b));
   const totalLoyerHT = bauxActifs.reduce((sum: number, b: any) => sum + getBailLoyer(b), 0);
   const totalSurface = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.surface || 0), 0);
   const totalCapacite = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.capacite || 0), 0);

@@ -53,7 +53,7 @@ export default function TravauxPage() {
           <Plus className="h-4 w-4" /> Nouveaux travaux
         </motion.button>
       } />
-      <DataTable data={data} columns={columns} searchKeys={["titre", "prestataire"]} searchPlaceholder="Rechercher..." emptyMessage="Aucun travaux" exportFileName="travaux" />
+      <DataTable data={data} columns={columns} searchKeys={["titre", "prestataire"]} searchPlaceholder="Rechercher..." emptyMessage="Pas de travaux enregistrés" exportFileName="travaux" />
       <FormDialog open={dialogOpen} onClose={() => setDialogOpen(false)} title={editing ? "Modifier les travaux" : "Nouveaux travaux"} onSubmit={handleSubmit} loading={creating || updating} size="lg">
         <FormGrid>
           <FormField label="Titre" name="titre" value={form.titre} onChange={onChange} required />

@@ -17,7 +17,7 @@ import {
   TrendingUp, Calculator, Gauge, Target, AlertTriangle, Baby,
 } from "lucide-react";
 import { InfoTooltip } from "../../components/ui/info-tooltip";
-import { getBailLoyer } from "@shared/utils/bail";
+import { getBailLoyer, isResilie } from "@shared/utils/bail";
 
 const chartTooltipStyle = {
   contentStyle: {
@@ -63,15 +63,14 @@ export default function ProjectionsPage() {
   const [chargesInflation, setChargesInflation] = useState(2);
   const [horizon, setHorizon] = useState(5);
 
-  const bauxActifs = baux.filter((b: any) => !b.archived);
+  const bauxActifs = baux.filter((b: any) => !b.archived && !isResilie(b));
   const totalLoyerActuel = bauxActifs.reduce((sum: number, b: any) => sum + getBailLoyer(b), 0);
-  const totalCharges = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.charges || 0), 0);
+  // Charges : champ stocké comme MENSUEL côté UI ; on annualise pour les projections
+  // (× 12) afin que loyers annuels et charges annuelles soient comparables.
+  const totalChargesMensuel = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.charges || 0), 0);
+  const totalChargesAnnuel = totalChargesMensuel * 12;
   const totalSurface = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.surface || 0), 0);
   const totalBerceaux = bauxActifs.reduce((sum: number, b: any) => sum + Number(b.capacite || 0), 0);
-
-  const loyerN1 = compound(totalLoyerActuel, customRate, 1);
-  const loyerN3 = compound(totalLoyerActuel, customRate, 3);
-  const loyerNMax = compound(totalLoyerActuel, customRate, horizon);
 
   // Multi-scenario chart (ILC 2%, ref 3%, high 4%, custom)
   const projectionData = useMemo(() => {
@@ -103,15 +102,20 @@ export default function ProjectionsPage() {
       if (sorted.length >= 2) {
         const oldest = sorted[0].valeur;
         const latest = sorted[sorted.length - 1].valeur;
-        // Estimate number of years between first and last
-        // Trimestre format: "T1 2025" or "2025-T1" — extract 4-digit year
-        const extractYear = (t: string) => {
-          const match = t.match(/(\d{4})/);
-          return match ? parseInt(match[1]) : 0;
+        // Calcul de la période avec précision trimestrielle.
+        // Format trimestre : "T1 2025" ou "2025-T1" ou "T1-2025" → extraire année + numéro de trimestre
+        const extractPeriod = (t: string) => {
+          const yearMatch = t.match(/(\d{4})/);
+          const qMatch = t.match(/T(\d)/i);
+          const year = yearMatch ? parseInt(yearMatch[1]) : 0;
+          const q = qMatch ? parseInt(qMatch[1]) : 1;
+          return year * 4 + (q - 1); // unité = trimestre
         };
-        const firstYear = extractYear(sorted[0].trimestre);
-        const lastYear = extractYear(sorted[sorted.length - 1].trimestre);
-        const years = Math.max(1, lastYear - firstYear);
+        const firstQ = extractPeriod(sorted[0].trimestre);
+        const lastQ = extractPeriod(sorted[sorted.length - 1].trimestre);
+        // Période en années (peut être < 1 si même année). Minimum 0.25 (1 trimestre)
+        // pour éviter division par 0.
+        const years = Math.max(0.25, (lastQ - firstQ) / 4);
         if (oldest > 0) {
           rates[type] = (Math.pow(latest / oldest, 1 / years) - 1) * 100;
         }
@@ -150,15 +154,22 @@ export default function ProjectionsPage() {
     });
   }, [bauxActifs, customRate, horizon, indiceRates]);
 
-  // Charges vs loyers projection
+  // Totaux N+1 / N+3 / N+horizon : somme des projections par bail (qui utilisent
+  // les taux réels par indice quand disponibles, customRate sinon). Avant cette
+  // correction le footer recomputait avec customRate global, divergeant du détail.
+  const loyerN1 = bailProjections.reduce((s: number, bp: any) => s + bp.loyerN1, 0);
+  const loyerN3 = bailProjections.reduce((s: number, bp: any) => s + bp.loyerN3, 0);
+  const loyerNMax = bailProjections.reduce((s: number, bp: any) => s + bp.loyerNMax, 0);
+
+  // Charges vs loyers projection — toutes les valeurs sont annuelles pour cohérence
   const loyerVsChargesData = useMemo(() => {
     return Array.from({ length: horizon + 1 }, (_, year) => ({
       name: year === 0 ? "Actuel" : `N+${year}`,
       "Loyers HT": Math.round(compound(totalLoyerActuel, customRate, year)),
-      "Charges": Math.round(compound(totalCharges, chargesInflation, year)),
-      "Coût locatif total": Math.round(compound(totalLoyerActuel, customRate, year) + compound(totalCharges, chargesInflation, year)),
+      "Charges": Math.round(compound(totalChargesAnnuel, chargesInflation, year)),
+      "Coût locatif total": Math.round(compound(totalLoyerActuel, customRate, year) + compound(totalChargesAnnuel, chargesInflation, year)),
     }));
-  }, [totalLoyerActuel, totalCharges, customRate, chargesInflation, horizon]);
+  }, [totalLoyerActuel, totalChargesAnnuel, customRate, chargesInflation, horizon]);
 
   // Per-index aggregation
   const byIndex = useMemo(() => {

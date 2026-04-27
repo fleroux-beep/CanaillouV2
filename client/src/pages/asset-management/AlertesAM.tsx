@@ -197,7 +197,8 @@ export default function AlertesAMPage() {
                   </div>
                   <button
                     onClick={() => dismissMutation.mutate(alert.id)}
-                    className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                    disabled={dismissMutation.isPending}
+                    className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
                     title="Masquer"
                   >
                     <X className="h-4 w-4" />

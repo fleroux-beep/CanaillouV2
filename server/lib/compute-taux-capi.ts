@@ -80,28 +80,29 @@ export async function computeTauxCapiFromRefs(): Promise<{ computed: number; err
         fiabilite = "moyenne";
       }
 
-      // Delete existing calculated entry for this cp+type, then insert
-      await db.delete(refTauxCapitalisation).where(
-        and(
-          eq(refTauxCapitalisation.source, "calculé"),
-          eq(refTauxCapitalisation.codePostal, v.codePostal),
-          eq(refTauxCapitalisation.typeBien, v.typeBien),
-        ),
-      );
-
-      await db.insert(refTauxCapitalisation).values({
-        source: "calculé",
-        codePostal: v.codePostal,
-        ville: v.ville || loc?.ville || null,
-        codeInsee: v.codeInsee || loc?.codeInsee || null,
-        typeBien: v.typeBien,
-        tauxCapi: String(Math.round(tauxCapi * 100) / 100),
-        tauxCapiBas: tauxCapiBas != null ? String(Math.round(tauxCapiBas * 100) / 100) : null,
-        tauxCapiHaut: tauxCapiHaut != null ? String(Math.round(tauxCapiHaut * 100) / 100) : null,
-        fiabilite,
-        methodeCalcul: methode,
-        periode: v.periode || loc?.periode || null,
-        dateReleve: now,
+      // Atomic delete + insert: avoids data loss if process crashes between operations.
+      await db.transaction(async (tx) => {
+        await tx.delete(refTauxCapitalisation).where(
+          and(
+            eq(refTauxCapitalisation.source, "calculé"),
+            eq(refTauxCapitalisation.codePostal, v.codePostal),
+            eq(refTauxCapitalisation.typeBien, v.typeBien),
+          ),
+        );
+        await tx.insert(refTauxCapitalisation).values({
+          source: "calculé",
+          codePostal: v.codePostal,
+          ville: v.ville || loc?.ville || null,
+          codeInsee: v.codeInsee || loc?.codeInsee || null,
+          typeBien: v.typeBien,
+          tauxCapi: String(Math.round(tauxCapi * 100) / 100),
+          tauxCapiBas: tauxCapiBas != null ? String(Math.round(tauxCapiBas * 100) / 100) : null,
+          tauxCapiHaut: tauxCapiHaut != null ? String(Math.round(tauxCapiHaut * 100) / 100) : null,
+          fiabilite,
+          methodeCalcul: methode,
+          periode: v.periode || loc?.periode || null,
+          dateReleve: now,
+        });
       });
       computed++;
     }

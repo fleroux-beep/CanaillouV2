@@ -43,45 +43,86 @@ export function RachatCreditTab() {
     if (!emp) return null;
 
     const crd = emp.capitalRestantDu ? parseFloat(emp.capitalRestantDu) : (emp.montantEmprunte ? parseFloat(emp.montantEmprunte) : 0);
-    const ancienneDureeRestante = emp.dureeMois || (emp.dureeAns ? emp.dureeAns * 12 : 240);
 
-    // Mensualité totale = mensualité stockée (Excel, inclut déjà l'assurance)
-    // Si pas de mensualité stockée, calculer par formule + assurance
+    // Durée TOTALE du prêt (signature) — utilisée pour calculer la mensualité d'origine.
+    const dureeTotaleMois = emp.dureeMois || (emp.dureeAns ? emp.dureeAns * 12 : 240);
+
+    // Durée RESTANTE = total - mois écoulés depuis dateDebut. C'est ce qu'il faut comparer
+    // avec la nouvelle durée pour calculer l'économie.
+    let dureeRestante = dureeTotaleMois;
+    if (emp.dateDebut) {
+      const debut = new Date(emp.dateDebut);
+      if (Number.isFinite(debut.getTime())) {
+        const moisEcoules = Math.max(0, Math.floor(
+          (Date.now() - debut.getTime()) / (30.4375 * 86400000),
+        ));
+        dureeRestante = Math.max(1, dureeTotaleMois - moisEcoules);
+      }
+    }
+
+    // Mensualité totale = mensualité stockée (Excel, inclut déjà l'assurance).
+    // Si absente, on la calcule à partir des paramètres d'origine.
     let ancienneMensTotale = emp.mensualite ? parseFloat(emp.mensualite) : 0;
+    let ancienneAssuranceMens = 0;
     if (ancienneMensTotale === 0) {
       const montantOrig = emp.montantEmprunte ? parseFloat(emp.montantEmprunte) : 0;
       const tauxAnnuel = emp.tauxAnnuel ? parseFloat(emp.tauxAnnuel) / 100 : 0;
-      const dureeOrig = emp.dureeAns ? emp.dureeAns * 12 : 240;
-      if (montantOrig > 0 && tauxAnnuel > 0) {
+      if (montantOrig > 0 && tauxAnnuel > 0 && dureeTotaleMois > 0) {
         const rm = tauxAnnuel / 12;
-        const factor = Math.pow(1 + rm, dureeOrig);
+        const factor = Math.pow(1 + rm, dureeTotaleMois);
         ancienneMensTotale = montantOrig * (rm * factor) / (factor - 1);
       }
-      // Ajouter assurance seulement si calculée (pas déjà dans mensualité)
       let assur = emp.assuranceMensuelle ? parseFloat(emp.assuranceMensuelle) : 0;
       if (assur === 0 && montantOrig > 0) {
         const ta = emp.tauxAssurance ? parseFloat(emp.tauxAssurance) / 100 : 0;
         if (ta > 0) assur = (montantOrig * ta) / 12;
       }
+      ancienneAssuranceMens = assur;
       ancienneMensTotale += assur;
+    } else {
+      // Estimer la part assurance dans la mensualité Excel (mensu Excel - formule actuarielle)
+      const montantOrig = emp.montantEmprunte ? parseFloat(emp.montantEmprunte) : 0;
+      const tauxAnnuel = emp.tauxAnnuel ? parseFloat(emp.tauxAnnuel) / 100 : 0;
+      if (montantOrig > 0 && tauxAnnuel > 0 && dureeTotaleMois > 0) {
+        const rm = tauxAnnuel / 12;
+        const factor = Math.pow(1 + rm, dureeTotaleMois);
+        const mensActuarielle = montantOrig * (rm * factor) / (factor - 1);
+        ancienneAssuranceMens = Math.max(0, ancienneMensTotale - mensActuarielle);
+      }
     }
 
-    // Calcul ancien cout restant (mensualité totale × mois restants)
-    const ancienCoutRestant = ancienneMensTotale * ancienneDureeRestante;
+    // Coût restant = mensualité totale × mois restants (avec la durée RESTANTE, pas la totale)
+    const ancienCoutRestant = ancienneMensTotale * dureeRestante;
 
     // Nouveau prêt
     const nTaux = parseFloat(nouveauTaux) / 100;
     const nDuree = parseInt(nouvelleDuree) * 12;
-    const ira = crd * (parseFloat(fraisRachat) / 100); // Indemnite de remboursement anticipe
+    const iraPct = parseFloat(fraisRachat) / 100;
+    const ira = crd * iraPct;
+    // Plafond légal IRA (Code conso L313-47) : min(6 mois d'intérêts, 3% CRD)
+    const interetsAnciens = (emp.tauxAnnuel ? parseFloat(emp.tauxAnnuel) / 100 : 0) * crd / 2; // 6 mois ≈ taux/2
+    const iraCapLegal = Math.min(interetsAnciens, crd * 0.03);
+    const iraDepasseCapLegal = ira > iraCapLegal && iraCapLegal > 0;
+
     const dossier = parseFloat(fraisDossier) || 0;
     const garantie = parseFloat(fraisGarantie) || 0;
     const totalFrais = ira + dossier + garantie;
 
-    // Mensualite nouveau pret (formule amortissement constant)
+    // Mensualite nouveau pret (capital+intérêts hors assurance)
     const tauxMensuel = nTaux / 12;
-    const nouvelleMensualite = tauxMensuel > 0
+    const nouvelleMensualiteCapInt = tauxMensuel > 0
       ? crd * tauxMensuel / (1 - Math.pow(1 + tauxMensuel, -nDuree))
       : crd / nDuree;
+
+    // Pour comparer à l'ancienne mensualité TOTALE, on doit ajouter une assurance équivalente
+    // au nouveau prêt. Hypothèse : on conserve la même prime d'assurance mensuelle qu'avant
+    // (ou on la calcule depuis tauxAssurance × CRD si dispo).
+    let nouvelleAssuranceMens = ancienneAssuranceMens;
+    const tauxAssurance = emp.tauxAssurance ? parseFloat(emp.tauxAssurance) / 100 : 0;
+    if (nouvelleAssuranceMens === 0 && tauxAssurance > 0) {
+      nouvelleAssuranceMens = (crd * tauxAssurance) / 12;
+    }
+    const nouvelleMensualite = nouvelleMensualiteCapInt + nouvelleAssuranceMens;
 
     const nouveauCoutTotal = nouvelleMensualite * nDuree + totalFrais;
     const economie = ancienCoutRestant - nouveauCoutTotal;
@@ -89,7 +130,7 @@ export function RachatCreditTab() {
       ? Math.ceil(totalFrais / (ancienneMensTotale - nouvelleMensualite))
       : 0;
 
-    // Tableau amortissement simplifie (annuel)
+    // Tableau amortissement simplifie (annuel) — basé sur capital+intérêts (hors assurance)
     const amortissement: Array<{ annee: number; crdDebut: number; interets: number; capital: number; crdFin: number }> = [];
     let crdCourant = crd;
     const nbAnnees = Math.ceil(nDuree / 12);
@@ -99,7 +140,7 @@ export function RachatCreditTab() {
       let capitalAnnee = 0;
       for (let m = 0; m < moisDansAnnee; m++) {
         const interet = crdCourant * tauxMensuel;
-        const cap = nouvelleMensualite - interet;
+        const cap = nouvelleMensualiteCapInt - interet;
         interetsAnnee += interet;
         capitalAnnee += cap;
         crdCourant = Math.max(0, crdCourant - cap);
@@ -114,9 +155,10 @@ export function RachatCreditTab() {
     }
 
     return {
-      crd, ancienneMensTotale, ancienneDureeRestante,
+      crd, ancienneMensTotale, ancienneDureeRestante: dureeRestante,
       ancienCoutRestant, nouvelleMensualite, nDuree, totalFrais,
-      ira, dossier, garantie, nouveauCoutTotal, economie, pointMort,
+      ira, iraCapLegal, iraDepasseCapLegal,
+      dossier, garantie, nouveauCoutTotal, economie, pointMort,
       amortissement,
     };
   }, [emp, nouveauTaux, nouvelleDuree, fraisRachat, fraisDossier, fraisGarantie]);
@@ -124,19 +166,19 @@ export function RachatCreditTab() {
   return (
     <AnimatePresence>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
-        <Section title="Simulateur de rachat de credit" delay={0}>
+        <Section title="Simulateur de rachat de crédit" delay={0}>
           <GlassCard>
             <div className="space-y-6">
               {/* Selection de l'emprunt */}
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">Emprunt a racheter</label>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">Emprunt à racheter</label>
                   <select
                     value={selectedEmprunt}
                     onChange={(e) => setSelectedEmprunt(e.target.value)}
                     className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
                   >
-                    <option value="">Selectionnez un emprunt</option>
+                    <option value="">Sélectionnez un emprunt</option>
                     {(() => {
                       const groups: { sciName: string; items: Emprunt[] }[] = [];
                       for (const emp of activeEmprunts) {
@@ -224,6 +266,11 @@ export function RachatCreditTab() {
                         <td className="px-4 py-3 text-right text-amber-600">{formatCurrency(simulation.totalFrais)}</td>
                         <td className="px-4 py-3 text-right text-xs text-muted-foreground">
                           IRA: {formatCurrency(simulation.ira)} | Dossier: {formatCurrency(simulation.dossier)} | Garantie: {formatCurrency(simulation.garantie)}
+                          {simulation.iraDepasseCapLegal && (
+                            <div className="mt-1 text-amber-600 font-medium">
+                              ⚠ IRA dépasse le plafond légal (min 6 mois d'intérêts ou 3% CRD = {formatCurrency(simulation.iraCapLegal)})
+                            </div>
+                          )}
                         </td>
                       </tr>
                     </tbody>
@@ -243,7 +290,7 @@ export function RachatCreditTab() {
 
             {/* Amortissement chart */}
             {simulation.amortissement.length > 0 && (
-              <Section title="Amortissement du nouveau pret" delay={3}>
+              <Section title="Amortissement du nouveau prêt" delay={3}>
                 <GlassCard>
                   <div className="h-[300px]">
                     <ResponsiveContainer width="100%" height="100%">
@@ -268,7 +315,7 @@ export function RachatCreditTab() {
           <GlassCard>
             <div className="py-12 text-center text-muted-foreground">
               <RefreshCw className="mx-auto h-12 w-12 mb-4 opacity-30" />
-              <p>Selectionnez un emprunt ci-dessus pour simuler un rachat de credit</p>
+              <p>Sélectionnez un emprunt ci-dessus pour simuler un rachat de crédit</p>
             </div>
           </GlassCard>
         )}

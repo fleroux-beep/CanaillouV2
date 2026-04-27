@@ -131,10 +131,11 @@ export function registerCrud(
         return res.json({ data: rows, total: totalResult[0].value, page, limit });
       }
 
-      // No pagination — return all (backward compatible)
+      // No pagination param — apply a safety cap of 2000 rows
+      const MAX_ROWS = 2000;
       const rows = whereClause
-        ? await db.select().from(table).where(whereClause).orderBy(desc(table.createdAt), desc(table.id))
-        : await db.select().from(table).orderBy(desc(table.createdAt), desc(table.id));
+        ? await db.select().from(table).where(whereClause).orderBy(desc(table.createdAt), desc(table.id)).limit(MAX_ROWS)
+        : await db.select().from(table).orderBy(desc(table.createdAt), desc(table.id)).limit(MAX_ROWS);
       res.json(rows);
     } catch (error: any) {
       logger.error("route error", {
@@ -230,11 +231,13 @@ export function registerCrud(
       const where = conditions.length === 1 ? conditions[0] : and(...conditions)!;
 
       const hasDeletedAt = "deletedAt" in table;
+      let affected: any[];
       if (hasDeletedAt) {
-        await db.update(table).set({ deletedAt: new Date() }).where(where);
+        affected = await db.update(table).set({ deletedAt: new Date() }).where(where).returning({ id: table.id }) as any[];
       } else {
-        await db.delete(table).where(where);
+        affected = await db.delete(table).where(where).returning({ id: table.id }) as any[];
       }
+      if (affected.length === 0) return res.status(404).json({ error: "Non trouvé" });
       res.json({ ok: true });
     } catch (error: any) {
       logger.error("route error", { error: error.message });

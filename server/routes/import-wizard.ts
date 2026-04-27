@@ -6,12 +6,13 @@ import multer from "multer";
 import XLSX from "xlsx";
 import { randomUUID } from "crypto";
 import fs from "fs";
+import path from "path";
 import { db } from "../db";
 import {
   scis, actifs, lots, bauxGL, emprunts, locatairesGL, associes, travaux,
 } from "@shared/schema";
 import { amSchemas } from "../lib/validation";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, requireWriteAdmin } from "../middleware/auth";
 import { rateLimit } from "../lib/rate-limit";
 import { logger } from "../lib/logger";
 import { eq, isNull } from "drizzle-orm";
@@ -62,7 +63,7 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 // ─── Multer configs ──────────────────────────────────────────────
-const uploadDir = "/tmp/canaillou-uploads";
+const uploadDir = process.env.UPLOAD_DIR || path.resolve(process.cwd(), "uploads");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 const excelUpload = multer({
@@ -204,7 +205,7 @@ export function registerImportWizardRoutes(app: Express) {
   });
 
   // POST upload Excel — parse sheets and return structure
-  app.post("/api/import-wizard/upload-excel", requireAuth, importLimiter, (req: any, res: any, next: any) => {
+  app.post("/api/import-wizard/upload-excel", requireWriteAdmin, importLimiter, (req: any, res: any, next: any) => {
     excelUpload.single("file")(req, res, (err: any) => {
       if (err) {
         if (err.code === "LIMIT_FILE_SIZE") return res.status(413).json({ error: "Fichier trop volumineux (max 50 Mo)" });
@@ -246,7 +247,7 @@ export function registerImportWizardRoutes(app: Express) {
   });
 
   // POST preview — apply mapping and validate
-  app.post("/api/import-wizard/preview", requireAuth, async (req: any, res: any) => {
+  app.post("/api/import-wizard/preview", requireWriteAdmin, async (req: any, res: any) => {
     try {
       const { fileId, sheetName, mapping, targetEntity } = req.body;
 
@@ -302,7 +303,7 @@ export function registerImportWizardRoutes(app: Express) {
   });
 
   // POST execute — insert valid rows
-  app.post("/api/import-wizard/execute", requireAuth, importLimiter, async (req: any, res: any) => {
+  app.post("/api/import-wizard/execute", requireWriteAdmin, importLimiter, async (req: any, res: any) => {
     try {
       const { fileId, sheetName, mapping, targetEntity, resolveRefsFlag } = req.body;
 
@@ -345,14 +346,17 @@ export function registerImportWizardRoutes(app: Express) {
         }
       }
 
+      const ownerId = req.session?.userId;
+      if (!ownerId) return res.status(401).json({ error: "Session invalide" });
+
       // Resolve name references
       if (resolveRefsFlag && mappedRows.length > 0) {
-        mappedRows = await resolveRefs(mappedRows, targetEntity, req.user?.id);
+        mappedRows = await resolveRefs(mappedRows, targetEntity, ownerId);
       } else {
         mappedRows = mappedRows.map((r) => {
           // Remove virtual ref fields
           const { sciNom, actifNom, locataireNom, ...rest } = r;
-          return { ...rest, ownerId: req.user?.id };
+          return { ...rest, ownerId };
         });
       }
 
@@ -393,7 +397,7 @@ export function registerImportWizardRoutes(app: Express) {
   });
 
   // POST upload documents — classify with Claude
-  app.post("/api/import-wizard/upload-documents", requireAuth, docLimiter, (req: any, res: any, next: any) => {
+  app.post("/api/import-wizard/upload-documents", requireWriteAdmin, docLimiter, (req: any, res: any, next: any) => {
     docUpload.array("files", 10)(req, res, (err: any) => {
       if (err) {
         if (err.code === "LIMIT_FILE_SIZE") return res.status(413).json({ error: "Fichier trop volumineux (max 20 Mo)" });
@@ -487,7 +491,7 @@ export function registerImportWizardRoutes(app: Express) {
   });
 
   // POST extract document — detailed extraction with Claude
-  app.post("/api/import-wizard/extract-document", requireAuth, docLimiter, async (req: any, res: any) => {
+  app.post("/api/import-wizard/extract-document", requireWriteAdmin, docLimiter, async (req: any, res: any) => {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) return res.status(503).json({ error: "ANTHROPIC_API_KEY non configurée" });
 
@@ -586,7 +590,7 @@ Si le bail indique un loyer mensuel, multiplie-le par 12 pour obtenir l'annuel.
       });
     } catch (error: any) {
       logger.error("document extraction error", { error: error.message });
-      res.status(500).json({ error: `Erreur extraction: ${error.message}` });
+      res.status(500).json({ error: "Erreur lors de l'extraction du document" });
     }
   });
 }

@@ -307,7 +307,7 @@ function CapitalGovernancePage() {
                   <h3 className="font-semibold text-foreground">{sci.nom}</h3>
                   <div className="space-y-1 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Gerant</span>
+                      <span className="text-muted-foreground">Gérant</span>
                       <span className="font-medium">{sci.gerant || "\u2014"}</span>
                     </div>
                     <div className="flex justify-between">
@@ -315,7 +315,7 @@ function CapitalGovernancePage() {
                       <span>{sci.formeJuridique || "\u2014"}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Regime</span>
+                      <span className="text-muted-foreground">Régime</span>
                       <span>{sci.regimeFiscal || "\u2014"}</span>
                     </div>
                     <div className="flex justify-between">
@@ -471,13 +471,13 @@ function InvestorReportingPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/30">
-                  <SortHeader label="Associe" sortKey="associeNom" currentSortKey={reportSort.sortKey} sortDir={reportSort.sortDir} onSort={reportSort.handleSort} />
+                  <SortHeader label="Associé" sortKey="associeNom" currentSortKey={reportSort.sortKey} sortDir={reportSort.sortDir} onSort={reportSort.handleSort} />
                   <SortHeader label="Part (%)" sortKey="partPct" align="right" currentSortKey={reportSort.sortKey} sortDir={reportSort.sortDir} onSort={reportSort.handleSort} />
                   <SortHeader label="Apport" sortKey="apport" align="right" currentSortKey={reportSort.sortKey} sortDir={reportSort.sortDir} onSort={reportSort.handleSort} />
                   <SortHeader label="NAV" sortKey="navPart" align="right" currentSortKey={reportSort.sortKey} sortDir={reportSort.sortDir} onSort={reportSort.handleSort} />
                   <SortHeader label="Plus-value" sortKey="plusValueLatente" align="right" currentSortKey={reportSort.sortKey} sortDir={reportSort.sortDir} onSort={reportSort.handleSort} />
-                  <SortHeader label="Rdt annualise" sortKey="rendementAnnuelise" align="right" currentSortKey={reportSort.sortKey} sortDir={reportSort.sortDir} onSort={reportSort.handleSort} />
-                  <th className="px-4 py-3 text-right font-semibold">Distribution estimee</th>
+                  <SortHeader label="Rdt annualisé" sortKey="rendementAnnuelise" align="right" currentSortKey={reportSort.sortKey} sortDir={reportSort.sortDir} onSort={reportSort.handleSort} />
+                  <th className="px-4 py-3 text-right font-semibold">Distribution estimée</th>
                   <th className="px-4 py-3 text-center font-semibold">Statut</th>
                 </tr>
               </thead>

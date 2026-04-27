@@ -8,10 +8,11 @@ import { ConfirmDialog } from "../../../components/ui/confirm-dialog";
 import { FormField, FormGrid } from "../../../components/ui/form-field";
 import { Badge } from "../../../components/ui/badge";
 import { formatCurrency, formatPercent } from "../../../lib/utils";
-import { Plus, Pencil, Trash2, Search, Download, ChevronDown, ChevronRight, Inbox, CheckCircle2, AlertTriangle, AlertCircle } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Download, ChevronDown, ChevronRight, Inbox, CheckCircle2, AlertTriangle, AlertCircle, Landmark, TrendingDown, Percent, Calendar } from "lucide-react";
 import { getAnnuiteEmprunt, reconcileEmprunt, type AMEmprunt } from "../../../lib/am-calculations";
 import { findRefTauxEmprunt, compareTauxEmprunt, badgeVariant, type RefTauxEmprunt } from "../../../lib/market-utils";
 import { InfoTooltip } from "../../../components/ui/info-tooltip";
+import { KpiCard } from "../../../components/ui/kpi-card";
 import type { Emprunt, SCI, Actif } from "../../../types";
 
 const empty: Partial<Emprunt> = {};
@@ -70,6 +71,25 @@ export function EmpruntsTab() {
 
   const totalCount = grouped.reduce((s, g) => s + g.emprunts.length, 0);
 
+  const kpis = useMemo(() => {
+    const all = data.filter((e) => !e.archived);
+    const totalEmprunte = all.reduce((s, e) => s + parseFloat(e.montantEmprunte || "0"), 0);
+    const totalCRD = all.reduce((s, e) => s + parseFloat(e.capitalRestantDu || e.montantEmprunte || "0"), 0);
+    let sumTauxPondere = 0;
+    let sumPoids = 0;
+    for (const e of all) {
+      const taux = parseFloat(e.tauxAnnuel || "0");
+      const poids = parseFloat(e.capitalRestantDu || e.montantEmprunte || "0");
+      if (taux > 0 && poids > 0) {
+        sumTauxPondere += taux * poids;
+        sumPoids += poids;
+      }
+    }
+    const tauxMoyen = sumPoids > 0 ? sumTauxPondere / sumPoids : 0;
+    const annuiteTotale = all.reduce((s, e) => s + getAnnuiteEmprunt(e as unknown as AMEmprunt), 0);
+    return { totalEmprunte, totalCRD, tauxMoyen, annuiteTotale };
+  }, [data]);
+
   const toggleSCI = (sciId: string) => {
     setCollapsedSCIs((prev) => {
       const next = new Set(prev);
@@ -120,6 +140,14 @@ export function EmpruntsTab() {
 
   return (
     <div className="space-y-6">
+      {/* KPI Summary */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard label="Total emprunté" value={kpis.totalEmprunte} formatFn={formatCurrency} icon={Landmark} variant="primary" gradient delay={0} />
+        <KpiCard label="Capital restant dû" value={kpis.totalCRD} formatFn={formatCurrency} icon={TrendingDown} variant="warning" gradient delay={1} metricKey="crd" />
+        <KpiCard label="Taux moyen pondéré" value={kpis.tauxMoyen} formatFn={(v) => formatPercent(v, 2)} icon={Percent} variant="success" gradient delay={2} />
+        <KpiCard label="Annuité totale" value={kpis.annuiteTotale} formatFn={formatCurrency} icon={Calendar} variant="danger" gradient delay={3} metricKey="annuite" />
+      </div>
+
       <div className="flex justify-end">
         <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => { setEditing(null); setForm(empty); setDialogOpen(true); }}
           className="flex items-center gap-2 rounded-lg gradient-primary px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-orange-500/25">

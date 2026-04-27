@@ -6,8 +6,9 @@
  * Déclenche l'indexation automatique des baux GL après mise à jour.
  */
 import { db } from "../db";
-import { indices, bauxGL, indexationsGL } from "@shared/schema";
-import { eq, and, isNull } from "drizzle-orm";
+import { pool } from "../db";
+import { indices, bauxGL, indexationsGL, syncLogs } from "@shared/schema";
+import { eq, and, isNull, desc, sql } from "drizzle-orm";
 import { logger } from "./logger";
 
 // ─── INSEE SDMX API ────────────────────────────────────────
@@ -39,31 +40,39 @@ interface InseeValue {
  * The API always returns XML (SDMX StructureSpecificData), regardless of Accept header.
  */
 async function fetchInseeSeriesValues(seriesId: string): Promise<InseeValue[]> {
-  // Primary URL: BDM V1 SDMX endpoint
   const urls = [
     `https://api.insee.fr/series/BDM/V1/data/SERIES_BDM/${seriesId}?lastNObservations=12`,
     `https://api.insee.fr/series/BDM/V1/data/SERIES_BDM/${seriesId}`,
   ];
 
   for (const url of urls) {
-    try {
-      const response = await fetch(url, {
-        signal: AbortSignal.timeout(15000),
-      });
+    // Retry with exponential backoff (3 attempts: 0s, 2s, 4s)
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        if (attempt > 0) {
+          await new Promise((r) => setTimeout(r, Math.pow(2, attempt) * 1000));
+        }
+        const response = await fetch(url, {
+          signal: AbortSignal.timeout(15000),
+        });
 
-      if (!response.ok) {
-        logger.warn(`INSEE API returned ${response.status} for ${url}`);
-        continue;
-      }
+        if (!response.ok) {
+          logger.warn(`INSEE API returned ${response.status} for ${url} (attempt ${attempt + 1})`);
+          if (response.status >= 500) continue; // retry on server error
+          break; // 4xx = don't retry this URL
+        }
 
-      const text = await response.text();
-      const values = parseInseeXmlResponse(text);
-      if (values.length > 0) {
-        return values;
+        const text = await response.text();
+        const values = parseInseeXmlResponse(text);
+        if (values.length > 0) {
+          return values;
+        }
+        logger.warn(`INSEE API returned XML but no parseable observations for series ${seriesId}, response length: ${text.length}`);
+        break; // parsing issue, try next URL
+      } catch (err: any) {
+        logger.warn(`INSEE API fetch failed for series ${seriesId} (${url}, attempt ${attempt + 1}): ${err.message}`);
+        if (attempt === 2) break; // exhausted retries for this URL
       }
-      logger.warn(`INSEE API returned XML but no parseable observations for series ${seriesId}, response length: ${text.length}`);
-    } catch (err: any) {
-      logger.warn(`INSEE API fetch failed for series ${seriesId} (${url}): ${err.message}`);
     }
   }
 
@@ -120,6 +129,15 @@ function convertPeriod(period: string): string | null {
  * Retourne le nombre d'indices mis à jour.
  */
 export async function syncIndicesINSEE(): Promise<{ synced: number; errors: string[] }> {
+  // Advisory lock to prevent concurrent syncs (lock ID = hashCode("insee-sync"))
+  const LOCK_ID = 738291;
+  const lockResult = await db.execute(sql`SELECT pg_try_advisory_lock(${LOCK_ID})`);
+  const gotLock = (lockResult as any).rows?.[0]?.pg_try_advisory_lock;
+  if (!gotLock) {
+    logger.warn("sync-insee: another sync is already running, skipping");
+    return { synced: 0, errors: ["Synchronisation déjà en cours"] };
+  }
+
   let synced = 0;
   const errors: string[] = [];
 
@@ -158,6 +176,23 @@ export async function syncIndicesINSEE(): Promise<{ synced: number; errors: stri
     }
   }
 
+  // Release advisory lock
+  await db.execute(sql`SELECT pg_advisory_unlock(${LOCK_ID})`);
+
+  // Record sync log
+  try {
+    await db.insert(syncLogs).values({
+      type: "insee",
+      status: errors.length > 0 ? (synced > 0 ? "partial" : "error") : "success",
+      syncedCount: synced,
+      errorCount: errors.length,
+      errors: errors.length > 0 ? JSON.stringify(errors) : null,
+      endedAt: new Date(),
+    });
+  } catch (logErr: any) {
+    logger.warn("sync-insee: failed to record sync log", { error: logErr.message });
+  }
+
   return { synced, errors };
 }
 
@@ -191,7 +226,17 @@ function defaultIndiceForType(typeBail: string | null): string | null {
 /**
  * Assigne automatiquement l'indice de référence et la valeur de base
  * aux baux qui n'en ont pas encore.
- * Règle métier : habitation → ICC, commercial/crèche/professionnel → ILC.
+ *
+ * Règle métier (cf. defaultIndiceForType) :
+ *   - habitation               → IRL
+ *   - tertiaire/professionnel  → ILAT
+ *   - commercial/crèche        → ILC
+ *   - construction/industriel  → ICC
+ *
+ * Pour la valeur de base : on cherche l'indice publié le plus proche de la
+ * date de signature/début du bail. Cela permet aux indexations futures de
+ * refléter l'historique réel depuis la signature, plutôt que de remettre
+ * tous les baux à 0% de variation à la date de l'opération.
  */
 export async function assignDefaultIndices(): Promise<{ assigned: number; errors: string[] }> {
   let assigned = 0;
@@ -201,37 +246,68 @@ export async function assignDefaultIndices(): Promise<{ assigned: number; errors
     .where(and(eq(bauxGL.archived, false), isNull(bauxGL.deletedAt)));
   const allIndices = await db.select().from(indices);
 
-  // Build map: type → latest index
+  // Build map: type → latest index (used as fallback when no dateDebut)
   const latestByType = new Map<string, { trimestre: string; valeur: number }>();
+  // Build map: type → sorted indices (descending by trimestre) for date lookup
+  const sortedByType = new Map<string, Array<{ trimestre: string; valeur: number; year: number }>>();
   for (const idx of allIndices) {
+    const valeur = Number(idx.valeur);
+    const trimestre = idx.trimestre;
+    // Extract year (handles "T1 2024" and "T1-2024" formats)
+    const yearMatch = trimestre.match(/(\d{4})/);
+    const year = yearMatch ? parseInt(yearMatch[1], 10) : 0;
+
     const existing = latestByType.get(idx.type);
-    if (!existing || idx.trimestre.localeCompare(existing.trimestre) > 0) {
-      latestByType.set(idx.type, { trimestre: idx.trimestre, valeur: Number(idx.valeur) });
+    if (!existing || trimestre.localeCompare(existing.trimestre) > 0) {
+      latestByType.set(idx.type, { trimestre, valeur });
     }
+
+    if (!sortedByType.has(idx.type)) sortedByType.set(idx.type, []);
+    sortedByType.get(idx.type)!.push({ trimestre, valeur, year });
+  }
+  for (const arr of sortedByType.values()) {
+    arr.sort((a, b) => b.trimestre.localeCompare(a.trimestre));
+  }
+
+  function indexAtDate(type: string, dateStr: string): { trimestre: string; valeur: number } | null {
+    const arr = sortedByType.get(type);
+    if (!arr || arr.length === 0) return null;
+    const targetYear = new Date(dateStr).getFullYear();
+    if (!Number.isFinite(targetYear)) return null;
+    // Find the most recent index whose year is <= targetYear
+    for (const idx of arr) {
+      if (idx.year <= targetYear) return { trimestre: idx.trimestre, valeur: idx.valeur };
+    }
+    // No index that old — use the earliest one available
+    return { trimestre: arr[arr.length - 1].trimestre, valeur: arr[arr.length - 1].valeur };
   }
 
   for (const bail of allBaux) {
     try {
       if (bail.forceManual) continue;
-      // Skip baux that already have an indiceReference set
       if (bail.indiceReference) continue;
 
       const indiceType = defaultIndiceForType(bail.typeBail);
-      if (!indiceType) continue; // typeBail inconnu — laisser à la saisie manuelle
-      const latest = latestByType.get(indiceType);
-      if (!latest) continue; // No index data available yet
+      if (!indiceType) continue;
+
+      // Prefer index at the bail's start date so historical indexation can be applied
+      const startDateRaw = bail.dateDebut || bail.dateSignature;
+      const startDate = startDateRaw instanceof Date ? startDateRaw.toISOString() : startDateRaw;
+      const baseIdx = startDate ? indexAtDate(indiceType, startDate) : null;
+      const chosen = baseIdx || latestByType.get(indiceType);
+      if (!chosen) continue;
 
       await db.update(bauxGL)
         .set({
           indiceReference: indiceType,
-          trimestreRef: latest.trimestre,
-          valeurIndiceBase: String(latest.valeur),
+          trimestreRef: chosen.trimestre,
+          valeurIndiceBase: String(chosen.valeur),
           updatedAt: new Date(),
         })
         .where(eq(bauxGL.id, bail.id));
 
       assigned++;
-      logger.info(`assign-default-indices: bail "${bail.nom || bail.id}" → ${indiceType} (${latest.trimestre} = ${latest.valeur})`);
+      logger.info(`assign-default-indices: bail "${bail.nom || bail.id}" → ${indiceType} (${chosen.trimestre} = ${chosen.valeur})`);
     } catch (err: any) {
       errors.push(`Bail ${bail.nom || bail.id}: ${err.message}`);
     }
@@ -258,8 +334,9 @@ export async function autoIndexBaux(): Promise<{
   const errors: string[] = [];
   const skipped: { bail: string; reason: string }[] = [];
 
+  // Restrict to GL-scope baux only (AM baux are not indexed by this routine).
   const allBaux = await db.select().from(bauxGL)
-    .where(and(eq(bauxGL.archived, false), isNull(bauxGL.deletedAt)));
+    .where(and(eq(bauxGL.scope, "gl"), eq(bauxGL.archived, false), isNull(bauxGL.deletedAt)));
   const allIndices = await db.select().from(indices);
 
   for (const bail of allBaux) {
@@ -304,7 +381,27 @@ export async function autoIndexBaux(): Promise<{
       const latestValeur = Number(latest.valeur);
 
       // Calculate new rent: loyerBase × (indiceNouveau / indiceBase)
-      const nouveauLoyer = baseLoyer * (latestValeur / baseIndice);
+      let nouveauLoyer = baseLoyer * (latestValeur / baseIndice);
+
+      // Bornage légal IRL : l'augmentation annualisée ne peut excéder +3,5% (loi Climat
+      // & bouclier loyer). On applique le plafond sur la variation cumulée depuis la
+      // signature en prorata du nombre d'années écoulées. Hors IRL, pas de plafond légal.
+      if (type === "IRL" && bail.dateDebut) {
+        const yearsSinceStart = Math.max(
+          1,
+          (Date.now() - new Date(bail.dateDebut).getTime()) / (365.25 * 86400000),
+        );
+        const maxCumul = Math.pow(1.035, yearsSinceStart);
+        const maxLoyer = baseLoyer * maxCumul;
+        if (nouveauLoyer > maxLoyer) {
+          logger.warn(
+            `auto-index: IRL plafonné à +3,5%/an pour bail "${bailLabel}" — ` +
+            `calculé ${nouveauLoyer.toFixed(2)}€ → plafonné ${maxLoyer.toFixed(2)}€`,
+          );
+          nouveauLoyer = maxLoyer;
+        }
+      }
+
       const currentLoyer = Number(bail.loyerHTActu || 0);
 
       // Only update if there's a meaningful change (> 0.01 EUR)

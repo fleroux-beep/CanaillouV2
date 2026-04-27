@@ -91,7 +91,7 @@ export function registerProjectionsPredictivesRoutes(app: Express) {
           0,
         );
 
-        const chargesBase = Number(actif.chargesCopropriete || actif.chargesAnnuelles || 0)
+        const chargesBase = Number(actif.chargesCopropriete ?? actif.chargesAnnuelles ?? 0)
           + Number(actif.taxeFonciere || 0) + Number(actif.assurancePno || 0);
 
         const prixAcq = Number(actif.prixAcquisition || 0) + Number(actif.fraisNotaire || 0)
