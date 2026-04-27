@@ -1154,12 +1154,13 @@ export async function importExcelData(): Promise<{
       }
 
       await client.query(
-        `INSERT INTO am_scis (id, nom, forme_juridique, adresse, ville, code_postal, date_creation, notes, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now(), now())`,
+        `INSERT INTO am_scis (id, nom, forme_juridique, regime_fiscal, adresse, ville, code_postal, date_creation, notes, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now(), now())`,
         [
           sciId,
           SCI_FULL_NAMES[sciName] || `SCI ${sciName}`,
           "SCI",
+          "IS",
           firstRow.adresse,
           firstRow.ville,
           firstRow.codePostal,
