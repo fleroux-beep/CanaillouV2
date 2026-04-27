@@ -151,7 +151,30 @@ export function registerAMRoutes(app: Express) {
   // consistent with the factory's scope guarantees.
   app.post("/api/am/baux", requireWriteAdmin, ...(amSchemas["baux"] ? [validate(amSchemas["baux"])] : []), async (req: any, res: any) => {
     try {
-      const rows = await db.insert(bauxGL).values({ ...req.body, scope: "am" }).returning() as any[];
+      const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
+      const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+      const body: Record<string, any> = {};
+      for (const [k, v] of Object.entries(req.body)) {
+        if (v === "" || v === undefined) body[k] = null;
+        else if (typeof v === "string" && ISO_RE.test(v)) body[k] = new Date(v);
+        else if (typeof v === "string" && DATE_RE.test(v)) body[k] = new Date(v);
+        else body[k] = v;
+      }
+      body.scope = "am";
+      // bauxGL.nom is NOT NULL — derive from lot designation + locataire name if absent
+      if (!body.nom) {
+        const parts: string[] = [];
+        if (body.lotId) {
+          const [lot] = await db.select({ designation: lots.designation }).from(lots).where(eq(lots.id, body.lotId)).limit(1) as any[];
+          if (lot?.designation) parts.push(lot.designation);
+        }
+        if (body.locataireId) {
+          const [loc] = await db.select({ nom: locatairesGL.nom }).from(locatairesGL).where(eq(locatairesGL.id, body.locataireId)).limit(1) as any[];
+          if (loc?.nom) parts.push(loc.nom);
+        }
+        body.nom = parts.length > 0 ? parts.join(" — ") : (body.typeBail || "Bail");
+      }
+      const rows = await db.insert(bauxGL).values(body).returning() as any[];
       await syncLotLocataire(rows[0]);
       res.status(201).json(rows[0]);
     } catch (error: any) {
