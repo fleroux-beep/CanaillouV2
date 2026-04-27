@@ -12,6 +12,25 @@ import { logger } from "./logger";
 import type { z } from "zod";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Sanitize a request body before passing to Drizzle:
+ * - Convert ISO datetime strings to Date objects (avoids Drizzle type errors).
+ * - Convert YYYY-MM-DD strings to Date objects for date/timestamp columns.
+ * - Convert empty strings to null (PostgreSQL rejects "" for date/numeric columns).
+ */
+function sanitizeBody(body: Record<string, any>): Record<string, any> {
+  return Object.fromEntries(
+    Object.entries(body).map(([k, v]) => {
+      if (v === "" || v === undefined) return [k, null];
+      if (typeof v === "string" && ISO_RE.test(v)) return [k, new Date(v)];
+      if (typeof v === "string" && DATE_RE.test(v)) return [k, new Date(v)];
+      return [k, v];
+    })
+  );
+}
 
 /**
  * Extract and validate a UUID :id param. Returns the id string.
@@ -71,6 +90,7 @@ function buildWhereClause(table: any, req: any, scope?: string): SQL | undefined
  */
 interface RegisterCrudResourceOptions {
   scope?: string;
+  afterWrite?: (row: any) => Promise<void>;
 }
 
 export function registerCrud(
@@ -151,7 +171,7 @@ export function registerCrud(
 
   app.post(apiPath, requireWriteAdmin, ...(schema ? [validate(schema)] : []), async (req: any, res: any) => {
     try {
-      const body = { ...req.body };
+      const body = sanitizeBody({ ...req.body });
       // Auto-assign ownerId on creation for tenant-isolated tables
       if (hasOwnerId && req.session?.userId) {
         body.ownerId = req.session.userId;
@@ -159,6 +179,7 @@ export function registerCrud(
       // Force scope on creation so a caller can't smuggle rows into the other UI's view
       if (hasScope) body.scope = scope;
       const rows = await db.insert(table).values(body).returning() as any[];
+      if (resourceOpts.afterWrite) await resourceOpts.afterWrite(rows[0]);
       res.status(201).json(rows[0]);
     } catch (error: any) {
       logger.error("route error", { error: error.message });
@@ -181,15 +202,18 @@ export function registerCrud(
 
       // Strip scope from body so it can't be reassigned by clients
       const { scope: _ignored, ...safeBody } = req.body ?? {};
+      const cleanBody = sanitizeBody(safeBody);
       const updateData = "updatedAt" in table
-        ? { ...safeBody, updatedAt: new Date() }
-        : safeBody;
+        ? { ...cleanBody, updatedAt: new Date() }
+        : cleanBody;
       const rows = await db.update(table).set(updateData).where(where).returning() as any[];
       if (rows.length === 0) return res.status(404).json({ error: "Non trouvé" });
+      if (resourceOpts.afterWrite) await resourceOpts.afterWrite(rows[0]);
       res.json(rows[0]);
     } catch (error: any) {
-      logger.error("route error", { error: error.message });
-      res.status(500).json({ error: "Erreur interne" });
+      logger.error("route error", { path: `PATCH ${apiPath}/:id`, error: error.message, detail: error.detail || error.code });
+      const detail = process.env.NODE_ENV !== "production" ? ` (${error.message})` : "";
+      res.status(500).json({ error: `Erreur interne${detail}` });
     }
   });
 

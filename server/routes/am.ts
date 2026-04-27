@@ -133,51 +133,17 @@ export function registerAMRoutes(app: Express) {
   registerCrud(app, "lots", lots, opts);
   // locataires: shared pool — multi-tenant isolation already enforced by ownerId
   registerCrud(app, "locataires", locatairesGL, opts);
-  // baux: shared storage, AM UI only sees scope='am' rows (forced on create)
-  registerCrud(app, "baux", bauxGL, opts, { scope: "am" });
-  registerCrud(app, "emprunts", emprunts, opts);
-  registerCrud(app, "travaux", travaux, opts);
-  registerCrud(app, "documents", documentsAM, opts);
-
   // Sync lot.locataireId when a bail is created or updated (m4.4)
   const syncLotLocataire = async (bail: { lotId?: string | null; locataireId?: string | null }) => {
     if (bail.lotId) {
       await db.update(lots).set({ locataireId: bail.locataireId || null, updatedAt: new Date() }).where(eq(lots.id, bail.lotId));
     }
   };
-
-  // Note: these overrides intentionally shadow the CRUD factory registration above
-  // to run syncLotLocataire() after insert/update. They must force scope='am' to stay
-  // consistent with the factory's scope guarantees.
-  app.post("/api/am/baux", requireWriteAdmin, ...(amSchemas["baux"] ? [validate(amSchemas["baux"])] : []), async (req: any, res: any) => {
-    try {
-      const rows = await db.insert(bauxGL).values({ ...req.body, scope: "am" }).returning() as any[];
-      await syncLotLocataire(rows[0]);
-      res.status(201).json(rows[0]);
-    } catch (error: any) {
-      logger.error("route error", { error: error.message });
-      res.status(500).json({ error: "Erreur interne" });
-    }
-  });
-
-  app.patch("/api/am/baux/:id", requireWriteAdmin, ...(amSchemas["baux"] ? [validate(amSchemas["baux"].partial())] : []), async (req: any, res: any) => {
-    try {
-      const id = paramId(req, res);
-      if (!id) return;
-      const { scope: _ignored, ...safeBody } = req.body ?? {};
-      const rows = await db
-        .update(bauxGL)
-        .set({ ...safeBody, updatedAt: new Date() })
-        .where(and(eq(bauxGL.id, id), eq(bauxGL.scope, "am")))
-        .returning() as any[];
-      if (rows.length === 0) return res.status(404).json({ error: "Non trouvé" });
-      await syncLotLocataire(rows[0]);
-      res.json(rows[0]);
-    } catch (error: any) {
-      logger.error("route error", { error: error.message });
-      res.status(500).json({ error: "Erreur interne" });
-    }
-  });
+  // baux: shared storage, AM UI only sees scope='am' rows (forced on create)
+  registerCrud(app, "baux", bauxGL, opts, { scope: "am", afterWrite: syncLotLocataire });
+  registerCrud(app, "emprunts", emprunts, opts);
+  registerCrud(app, "travaux", travaux, opts);
+  registerCrud(app, "documents", documentsAM, opts);
 
   // Custom delete for SCIs — cascade soft-delete to actifs, emprunts, participations
   app.delete("/api/am/scis/:id", requireWriteAdmin, async (req: any, res: any) => {

@@ -212,8 +212,10 @@ export default function ControleGestionPage() {
       projAppreciation,
       amortAnnuel,
       projYears,
+      undefined,
+      empruntsActifs,
     );
-  }, [portfolioData, projGrowthLoyer, projInflationCharges, projAppreciation, amortAnnuel, projYears]);
+  }, [portfolioData, projGrowthLoyer, projInflationCharges, projAppreciation, amortAnnuel, projYears, empruntsActifs]);
 
   // Charts data (memoized)
   const chargesPieData = useMemo(() => [

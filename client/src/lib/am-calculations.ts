@@ -822,15 +822,11 @@ export function computeMultiYearProjection(
   appreciationActif: number,
   amortissementAnnuel: number,
   years: number,
-  /**
-   * Taux d'intérêt annuel pondéré du portefeuille (en %). Si fourni, le
-   * remboursement du capital chaque année = service_dette - intérêts (calcul
-   * actuariel exact). Sinon, on retombe sur l'approximation linéaire (constant
-   * amortissementAnnuel par an), qui sous-estime le remboursement en fin de prêt.
-   */
   tauxAnnuelPondere?: number,
+  emprunts?: AMEmprunt[],
 ): ProjectionYear[] {
   const result: ProjectionYear[] = [];
+  const currentYear = new Date().getFullYear();
   let loyers = loyerBase;
   let charges = chargesBase;
   let valo = valorisationBase;
@@ -838,6 +834,21 @@ export function computeMultiYearProjection(
   let amort = amortissementAnnuel;
   const useExactAmort = typeof tauxAnnuelPondere === "number" && tauxAnnuelPondere > 0;
   const tauxDecimal = useExactAmort ? tauxAnnuelPondere! / 100 : 0;
+
+  const loanData = emprunts && emprunts.length > 0
+    ? emprunts.map(e => {
+        const annuite = getAnnuiteEmprunt(e);
+        const montant = Number(e.montantEmprunte || 0);
+        const duree = Number(e.dureeAns || 0);
+        const crd = getCapitalRestantDu(e);
+        const amortPerYear = duree > 0 ? montant / duree : 0;
+        let endYear: number | null = null;
+        if (e.dateDebut && duree > 0) {
+          endYear = new Date(e.dateDebut).getFullYear() + duree;
+        }
+        return { annuite, crd, amortPerYear, endYear };
+      })
+    : null;
 
   for (let y = 0; y <= years; y++) {
     if (y > 0) {
@@ -851,10 +862,33 @@ export function computeMultiYearProjection(
       }
       dette = Math.max(0, dette - amort);
     }
-    // Service de la dette : CONSTANT tant que le prêt court (annuité fixe),
-    // puis tombe à 0 quand le capital est intégralement remboursé.
-    const serviceDette = dette > 0 ? serviceDetteBase : 0;
-    const remboursementCapital = dette > 0 ? Math.min(amort, dette) : 0;
+
+    let serviceDette: number;
+    let remboursementCapital: number;
+    let detteY: number;
+
+    if (loanData) {
+      serviceDette = 0;
+      remboursementCapital = 0;
+      detteY = 0;
+      for (const loan of loanData) {
+        const active = loan.endYear !== null
+          ? currentYear + y < loan.endYear
+          : loan.amortPerYear > 0
+            ? loan.crd - y * loan.amortPerYear > 0
+            : loan.crd > 0;
+        if (active) {
+          serviceDette += loan.annuite;
+          remboursementCapital += loan.amortPerYear;
+        }
+        detteY += Math.max(0, loan.crd - y * loan.amortPerYear);
+      }
+    } else {
+      detteY = dette;
+      serviceDette = dette > 0 ? serviceDetteBase : 0;
+      remboursementCapital = dette > 0 ? Math.min(amort, dette) : 0;
+    }
+
     const noi = loyers - charges;
     const cf = noi - serviceDette;
     result.push({
@@ -869,7 +903,7 @@ export function computeMultiYearProjection(
       valorisation: valo,
       rendementNet: valo > 0 ? (noi / valo) * 100 : 0,
       dscr: serviceDette > 0 ? noi / serviceDette : 0,
-      ltv: valo > 0 ? (dette / valo) * 100 : 0,
+      ltv: valo > 0 ? (detteY / valo) * 100 : 0,
     });
   }
   return result;
